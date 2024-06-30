@@ -1,0 +1,24 @@
+run:
+  timeout: 1m
+  skip-dirs:
+    - example
+    - pkg/ent
+
+linters:
+  enable:
+    - lll
+    - gofmt
+    - revive
+    - exportloopref
+    - unparam
+
+linters-settings:
+  lll:
+    line-length: 120
+
+issues:
+  exclude-rules:
+    # Exclude lll issues for long lines with go:generate
+    - linters:
+        - lll
+      source: "^//go:generate "
