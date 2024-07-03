@@ -1,6 +1,6 @@
 ![Ninjabot](https://user-images.githubusercontent.com/7620947/161434011-adc89d1a-dccb-45a7-8a07-2bb55e62d2d9.png)
 
-[![tests](https://floolisher/actions/workflows/ci.yaml/badge.svg)](https://floolisher/actions/workflows/ci.yaml)
+[![tests](https://floolishman/actions/workflows/ci.yaml/badge.svg)](https://floolishman/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/rodrigo-brito/ninjabot/branch/main/graph/badge.svg)](https://codecov.io/gh/rodrigo-brito/ninjabot)
 [![Go Reference](https://pkg.go.dev/badge/github.com/rodrigo-brito/ninjabot.svg)](https://pkg.go.dev/github.com/rodrigo-brito/ninjabot)
 [![Discord](https://img.shields.io/discord/960156400376483840?color=5865F2&label=discord)](https://discord.gg/TGCrUH972E)
@@ -16,11 +16,11 @@ Docs: https://rodrigo-brito.github.io/ninjabot/
 
 ## Installation
 
-`go get -u floolisher/...`
+`go get -u floolishman/...`
 
 ## Examples of Usage
 
-Check [examples](examples) directory:
+Check [examples](cmd) directory:
 
 - Paper Wallet (Live Simulation)
 - Backtesting (Simulation with historical data)
@@ -30,8 +30,8 @@ Check [examples](examples) directory:
 
 To download historical data you can download ninjabot CLI from:
 
-- Pre-build binaries in [release page](https://floolisher/releases)
-- Or with `go install floolisher/cmd/ninjabot@latest`
+- Pre-build binaries in [release page](https://floolishman/releases)
+- Or with `go install floolishman/cmd/ninjabot@latest`
 
 **Example of usage**
 ```bash
@@ -41,7 +41,7 @@ ninjabot download --pair BTCUSDT --timeframe 1d --days 30 --output ./btc.csv
 
 ### Backtesting Example
 
-- Backtesting a custom strategy from [examples](examples) directory:
+- Backtesting a custom strategy from [examples](cmd) directory:
 ```
 go run examples/backtesting/main.go
 ```
@@ -113,7 +113,7 @@ Chart available at http://localhost:8080
 
 # Roadmap
   - [ ] Include Web UI Controller
-  - [ ] Include more chart indicators - [Details](https://floolisher/issues/110)
+  - [ ] Include more chart indicators - [Details](https://floolishman/issues/110)
 
 ### Exchanges
 

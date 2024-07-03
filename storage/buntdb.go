@@ -8,7 +8,7 @@ import (
 
 	"github.com/tidwall/buntdb"
 
-	"floolisher/model"
+	"floolishman/model"
 )
 
 type Bunt struct {

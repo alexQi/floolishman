@@ -1,10 +1,10 @@
 package strategies
 
 import (
-	"floolisher/constants"
-	"floolisher/indicator"
-	"floolisher/model"
-	"floolisher/types"
+	"floolishman/constants"
+	"floolishman/indicator"
+	"floolishman/model"
+	"floolishman/types"
 	"reflect"
 )
 
@@ -15,22 +15,23 @@ type Rsi1m struct {
 func (s Rsi1m) SortScore() int {
 	return StrategyScoresConst[s.Timeframe()]
 }
-func (s Rsi1m) GetPosition() types.StrategyPosition {
-	return s.StrategyPosition
-}
 
 func (s Rsi1m) Timeframe() string {
 	return "1m"
 }
 
 func (s Rsi1m) WarmupPeriod() int {
-	return 60 // RSI的预热期设定为14个数据点
+	return 24 // RSI的预热期设定为14个数据点
 }
 
 func (s Rsi1m) Indicators(df *model.Dataframe) []types.ChartIndicator {
-	df.Metadata["rsi"] = indicator.RSI(df.Close, 14)
-	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 7)
-	df.Metadata["prev_close"] = df.Open
+	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
+	// 计算布林带（Bollinger Bands）
+	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
+
+	df.Metadata["bb_upper"] = bbUpper
+	df.Metadata["bb_middle"] = bbMiddle
+	df.Metadata["bb_lower"] = bbLower
 
 	return []types.ChartIndicator{
 		{
@@ -49,10 +50,18 @@ func (s Rsi1m) Indicators(df *model.Dataframe) []types.ChartIndicator {
 	}
 }
 
-func (s *Rsi1m) OnCandle(df *model.Dataframe) {
-	rsi := df.Metadata["rsi"].Last(0)
-	if rsi >= 60 {
-		s.StrategyPosition = types.StrategyPosition{
+func (s *Rsi1m) OnCandle(df *model.Dataframe) types.StrategyPosition {
+	var strategyPosition types.StrategyPosition
+
+	rsis := df.Metadata["rsi"].LastValues(2)
+	bbUpper := df.Metadata["bb_upper"].Last(0)
+	bbLower := df.Metadata["bb_lower"].Last(0)
+
+	// 判断是否换线
+	tendency := s.checkCandleTendency(df, 3)
+	// 趋势判断
+	if rsis[1] >= 70 && rsis[0] >= 70 && df.Close.Last(0) > bbUpper && tendency == "bullish" {
+		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeSell,
 			Pair:         df.Pair,
@@ -60,9 +69,8 @@ func (s *Rsi1m) OnCandle(df *model.Dataframe) {
 			Score:        s.SortScore(),
 		}
 	}
-	// RSI 小于30，买入信号
-	if rsi <= 40 {
-		s.StrategyPosition = types.StrategyPosition{
+	if rsis[1] <= 30 && rsis[0] <= 30 && df.Close.Last(0) < bbLower && tendency == "bearish" {
+		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeBuy,
 			Pair:         df.Pair,
@@ -70,4 +78,5 @@ func (s *Rsi1m) OnCandle(df *model.Dataframe) {
 			Score:        s.SortScore(),
 		}
 	}
+	return strategyPosition
 }

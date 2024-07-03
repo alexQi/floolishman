@@ -3,7 +3,7 @@ package storage
 import (
 	"time"
 
-	"floolisher/model"
+	"floolishman/model"
 )
 
 type OrderFilter func(model.Order) bool

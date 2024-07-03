@@ -16,6 +16,7 @@ var (
 	OrderTypeLimit           OrderType = "LIMIT"
 	OrderTypeMarket          OrderType = "MARKET"
 	OrderTypeLimitMaker      OrderType = "LIMIT_MAKER"
+	OrderTypeStop            OrderType = "STOP"
 	OrderTypeStopLoss        OrderType = "STOP_LOSS"
 	OrderTypeStopLossLimit   OrderType = "STOP_LOSS_LIMIT"
 	OrderTypeTakeProfit      OrderType = "TAKE_PROFIT"

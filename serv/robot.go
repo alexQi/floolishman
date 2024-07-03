@@ -1,0 +1,5 @@
+package serv
+
+func StartBotServer() {
+
+}

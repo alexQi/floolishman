@@ -1,8 +1,8 @@
 package indicator
 
 import (
-	"floolisher/model"
-	"floolisher/plot"
+	"floolishman/model"
+	"floolishman/plot"
 	"fmt"
 	"time"
 

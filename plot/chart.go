@@ -5,7 +5,8 @@ import (
 	"embed"
 	"encoding/csv"
 	"encoding/json"
-	"floolisher/types"
+	"floolishman/types"
+	"floolishman/utils"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -14,12 +15,11 @@ import (
 	"sync"
 	"time"
 
-	"floolisher/exchange"
-	"floolisher/model"
+	"floolishman/exchange"
+	"floolishman/model"
 
 	"github.com/StudioSol/set"
 	"github.com/evanw/esbuild/pkg/api"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -36,7 +36,6 @@ type Chart struct {
 	ordersIDsByPair map[string]*set.LinkedHashSetINT64
 	orderByID       map[int64]model.Order
 	indicators      []Indicator
-	paperWallet     *exchange.PaperWallet
 	scriptContent   string
 	indexHTML       *template.Template
 	strategy        types.CompositesStrategy
@@ -154,23 +153,6 @@ func (c *Chart) OnCandle(candle model.Candle) {
 func (c *Chart) equityValuesByPair(pair string) (asset []assetValue, quote []assetValue) {
 	assetValues := make([]assetValue, 0)
 	equityValues := make([]assetValue, 0)
-
-	if c.paperWallet != nil {
-		asset, _ := exchange.SplitAssetQuote(pair)
-		for _, value := range c.paperWallet.AssetValues(asset) {
-			assetValues = append(assetValues, assetValue{
-				Time:  value.Time,
-				Value: value.Value,
-			})
-		}
-
-		for _, value := range c.paperWallet.EquityValues() {
-			equityValues = append(equityValues, assetValue{
-				Time:  value.Time,
-				Value: value.Value,
-			})
-		}
-	}
 
 	return assetValues, equityValues
 }
@@ -313,7 +295,7 @@ func (c *Chart) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	if time.Since(c.lastUpdate) > time.Hour+10*time.Minute {
 		_, err := w.Write([]byte(c.lastUpdate.String()))
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
@@ -340,7 +322,7 @@ func (c *Chart) handleIndex(w http.ResponseWriter, r *http.Request) {
 		"pairs": pairs,
 	})
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 	}
 }
 
@@ -354,15 +336,6 @@ func (c *Chart) handleData(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-type", "text/json")
 
 	var maxDrawdown *drawdown
-	if c.paperWallet != nil {
-		value, start, end := c.paperWallet.MaxDrawdown()
-		maxDrawdown = &drawdown{
-			Start: start,
-			End:   end,
-			Value: fmt.Sprintf("%.1f", value*100),
-		}
-	}
-
 	asset, quote := exchange.SplitAssetQuote(pair)
 	assetValues, equityValues := c.equityValuesByPair(pair)
 	err := json.NewEncoder(w).Encode(map[string]interface{}{
@@ -376,7 +349,7 @@ func (c *Chart) handleData(w http.ResponseWriter, r *http.Request) {
 		"max_drawdown":  maxDrawdown,
 	})
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 	}
 }
 
@@ -397,14 +370,14 @@ func (c *Chart) handleTradingHistoryData(w http.ResponseWriter, r *http.Request)
 	csvWriter := csv.NewWriter(buffer)
 	err := csvWriter.Write([]string{"created_at", "status", "side", "id", "type", "quantity", "price", "total", "profit"})
 	if err != nil {
-		log.Errorf("failed writing header file: %s", err.Error())
+		utils.Log.Errorf("failed writing header file: %s", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	err = csvWriter.WriteAll(orders)
 	if err != nil {
-		log.Errorf("failed writing data: %s", err.Error())
+		utils.Log.Errorf("failed writing data: %s", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -413,7 +386,7 @@ func (c *Chart) handleTradingHistoryData(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(buffer.Bytes())
 	if err != nil {
-		log.Errorf("failed writing response: %s", err.Error())
+		utils.Log.Errorf("failed writing response: %s", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -450,12 +423,6 @@ func WithPort(port int) Option {
 func WithStrategyIndicators(strategy types.CompositesStrategy) Option {
 	return func(chart *Chart) {
 		chart.strategy = strategy
-	}
-}
-
-func WithPaperWallet(paperWallet *exchange.PaperWallet) Option {
-	return func(chart *Chart) {
-		chart.paperWallet = paperWallet
 	}
 }
 

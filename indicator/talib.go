@@ -81,10 +81,6 @@ func SARExt(high []float64, low []float64,
 		accelerationMaxLong, accelerationInitShort, accelerationShort, accelerationMaxShort)
 }
 
-func Volume(input []float64, period int) []float64 {
-	return talib.Sma(input, period)
-}
-
 // SMA - simple moving average
 func SMA(input []float64, period int) []float64 {
 	return talib.Sma(input, period)

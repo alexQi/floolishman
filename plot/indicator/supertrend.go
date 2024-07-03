@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"floolisher/model"
-	"floolisher/plot"
+	"floolishman/model"
+	"floolishman/plot"
 
 	"github.com/markcheno/go-talib"
 )

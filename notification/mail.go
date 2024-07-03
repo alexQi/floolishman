@@ -1,12 +1,11 @@
 package notification
 
 import (
+	"floolishman/utils"
 	"fmt"
 	"net/smtp"
 
-	log "github.com/sirupsen/logrus"
-
-	"floolisher/model"
+	"floolishman/model"
 )
 
 type Mail struct {
@@ -39,7 +38,7 @@ func (t Mail) Notify(text string) {
 		[]string{t.to},
 		[]byte(message))
 	if err != nil {
-		log.
+		utils.Log.
 			WithError(err).
 			Errorf("notification/mail: couldnt send mail")
 	}

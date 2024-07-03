@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"context"
+	"floolishman/utils"
 	"fmt"
 	"github.com/adshao/go-binance/v2/futures"
 	"strconv"
@@ -11,8 +12,7 @@ import (
 	"github.com/adshao/go-binance/v2/common"
 	"github.com/jpillora/backoff"
 
-	"floolisher/model"
-	"floolisher/tools/log"
+	"floolishman/model"
 )
 
 type MetadataFetchers func(pair string, t time.Time) (string, float64)
@@ -113,7 +113,7 @@ func NewBinance(ctx context.Context, options ...BinanceOption) (*Binance, error)
 		exchange.assetsInfo[info.Symbol] = tradeLimits
 	}
 
-	log.Info("[SETUP] Using Binance exchange")
+	utils.Log.Info("[SETUP] Using Binance exchange")
 
 	return exchange, nil
 }
@@ -447,6 +447,15 @@ func (b *Binance) Order(pair string, id int64) (model.Order, error) {
 	return newOrder(order), nil
 }
 
+func (b *Binance) Positions(pair string) ([]model.Position, error) {
+	panic("not implemented")
+}
+
+func (b *Binance) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func newOrder(order *binance.Order) model.Order {
 	var price float64
 	cost, _ := strconv.ParseFloat(order.CummulativeQuoteQuantity, 64)
@@ -511,7 +520,7 @@ func (b *Binance) Position(pair string) (asset, quote float64, err error) {
 	return assetBalance.Free + assetBalance.Lock, quoteBalance.Free + quoteBalance.Lock, nil
 }
 
-func (b *Binance) CandlesSubscription(ctx context.Context, pair, period string) (chan model.Candle, chan error) {
+func (b *Binance) CandlesSubscription(ctx context.Context, pair, period string, needReal bool) (chan model.Candle, chan error) {
 	ccandle := make(chan model.Candle)
 	cerr := make(chan error)
 	ha := model.NewHeikinAshi()
@@ -540,7 +549,6 @@ func (b *Binance) CandlesSubscription(ctx context.Context, pair, period string) 
 				}
 
 				ccandle <- candle
-
 			}, func(err error) {
 				cerr <- err
 			})

@@ -3,15 +3,14 @@ package exchange
 import (
 	"context"
 	"errors"
-	"floolisher/model"
-	"floolisher/service"
+	"floolishman/model"
+	"floolishman/reference"
+	"floolishman/utils"
 	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/StudioSol/set"
-
-	"floolisher/tools/log"
 )
 
 var (
@@ -26,7 +25,7 @@ type DataFeed struct {
 }
 
 type DataFeedSubscription struct {
-	exchange                service.Exchange
+	exchange                reference.Exchange
 	Feeds                   *set.LinkedHashSetString
 	DataFeeds               map[string]*DataFeed
 	SubscriptionsByDataFeed map[string][]Subscription
@@ -50,7 +49,7 @@ func (o *OrderError) Error() string {
 
 type DataFeedConsumer func(string, model.Candle)
 
-func NewDataFeed(exchange service.Exchange) *DataFeedSubscription {
+func NewDataFeed(exchange reference.Exchange) *DataFeedSubscription {
 	return &DataFeedSubscription{
 		exchange:                exchange,
 		Feeds:                   set.NewLinkedHashSetString(),
@@ -79,7 +78,7 @@ func (d *DataFeedSubscription) Subscribe(pair, timeframe string, consumer DataFe
 }
 
 func (d *DataFeedSubscription) Preload(pair, timeframe string, candles []model.Candle) {
-	log.Infof("[SETUP] preloading %d candles for %s-%s", len(candles), pair, timeframe)
+	utils.Log.Infof("[SETUP] preloading %d candles for %s-%s", len(candles), pair, timeframe)
 	key := d.feedKey(pair, timeframe)
 	for _, candle := range candles {
 		if !candle.Complete {
@@ -93,18 +92,20 @@ func (d *DataFeedSubscription) Preload(pair, timeframe string, candles []model.C
 }
 
 func (d *DataFeedSubscription) Connect() {
-	log.Infof("Connecting to the exchange.")
+	utils.Log.Infof("Connecting to the exchange.")
+	index := 0
 	for feed := range d.Feeds.Iter() {
 		pair, timeframe := d.pairTimeframeFromKey(feed)
-		ccandle, cerr := d.exchange.CandlesSubscription(context.Background(), pair, timeframe)
+		ccandle, cerr := d.exchange.CandlesSubscription(context.Background(), pair, timeframe, index == 0)
 		d.DataFeeds[feed] = &DataFeed{
 			Data: ccandle,
 			Err:  cerr,
 		}
+		index++
 	}
 }
 
-func (d *DataFeedSubscription) Start(loadSync bool) {
+func (d *DataFeedSubscription) Start() {
 	d.Connect()
 	wg := new(sync.WaitGroup)
 	for key, feed := range d.DataFeeds {
@@ -125,15 +126,12 @@ func (d *DataFeedSubscription) Start(loadSync bool) {
 					}
 				case err := <-feed.Err:
 					if err != nil {
-						log.Error("dataFeedSubscription/start: ", err)
+						utils.Log.Error("dataFeedSubscription/start: ", err)
 					}
 				}
 			}
 		}(key, feed)
 	}
 
-	log.Infof("Data feed connected.")
-	if loadSync {
-		wg.Wait()
-	}
+	utils.Log.Infof("Data feed connected.")
 }

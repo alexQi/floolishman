@@ -2,9 +2,9 @@ package exchange
 
 import (
 	"context"
+	"floolishman/utils"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/adshao/go-binance/v2"
@@ -12,23 +12,14 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/jpillora/backoff"
 
-	"floolisher/model"
-	"floolisher/tools/log"
+	"floolishman/model"
 )
 
-type MarginType = futures.MarginType
+var ErrNoNeedChangeMarginType int64 = -4046
 
-var (
-	MarginTypeIsolated MarginType = "ISOLATED"
-	MarginTypeCrossed  MarginType = "CROSSED"
-
-	ErrNoNeedChangeMarginType int64 = -4046
-)
-
-type PairOption struct {
-	Pair       string
-	Leverage   int
-	MarginType futures.MarginType
+type ProxyOption struct {
+	Status bool
+	Url    string
 }
 
 type BinanceFuture struct {
@@ -37,13 +28,16 @@ type BinanceFuture struct {
 	assetsInfo map[string]model.AssetInfo
 	HeikinAshi bool
 	Testnet    bool
+	DebugMode  bool
 
 	APIKeyType string
 	APIKey     string
 	APISecret  string
 
+	ProxyOption ProxyOption
+
 	MetadataFetchers []MetadataFetchers
-	PairOptions      []PairOption
+	PairOptions      []model.PairOption
 }
 
 type BinanceFutureOption func(*BinanceFuture)
@@ -61,6 +55,12 @@ func WithBinanceFuturesHeikinAshiCandle() BinanceFutureOption {
 	}
 }
 
+func WithBinanceFuturesDebugMode() BinanceFutureOption {
+	return func(b *BinanceFuture) {
+		b.DebugMode = true
+	}
+}
+
 // WithBinanceFutureCredentials will set the credentials for Binance Futures
 func WithBinanceFutureCredentials(key, secret string, keyType string) BinanceFutureOption {
 	return func(b *BinanceFuture) {
@@ -70,14 +70,13 @@ func WithBinanceFutureCredentials(key, secret string, keyType string) BinanceFut
 	}
 }
 
-// WithBinanceFutureLeverage will set the leverage for a pair
-func WithBinanceFutureLeverage(pair string, leverage int, marginType MarginType) BinanceFutureOption {
+// WithBinanceFutureCredentials will set the credentials for Binance Futures
+func WithBinanceFutureProxy(proxyUrl string) BinanceFutureOption {
 	return func(b *BinanceFuture) {
-		b.PairOptions = append(b.PairOptions, PairOption{
-			Pair:       strings.ToUpper(pair),
-			Leverage:   leverage,
-			MarginType: marginType,
-		})
+		b.ProxyOption = ProxyOption{
+			Status: true,
+			Url:    proxyUrl,
+		}
 	}
 }
 
@@ -91,10 +90,14 @@ func NewBinanceFuture(ctx context.Context, options ...BinanceFutureOption) (*Bin
 
 	futures.UseTestnet = exchange.Testnet
 
-	//exchange.client = futures.NewClient(exchange.APIKey, exchange.APISecret)
-	exchange.client = futures.NewProxiedClient(exchange.APIKey, exchange.APISecret, "http://127.0.0.1:7890")
+	if exchange.ProxyOption.Status {
+		exchange.client = futures.NewProxiedClient(exchange.APIKey, exchange.APISecret, exchange.ProxyOption.Url)
+	} else {
+		exchange.client = futures.NewClient(exchange.APIKey, exchange.APISecret)
+	}
+
 	exchange.client.KeyType = exchange.APIKeyType
-	//exchange.client.Debug = futures.UseTestnet
+	exchange.client.Debug = exchange.DebugMode
 
 	err := exchange.client.NewPingService().Do(ctx)
 	if err != nil {
@@ -104,21 +107,6 @@ func NewBinanceFuture(ctx context.Context, options ...BinanceFutureOption) (*Bin
 	results, err := exchange.client.NewExchangeInfoService().Do(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	// Set leverage and margin type
-	for _, option := range exchange.PairOptions {
-		_, err = exchange.client.NewChangeLeverageService().Symbol(option.Pair).Leverage(option.Leverage).Do(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		err = exchange.client.NewChangeMarginTypeService().Symbol(option.Pair).MarginType(option.MarginType).Do(ctx)
-		if err != nil {
-			if apiError, ok := err.(*common.APIError); !ok || apiError.Code != ErrNoNeedChangeMarginType {
-				return nil, err
-			}
-		}
 	}
 
 	// Initialize with orders precision and assets limits
@@ -148,9 +136,24 @@ func NewBinanceFuture(ctx context.Context, options ...BinanceFutureOption) (*Bin
 		exchange.assetsInfo[info.Symbol] = tradeLimits
 	}
 
-	log.Info("[SETUP] Using Binance Futures exchange")
+	utils.Log.Info("[SETUP] Using Binance Futures exchange")
 
 	return exchange, nil
+}
+
+func (b *BinanceFuture) SetPairOption(ctx context.Context, option model.PairOption) error {
+	_, err := b.client.NewChangeLeverageService().Symbol(option.Pair).Leverage(option.Leverage).Do(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = b.client.NewChangeMarginTypeService().Symbol(option.Pair).MarginType(option.MarginType).Do(ctx)
+	if err != nil {
+		if apiError, ok := err.(*common.APIError); !ok || apiError.Code != ErrNoNeedChangeMarginType {
+			return err
+		}
+	}
+	return nil
 }
 
 func (b *BinanceFuture) LastQuote(ctx context.Context, pair string) (float64, error) {
@@ -402,6 +405,69 @@ func (b *BinanceFuture) Order(pair string, id int64) (model.Order, error) {
 	return newFutureOrder(order), nil
 }
 
+func (b *BinanceFuture) Positions(pair string) ([]model.Position, error) {
+	positions := []model.Position{}
+	positionRisks, err := b.client.NewGetPositionRiskService().
+		Symbol(pair).
+		Do(b.ctx)
+
+	if err != nil {
+		return []model.Position{}, err
+	}
+
+	for _, risk := range positionRisks {
+		positions = append(positions, newPosition(risk))
+	}
+
+	return positions, nil
+}
+
+func (b *BinanceFuture) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func newPosition(positionRisk *futures.PositionRisk) model.Position {
+	entryPrice, _ := strconv.ParseFloat(positionRisk.EntryPrice, 64)
+	breakEvenPrice, _ := strconv.ParseFloat(positionRisk.BreakEvenPrice, 64)
+	isAutoAddMargin, _ := strconv.ParseBool(positionRisk.IsAutoAddMargin)
+	isolatedMargin, _ := strconv.Atoi(positionRisk.IsolatedMargin)
+	leverage, _ := strconv.Atoi(positionRisk.Leverage)
+	liquidationPrice, _ := strconv.ParseFloat(positionRisk.LiquidationPrice, 64)
+	markPrice, _ := strconv.ParseFloat(positionRisk.MarkPrice, 64)
+	maxNotionalValue, _ := strconv.ParseFloat(positionRisk.MaxNotionalValue, 64)
+	positionAmt, _ := strconv.ParseFloat(positionRisk.PositionAmt, 64)
+	unRealizedProfit, _ := strconv.ParseFloat(positionRisk.UnRealizedProfit, 64)
+	notional, _ := strconv.ParseFloat(positionRisk.Notional, 64)
+	isolatedWallet, _ := strconv.ParseFloat(positionRisk.IsolatedWallet, 64)
+
+	var side model.SideType
+	if positionAmt > 0 {
+		side = model.SideTypeBuy
+	} else {
+		side = model.SideTypeSell
+	}
+
+	return model.Position{
+		EntryPrice:       entryPrice,
+		BreakEvenPrice:   breakEvenPrice,
+		MarginType:       positionRisk.MarginType,
+		IsAutoAddMargin:  isAutoAddMargin,
+		IsolatedMargin:   isolatedMargin,
+		Leverage:         leverage,
+		LiquidationPrice: liquidationPrice,
+		MarkPrice:        markPrice,
+		MaxNotionalValue: maxNotionalValue,
+		PositionAmt:      positionAmt,
+		Symbol:           positionRisk.Symbol,
+		UnRealizedProfit: unRealizedProfit,
+		Side:             side,
+		PositionSide:     positionRisk.PositionSide,
+		Notional:         notional,
+		IsolatedWallet:   isolatedWallet,
+	}
+}
+
 func newFutureOrder(order *futures.Order) model.Order {
 	var (
 		price float64
@@ -413,9 +479,13 @@ func newFutureOrder(order *futures.Order) model.Order {
 		price = cost / quantity
 	} else {
 		price, err = strconv.ParseFloat(order.Price, 64)
-		log.CheckErr(log.WarnLevel, err)
+		if err != nil {
+			utils.Log.Warn(err)
+		}
 		quantity, err = strconv.ParseFloat(order.OrigQuantity, 64)
-		log.CheckErr(log.WarnLevel, err)
+		if err != nil {
+			utils.Log.Warn(err)
+		}
 	}
 
 	return model.Order{
@@ -499,7 +569,7 @@ func (b *BinanceFuture) Position(pair string) (asset, quote float64, err error) 
 	return assetBalance.Free + assetBalance.Lock, quoteBalance.Free + quoteBalance.Lock, nil
 }
 
-func (b *BinanceFuture) CandlesSubscription(ctx context.Context, pair, period string) (chan model.Candle, chan error) {
+func (b *BinanceFuture) CandlesSubscription(ctx context.Context, pair, period string, needReal bool) (chan model.Candle, chan error) {
 	ccandle := make(chan model.Candle)
 	cerr := make(chan error)
 	ha := model.NewHeikinAshi()
@@ -511,7 +581,9 @@ func (b *BinanceFuture) CandlesSubscription(ctx context.Context, pair, period st
 		}
 
 		for {
-			futures.SetWsProxyUrl("http://127.0.0.1:7890")
+			if b.ProxyOption.Status {
+				futures.SetWsProxyUrl(b.ProxyOption.Url)
+			}
 			done, _, err := futures.WsKlineServe(pair, period, func(event *futures.WsKlineEvent) {
 				ba.Reset()
 				candle := FutureCandleFromWsKline(pair, event.Kline)
@@ -527,9 +599,7 @@ func (b *BinanceFuture) CandlesSubscription(ctx context.Context, pair, period st
 						candle.Metadata[key] = value
 					}
 				}
-
 				ccandle <- candle
-
 			}, func(err error) {
 				cerr <- err
 			})
@@ -617,15 +687,25 @@ func FutureCandleFromKline(pair string, k futures.Kline) model.Candle {
 	t := time.Unix(0, k.OpenTime*int64(time.Millisecond))
 	candle := model.Candle{Pair: pair, Time: t, UpdatedAt: t}
 	candle.Open, err = strconv.ParseFloat(k.Open, 64)
-	log.CheckErr(log.WarnLevel, err)
+	if err != nil {
+		utils.Log.Warn(err)
+	}
 	candle.Close, err = strconv.ParseFloat(k.Close, 64)
-	log.CheckErr(log.WarnLevel, err)
+	if err != nil {
+		utils.Log.Warn(err)
+	}
 	candle.High, err = strconv.ParseFloat(k.High, 64)
-	log.CheckErr(log.WarnLevel, err)
+	if err != nil {
+		utils.Log.Warn(err)
+	}
 	candle.Low, err = strconv.ParseFloat(k.Low, 64)
-	log.CheckErr(log.WarnLevel, err)
+	if err != nil {
+		utils.Log.Warn(err)
+	}
 	candle.Volume, err = strconv.ParseFloat(k.Volume, 64)
-	log.CheckErr(log.WarnLevel, err)
+	if err != nil {
+		utils.Log.Warn(err)
+	}
 	candle.Complete = true
 	candle.Metadata = make(map[string]float64)
 	return candle
@@ -636,15 +716,25 @@ func FutureCandleFromWsKline(pair string, k futures.WsKline) model.Candle {
 	t := time.Unix(0, k.StartTime*int64(time.Millisecond))
 	candle := model.Candle{Pair: pair, Time: t, UpdatedAt: t}
 	candle.Open, err = strconv.ParseFloat(k.Open, 64)
-	log.CheckErr(log.WarnLevel, err)
+	if err != nil {
+		utils.Log.Warn(err)
+	}
 	candle.Close, err = strconv.ParseFloat(k.Close, 64)
-	log.CheckErr(log.WarnLevel, err)
+	if err != nil {
+		utils.Log.Warn(err)
+	}
 	candle.High, err = strconv.ParseFloat(k.High, 64)
-	log.CheckErr(log.WarnLevel, err)
+	if err != nil {
+		utils.Log.Warn(err)
+	}
 	candle.Low, err = strconv.ParseFloat(k.Low, 64)
-	log.CheckErr(log.WarnLevel, err)
+	if err != nil {
+		utils.Log.Warn(err)
+	}
 	candle.Volume, err = strconv.ParseFloat(k.Volume, 64)
-	log.CheckErr(log.WarnLevel, err)
+	if err != nil {
+		utils.Log.Warn(err)
+	}
 	candle.Complete = k.IsFinal
 	candle.Metadata = make(map[string]float64)
 	return candle

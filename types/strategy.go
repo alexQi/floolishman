@@ -1,9 +1,10 @@
 package types
 
 import (
-	"floolisher/model"
-	"floolisher/service"
+	"floolishman/model"
+	"floolishman/reference"
 	"fmt"
+	"reflect"
 )
 
 type StrategyPosition struct {
@@ -12,19 +13,20 @@ type StrategyPosition struct {
 	Pair         string
 	StrategyName string
 	Score        int
+	Price        float64
 }
 
 func (sp StrategyPosition) String() string {
 	return fmt.Sprintf("%s %s | Strategy: %s, Score: %d", sp.Side, sp.Pair, sp.StrategyName, sp.Score)
 }
 
-type OnDecisionFunc func(matchers []StrategyPosition, dataframe *model.Dataframe, broker service.Broker)
+type OpenPositionFunc func(candle model.Candle, broker reference.Broker)
+
+type ClosePositionFunc func(option model.PairOption, broker reference.Broker)
 
 type Strategy interface {
 	// 策略排序得分
 	SortScore() int
-	// GetPosition is decision result
-	GetPosition() StrategyPosition
 	// Timeframe is the time interval in which the strategy will be executed. eg: 1h, 1d, 1w
 	Timeframe() string
 	// WarmupPeriod is the necessary time to wait before executing the strategy, to load data for indicators.
@@ -34,7 +36,7 @@ type Strategy interface {
 	Indicators(df *model.Dataframe) []ChartIndicator
 	// OnCandle will be executed for each new candle, after indicators are filled, here you can do your trading logic.
 	// OnCandle is executed after the candle close.
-	OnCandle(df *model.Dataframe)
+	OnCandle(df *model.Dataframe) StrategyPosition
 }
 
 type CompositesStrategy struct {
@@ -42,25 +44,31 @@ type CompositesStrategy struct {
 	PositionSize float64 // 每次交易的仓位大小
 }
 
-func (cs *CompositesStrategy) OnDecision(dataframe *model.Dataframe, broker service.Broker, callback OnDecisionFunc) {
+// TimeFrameMap 获取当前策略时间周期对应的热启动区间数
+func (cs *CompositesStrategy) TimeWarmupMap() map[string]int {
+	timeFrames := make(map[string]int)
+	for _, strategy := range cs.Strategies {
+		originPeriod, ok := timeFrames[strategy.Timeframe()]
+		if ok {
+			if strategy.WarmupPeriod() <= originPeriod {
+				continue
+			}
+		}
+		timeFrames[strategy.Timeframe()] = strategy.WarmupPeriod()
+	}
+	return timeFrames
+}
+
+func (cs *CompositesStrategy) CallMatchers(dataframes map[string]map[string]*model.Dataframe) []StrategyPosition {
+	var strategyName string
 	matchers := []StrategyPosition{}
 	for _, strategy := range cs.Strategies {
-		strategyPosition := strategy.GetPosition()
+		strategyName = reflect.TypeOf(strategy).Elem().Name()
+		strategyPosition := strategy.OnCandle(dataframes[strategy.Timeframe()][strategyName])
 		if strategyPosition.Useable == false {
 			continue
 		}
 		matchers = append(matchers, strategyPosition)
 	}
-	callback(matchers, dataframe, broker)
-}
-
-type HighFrequencyStrategy interface {
-	Strategy
-
-	// OnPartialCandle will be executed for each new partial candle, after indicators are filled.
-	OnPartialCandle(df *model.Dataframe, broker service.Broker)
-}
-
-type CompositesHighFrequencyStrategy struct {
-	HighFrequencyStrategies []HighFrequencyStrategy
+	return matchers
 }

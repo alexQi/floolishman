@@ -14,8 +14,8 @@ type TelegramSettings struct {
 }
 
 type Settings struct {
-	Pairs    []string
-	Telegram TelegramSettings
+	PairOptions []PairOption
+	Telegram    TelegramSettings
 }
 
 type Balance struct {

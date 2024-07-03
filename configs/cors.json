@@ -1,0 +1,26 @@
+{
+  "cors": {
+    "AllowedOrigins": [
+      "*"
+    ],
+    "AllowCredentials": true,
+    "AllowedHeaders": [
+      "Origin",
+      "Content-Type",
+      "Cookie",
+      "X-CSRF-TOKEN",
+      "Accept",
+      "Authorization",
+      "X-XSRF-TOKEN"
+    ],
+    "ExposedHeaders": [],
+    "AllowedMethods": [
+      "GET",
+      "POST",
+      "PATCH",
+      "PUT",
+      "OPTIONS"
+    ],
+    "Debug": false
+  }
+}

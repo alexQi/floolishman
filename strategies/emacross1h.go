@@ -1,11 +1,10 @@
 package strategies
 
 import (
-	"floolisher/constants"
-	"floolisher/indicator"
-	"floolisher/model"
-	"floolisher/types"
-	"github.com/markcheno/go-talib"
+	"floolishman/constants"
+	"floolishman/indicator"
+	"floolishman/model"
+	"floolishman/types"
 	"reflect"
 )
 
@@ -17,23 +16,18 @@ func (s Emacross1h) SortScore() int {
 	return StrategyScoresConst[s.Timeframe()]
 }
 
-func (s Emacross1h) GetPosition() types.StrategyPosition {
-	return s.StrategyPosition
-}
-
 func (s Emacross1h) Timeframe() string {
 	return "1h"
 }
 
 func (s Emacross1h) WarmupPeriod() int {
-	return 24
+	return 36
 }
 
 func (s Emacross1h) Indicators(df *model.Dataframe) []types.ChartIndicator {
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
-	df.Metadata["sma21"] = indicator.SMA(df.Close, 21)
-	df.Metadata["obv"] = indicator.OBV(df.Close, df.Volume)
-	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
+	df.Metadata["ova"] = indicator.SMA(df.Volume, 14)
 
 	return []types.ChartIndicator{
 		{
@@ -48,8 +42,8 @@ func (s Emacross1h) Indicators(df *model.Dataframe) []types.ChartIndicator {
 					Style:  constants.StyleLine,
 				},
 				{
-					Values: df.Metadata["sma21"],
-					Name:   "SMA 21",
+					Values: df.Metadata["ema21"],
+					Name:   "EMA 21",
 					Color:  "blue",
 					Style:  constants.StyleLine,
 				},
@@ -57,26 +51,26 @@ func (s Emacross1h) Indicators(df *model.Dataframe) []types.ChartIndicator {
 		},
 		{
 			Overlay:   false,
-			GroupName: "ATR",
+			GroupName: "OV",
 			Time:      df.Time,
 			Metrics: []types.IndicatorMetric{
 				{
-					Values: df.Metadata["atr"],
-					Name:   "ATR 14",
-					Color:  "green",
+					Values: df.Volume,
+					Name:   "Volume",
+					Color:  "pink",
 					Style:  constants.StyleLine,
 				},
 			},
 		},
 		{
 			Overlay:   false,
-			GroupName: "OBV",
+			GroupName: "OVA",
 			Time:      df.Time,
 			Metrics: []types.IndicatorMetric{
 				{
-					Values: df.Metadata["obv"],
-					Name:   "On Balance Volume",
-					Color:  "purple",
+					Values: df.Metadata["ova"],
+					Name:   "Volume Avg",
+					Color:  "green",
 					Style:  constants.StyleLine,
 				},
 			},
@@ -84,14 +78,15 @@ func (s Emacross1h) Indicators(df *model.Dataframe) []types.ChartIndicator {
 	}
 }
 
-func (s *Emacross1h) OnCandle(df *model.Dataframe) {
+func (s *Emacross1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	ema8 := df.Metadata["ema8"]
-	sma21 := df.Metadata["sma21"]
-	obv := df.Metadata["obv"]
+	ema21 := df.Metadata["ema21"]
+	ova := df.Metadata["ova"]
+	var strategyPosition types.StrategyPosition
 
 	// 判断量价关系
-	if ema8.Crossover(sma21) && obv[len(obv)-1] > talib.Sma(obv, 20)[len(talib.Sma(obv, 20))-1] {
-		s.StrategyPosition = types.StrategyPosition{
+	if ema8.Crossover(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] {
+		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeBuy,
 			Pair:         df.Pair,
@@ -100,8 +95,8 @@ func (s *Emacross1h) OnCandle(df *model.Dataframe) {
 		}
 	}
 
-	if ema8.Crossunder(sma21) && obv[len(obv)-1] > talib.Sma(obv, 20)[len(talib.Sma(obv, 20))-1] {
-		s.StrategyPosition = types.StrategyPosition{
+	if ema8.Crossunder(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] {
+		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeSell,
 			Pair:         df.Pair,
@@ -109,4 +104,5 @@ func (s *Emacross1h) OnCandle(df *model.Dataframe) {
 			Score:        s.SortScore(),
 		}
 	}
+	return strategyPosition
 }

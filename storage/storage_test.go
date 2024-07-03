@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"floolisher/model"
+	"floolishman/model"
 	"github.com/stretchr/testify/require"
 )
 

@@ -3,7 +3,7 @@ package types
 import (
 	"time"
 
-	"floolisher/model"
+	"floolishman/model"
 )
 
 type MetricStyle string

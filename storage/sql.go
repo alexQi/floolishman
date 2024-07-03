@@ -6,7 +6,7 @@ import (
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 
-	"floolisher/model"
+	"floolishman/model"
 )
 
 type SQL struct {
@@ -18,7 +18,6 @@ type SQL struct {
 //	import "github.com/glebarez/sqlite"
 //	storage, err := storage.FromSQL(sqlite.Open("sqlite.db"), &gorm.Config{})
 //	if err != nil {
-//		log.Fatal(err)
 //	}
 func FromSQL(dialect gorm.Dialector, opts ...gorm.Option) (Storage, error) {
 	db, err := gorm.Open(dialect, opts...)

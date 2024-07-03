@@ -2,17 +2,17 @@ package notification
 
 import (
 	"errors"
-	"floolisher/exchange"
-	"floolisher/model"
-	"floolisher/order"
-	"floolisher/service"
+	"floolishman/exchange"
+	"floolishman/model"
+	"floolishman/reference"
+	"floolishman/service"
+	"floolishman/utils"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
@@ -22,21 +22,21 @@ var (
 )
 
 type telegram struct {
-	settings        model.Settings
-	orderController *order.Controller
-	defaultMenu     *tb.ReplyMarkup
-	client          *tb.Bot
+	settings     model.Settings
+	orderService *service.OrderService
+	defaultMenu  *tb.ReplyMarkup
+	client       *tb.Bot
 }
 
 type Option func(telegram *telegram)
 
-func NewTelegram(controller *order.Controller, settings model.Settings, options ...Option) (service.Telegram, error) {
+func NewTelegram(orderService *service.OrderService, settings model.Settings, options ...Option) (reference.Telegram, error) {
 	menu := &tb.ReplyMarkup{ResizeReplyKeyboard: true}
 	poller := &tb.LongPoller{Timeout: 10 * time.Second}
 
 	userMiddleware := tb.NewMiddlewarePoller(poller, func(u *tb.Update) bool {
 		if u.Message == nil || u.Message.Sender == nil {
-			log.Error("no message, ", u)
+			utils.Log.Error("no message, ", u)
 			return false
 		}
 
@@ -46,7 +46,7 @@ func NewTelegram(controller *order.Controller, settings model.Settings, options 
 			}
 		}
 
-		log.Error("invalid user, ", u.Message)
+		utils.Log.Error("invalid user, ", u.Message)
 		return false
 	})
 
@@ -89,10 +89,10 @@ func NewTelegram(controller *order.Controller, settings model.Settings, options 
 	)
 
 	bot := &telegram{
-		orderController: controller,
-		client:          client,
-		settings:        settings,
-		defaultMenu:     menu,
+		orderService: orderService,
+		client:       client,
+		settings:     settings,
+		defaultMenu:  menu,
 	}
 
 	for _, option := range options {
@@ -116,7 +116,7 @@ func (t telegram) Start() {
 	for _, id := range t.settings.Telegram.Users {
 		_, err := t.client.Send(&tb.User{ID: int64(id)}, "Bot initialized.", t.defaultMenu)
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 	}
 }
@@ -125,7 +125,7 @@ func (t telegram) Notify(text string) {
 	for _, user := range t.settings.Telegram.Users {
 		_, err := t.client.Send(&tb.User{ID: int64(user)}, text)
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 	}
 }
@@ -135,23 +135,23 @@ func (t telegram) BalanceHandle(m *tb.Message) {
 	quotesValue := make(map[string]float64)
 	total := 0.0
 
-	account, err := t.orderController.Account()
+	account, err := t.orderService.Account()
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 		t.OnError(err)
 		return
 	}
 
-	for _, pair := range t.settings.Pairs {
-		assetPair, quotePair := exchange.SplitAssetQuote(pair)
+	for _, option := range t.settings.PairOptions {
+		assetPair, quotePair := exchange.SplitAssetQuote(option.Pair)
 		assetBalance, quoteBalance := account.Balance(assetPair, quotePair)
 
 		assetSize := assetBalance.Free + assetBalance.Lock
 		quoteSize := quoteBalance.Free + quoteBalance.Lock
 
-		quote, err := t.orderController.LastQuote(pair)
+		quote, err := t.orderService.LastQuote(option.Pair)
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 			t.OnError(err)
 			return
 		}
@@ -171,14 +171,14 @@ func (t telegram) BalanceHandle(m *tb.Message) {
 
 	_, err = t.client.Send(m.Sender, message)
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 	}
 }
 
 func (t telegram) HelpHandle(m *tb.Message) {
 	commands, err := t.client.GetCommands()
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 		t.OnError(err)
 		return
 	}
@@ -190,23 +190,23 @@ func (t telegram) HelpHandle(m *tb.Message) {
 
 	_, err = t.client.Send(m.Sender, strings.Join(lines, "\n"))
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 	}
 }
 
 func (t telegram) ProfitHandle(m *tb.Message) {
-	if len(t.orderController.Results) == 0 {
+	if len(t.orderService.Results) == 0 {
 		_, err := t.client.Send(m.Sender, "No trades registered.")
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 		return
 	}
 
-	for pair, summary := range t.orderController.Results {
+	for pair, summary := range t.orderService.Results {
 		_, err := t.client.Send(m.Sender, fmt.Sprintf("*PAIR*: `%s`\n`%s`", pair, summary.String()))
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 	}
 }
@@ -216,7 +216,7 @@ func (t telegram) BuyHandle(m *tb.Message) {
 	if len(match) == 0 {
 		_, err := t.client.Send(m.Sender, "Invalid command.\nExamples of usage:\n`/buy BTCUSDT 100`\n\n`/buy BTCUSDT 50%`")
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 		return
 	}
@@ -231,21 +231,21 @@ func (t telegram) BuyHandle(m *tb.Message) {
 	pair := strings.ToUpper(command["pair"])
 	amount, err := strconv.ParseFloat(command["amount"], 64)
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 		t.OnError(err)
 		return
 	} else if amount <= 0 {
 		_, err := t.client.Send(m.Sender, "Invalid amount")
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 		return
 	}
 
 	if command["percent"] != "" {
-		_, quote, err := t.orderController.Position(pair)
+		_, quote, err := t.orderService.Position(pair)
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 			t.OnError(err)
 			return
 		}
@@ -253,11 +253,11 @@ func (t telegram) BuyHandle(m *tb.Message) {
 		amount = amount * quote / 100.0
 	}
 
-	order, err := t.orderController.CreateOrderMarketQuote(model.SideTypeBuy, pair, amount)
+	order, err := t.orderService.CreateOrderMarketQuote(model.SideTypeBuy, pair, amount)
 	if err != nil {
 		return
 	}
-	log.Info("[TELEGRAM]: BUY ORDER CREATED: ", order)
+	utils.Log.Info("[TELEGRAM]: BUY ORDER CREATED: ", order)
 }
 
 func (t telegram) SellHandle(m *tb.Message) {
@@ -265,7 +265,7 @@ func (t telegram) SellHandle(m *tb.Message) {
 	if len(match) == 0 {
 		_, err := t.client.Send(m.Sender, "Invalid command.\nExample of usage:\n`/sell BTCUSDT 100`\n\n`/sell BTCUSDT 50%")
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 		return
 	}
@@ -280,76 +280,76 @@ func (t telegram) SellHandle(m *tb.Message) {
 	pair := strings.ToUpper(command["pair"])
 	amount, err := strconv.ParseFloat(command["amount"], 64)
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 		t.OnError(err)
 		return
 	} else if amount <= 0 {
 		_, err := t.client.Send(m.Sender, "Invalid amount")
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 		return
 	}
 
 	if command["percent"] != "" {
-		asset, _, err := t.orderController.Position(pair)
+		asset, _, err := t.orderService.Position(pair)
 		if err != nil {
 			return
 		}
 
 		amount = amount * asset / 100.0
-		order, err := t.orderController.CreateOrderMarket(model.SideTypeSell, pair, amount)
+		order, err := t.orderService.CreateOrderMarket(model.SideTypeSell, pair, amount)
 		if err != nil {
 			return
 		}
-		log.Info("[TELEGRAM]: SELL ORDER CREATED: ", order)
+		utils.Log.Info("[TELEGRAM]: SELL ORDER CREATED: ", order)
 		return
 	}
 
-	order, err := t.orderController.CreateOrderMarketQuote(model.SideTypeSell, pair, amount)
+	order, err := t.orderService.CreateOrderMarketQuote(model.SideTypeSell, pair, amount)
 	if err != nil {
 		return
 	}
-	log.Info("[TELEGRAM]: SELL ORDER CREATED: ", order)
+	utils.Log.Info("[TELEGRAM]: SELL ORDER CREATED: ", order)
 }
 
 func (t telegram) StatusHandle(m *tb.Message) {
-	status := t.orderController.Status()
+	status := t.orderService.Status()
 	_, err := t.client.Send(m.Sender, fmt.Sprintf("Status: `%s`", status))
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 	}
 }
 
 func (t telegram) StartHandle(m *tb.Message) {
-	if t.orderController.Status() == order.StatusRunning {
+	if t.orderService.Status() == service.StatusRunning {
 		_, err := t.client.Send(m.Sender, "Bot is already running.", t.defaultMenu)
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 		return
 	}
 
-	t.orderController.Start()
+	t.orderService.Start()
 	_, err := t.client.Send(m.Sender, "Bot started.", t.defaultMenu)
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 	}
 }
 
 func (t telegram) StopHandle(m *tb.Message) {
-	if t.orderController.Status() == order.StatusStopped {
+	if t.orderService.Status() == service.StatusStopped {
 		_, err := t.client.Send(m.Sender, "Bot is already stopped.", t.defaultMenu)
 		if err != nil {
-			log.Error(err)
+			utils.Log.Error(err)
 		}
 		return
 	}
 
-	t.orderController.Stop()
+	t.orderService.Stop()
 	_, err := t.client.Send(m.Sender, "Bot stopped.", t.defaultMenu)
 	if err != nil {
-		log.Error(err)
+		utils.Log.Error(err)
 	}
 }
 
