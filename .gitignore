@@ -11,12 +11,10 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-/floolisher
-/floolisher.db
-/backtest.db
-/dist/
 /runtime/
-/vendor
 
 # IDE
 .idea
+
+floolishman
+floolishman.exe
