@@ -271,7 +271,7 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 		// 判断是否盈利，盈利中则处理平仓及移动止损，反之则保持之前的止损单
 		if isProfitable {
 			// 判断当前利润比是否大于预设值
-			profitRatio := s.calculateProfitRatio(currSideType, currentOrder.Price, currentPirce, float64(option.Leverage), currentOrder.Quantity)
+			profitRatio := s.calculateProfitRatio(currSideType, currentOrder.Price, currentPirce, currentOrder.Quantity)
 			if profitRatio < s.profitableRatio {
 				utils.Log.Infof("Pair: %s is profiting, ratio: %v, loss ratio: %v", option.Pair, profitRatio, s.profitableRatio)
 				return
@@ -406,9 +406,9 @@ func (s *StrategyService) calculateOpenPositionSize(balance, leverage, currentPr
 	return amount
 }
 
-func (s *StrategyService) calculateProfitRatio(side model.SideType, entryPrice float64, currentPrice float64, leverage float64, quantity float64) float64 {
+func (s *StrategyService) calculateProfitRatio(side model.SideType, entryPrice float64, currentPrice float64, quantity float64) float64 {
 	// 计算保证金
-	margin := (entryPrice * quantity) / leverage
+	margin := (entryPrice * quantity)
 	// 根据当前价格计算利润
 	var profit float64
 	if side == model.SideTypeSell {
