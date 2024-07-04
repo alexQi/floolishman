@@ -1,4 +1,8 @@
 {
+    "proxy": {
+        "status": true,
+        "url": "http://127.0.0.1:7890"
+    },
     "storage": {
         "driver": "buntdb",
         "path": "runtime/data/floolishman.db"

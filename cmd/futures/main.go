@@ -23,6 +23,8 @@ func main() {
 		secretPem     = viper.GetString("api.pem")
 		telegramToken = viper.GetString("telegram.token")
 		telegramUser  = viper.GetInt("telegram.user")
+		proxyStatus   = viper.GetBool("proxy.status")
+		proxyUrl      = viper.GetString("proxy.url")
 	)
 
 	// 设置需要处理的交易对
@@ -54,13 +56,18 @@ func main() {
 		secretKey = string(tempSecretKey)
 	}
 
-	// Initialize your exchange with futures
-	binance, err := exchange.NewBinanceFuture(ctx,
+	exhangeOptions := []exchange.BinanceFutureOption{
 		exchange.WithBinanceFutureCredentials(apiKey, secretKey, apiKeyType),
-		exchange.WithBinanceFutureProxy("http://127.0.0.1:7890"),
-		//exchange.WithBinanceFutureTestnet(),
-		//exchange.WithBinanceFuturesHeikinAshiCandle(),
-	)
+	}
+	if proxyStatus {
+		exhangeOptions = append(
+			exhangeOptions,
+			exchange.WithBinanceFutureProxy(proxyUrl),
+		)
+	}
+
+	// Initialize your exchange with futures
+	binance, err := exchange.NewBinanceFuture(ctx, exhangeOptions...)
 	if err != nil {
 		utils.Log.Fatal(err)
 	}
