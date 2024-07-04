@@ -50,7 +50,7 @@ func (s Rsi15m) Indicators(df *model.Dataframe) []types.ChartIndicator {
 	}
 }
 
-func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
+func (s *Rsi15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
 	var strategyPosition types.StrategyPosition
 
 	rsis := df.Metadata["rsi"].LastValues(2)
@@ -60,7 +60,7 @@ func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	// 判断是否换线
 	tendency := s.checkCandleTendency(df, 3)
 	// 趋势判断
-	if rsis[1] >= 70 && rsis[0] >= 70 && df.Close.Last(0) > bbUpper && tendency == "bullish" {
+	if rsis[1] >= 70 && rsis[0] >= 70 && df.Close.Last(0) > bbUpper && realCandle.Close < df.Close.Last(0) && tendency == "bullish" {
 		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeSell,
@@ -69,7 +69,7 @@ func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 			Score:        s.SortScore(),
 		}
 	}
-	if rsis[1] <= 30 && rsis[0] <= 30 && df.Close.Last(0) < bbLower && tendency == "bearish" {
+	if rsis[1] <= 30 && rsis[0] <= 30 && df.Close.Last(0) < bbLower && realCandle.Close > df.Close.Last(0) && tendency == "bearish" {
 		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeBuy,

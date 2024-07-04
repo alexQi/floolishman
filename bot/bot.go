@@ -202,12 +202,14 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 				utils.Log.Error(err)
 				return
 			}
+			// link to ninja bot controller
+			n.dataFeed.Subscribe(option.Pair, timeframe, n.onCandle, false)
 		}
 
 		// link to ninja bot controller
-		for _, s := range n.strategy.Strategies {
-			n.dataFeed.Subscribe(option.Pair, s.Timeframe(), n.onCandle, false)
-		}
+		//for _, s := range n.strategy.Strategies {
+		//	n.dataFeed.Subscribe(option.Pair, s.Timeframe(), n.onCandle, false)
+		//}
 	}
 	n.strategyService.Start()
 }

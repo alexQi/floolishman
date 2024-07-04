@@ -50,7 +50,7 @@ func (s Rsi1h) Indicators(df *model.Dataframe) []types.ChartIndicator {
 	}
 }
 
-func (s *Rsi1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
+func (s *Rsi1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
 	var strategyPosition types.StrategyPosition
 	rsi := df.Metadata["rsi"].Last(0)
 	bbUpper := df.Metadata["bb_upper"].Last(0)
@@ -58,7 +58,7 @@ func (s *Rsi1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	// 判断是否换线
 	tendency := s.checkCandleTendency(df, 2)
 	// 趋势判断
-	if rsi >= 85 && df.Close.Last(0) > bbUpper && tendency == "bullish" {
+	if rsi >= 85 && df.Close.Last(0) > bbUpper && realCandle.Close < df.Close.Last(0) && tendency == "bullish" {
 		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeSell,
@@ -68,7 +68,7 @@ func (s *Rsi1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		}
 	}
 	// RSI 小于30，买入信号
-	if rsi <= 15 && df.Close.Last(0) < bbLower && tendency == "bearish" {
+	if rsi <= 15 && df.Close.Last(0) < bbLower && realCandle.Close > df.Close.Last(0) && tendency == "bearish" {
 		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeBuy,

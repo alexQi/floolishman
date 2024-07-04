@@ -20,7 +20,7 @@ func (sp StrategyPosition) String() string {
 	return fmt.Sprintf("%s %s | Strategy: %s, Score: %d", sp.Side, sp.Pair, sp.StrategyName, sp.Score)
 }
 
-type OpenPositionFunc func(candle model.Candle, broker reference.Broker)
+type OpenPositionFunc func(option model.PairOption, broker reference.Broker)
 
 type ClosePositionFunc func(option model.PairOption, broker reference.Broker)
 
@@ -36,7 +36,7 @@ type Strategy interface {
 	Indicators(df *model.Dataframe) []ChartIndicator
 	// OnCandle will be executed for each new candle, after indicators are filled, here you can do your trading logic.
 	// OnCandle is executed after the candle close.
-	OnCandle(df *model.Dataframe) StrategyPosition
+	OnCandle(realCandle *model.Candle, df *model.Dataframe) StrategyPosition
 }
 
 type CompositesStrategy struct {
@@ -59,12 +59,18 @@ func (cs *CompositesStrategy) TimeWarmupMap() map[string]int {
 	return timeFrames
 }
 
-func (cs *CompositesStrategy) CallMatchers(dataframes map[string]map[string]*model.Dataframe) []StrategyPosition {
+func (cs *CompositesStrategy) CallMatchers(
+	realCandles map[string]*model.Candle,
+	dataframes map[string]map[string]*model.Dataframe,
+) []StrategyPosition {
 	var strategyName string
 	matchers := []StrategyPosition{}
 	for _, strategy := range cs.Strategies {
 		strategyName = reflect.TypeOf(strategy).Elem().Name()
-		strategyPosition := strategy.OnCandle(dataframes[strategy.Timeframe()][strategyName])
+		strategyPosition := strategy.OnCandle(
+			realCandles[strategy.Timeframe()],
+			dataframes[strategy.Timeframe()][strategyName],
+		)
 		if strategyPosition.Useable == false {
 			continue
 		}

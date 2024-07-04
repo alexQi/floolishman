@@ -68,6 +68,8 @@ func main() {
 	// initialize your strategy
 	compositesStrategy := types.CompositesStrategy{
 		Strategies: []types.Strategy{
+			//&strategies.Rsi1m{},
+			//&strategies.Emacross1m{},
 			&strategies.Rsi15m{},
 			&strategies.Rsi1h{},
 			&strategies.Emacross15m{},

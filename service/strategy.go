@@ -49,7 +49,7 @@ func NewStrategyService(ctx context.Context, strategy types.CompositesStrategy, 
 }
 
 func (s *StrategyService) Start() {
-	go process.CheckOpenPoistion(s.broker, s.openPosition)
+	go process.CheckOpenPoistion(s.pairOptions, s.broker, s.openPosition)
 	go process.CheckClosePoistion(s.pairOptions, s.broker, s.closeOption)
 	s.started = true
 }
@@ -135,14 +135,14 @@ func (s *StrategyService) OnCandle(timeframe string, candle model.Candle) {
 			}
 		}
 	}
-	if s.started {
-		process.ChanOnCandle <- candle
-	}
 }
 
 // openPosition 开仓方法
-func (s *StrategyService) openPosition(candle model.Candle, broker reference.Broker) {
-	assetPosition, quotePosition, err := s.broker.Position(candle.Pair)
+func (s *StrategyService) openPosition(option model.PairOption, broker reference.Broker) {
+	if !s.started {
+		return
+	}
+	assetPosition, quotePosition, err := s.broker.Position(option.Pair)
 	if err != nil {
 		utils.Log.Error(err)
 		return
@@ -155,27 +155,28 @@ func (s *StrategyService) openPosition(candle model.Candle, broker reference.Bro
 	if quotePosition <= 0 {
 		return
 	}
-	matchers := s.strategy.CallMatchers(s.samples[candle.Pair])
+	matchers := s.strategy.CallMatchers(s.realCandles[option.Pair], s.samples[option.Pair])
 	// 判断策略结果
 	totalScore, currentScore, finalPosition := s.judgeStrategyForScore(matchers)
 	if totalScore == 0 {
-		utils.Log.Infof("Pair: %s has %d strategy, Got %d matchers", candle.Pair, len(s.strategy.Strategies), len(matchers))
+		utils.Log.Infof("[WAIT] Pair: %s Count %d | %d Matchers | Price: %v", option.Pair, len(s.strategy.Strategies), len(matchers), s.pairPrices[option.Pair])
 		return
 	}
-	utils.Log.Infof("Pair: %s has %d strategy, Got %d matchers: %s, Most Side: %s, total score: %d, final score: %d", candle.Pair, len(s.strategy.Strategies), len(matchers), matchers, finalPosition, totalScore, currentScore)
+	utils.Log.Infof("[OPEN] Pair: %s Count %d | %d Matchers %s | Price: %v | Side: %s | Total Score: %d | Final Score: %d", option.Pair, len(s.strategy.Strategies), len(matchers), matchers, s.pairPrices[option.Pair], finalPosition, totalScore, currentScore)
+
 	// 根据分数动态计算仓位大小
 	scoreRadio := float64(currentScore / totalScore)
-	amount := s.calculateOpenPositionSize(quotePosition, float64(s.pairOptions[candle.Pair].Leverage), s.pairPrices[candle.Pair], scoreRadio)
-	utils.Log.Infof("Position size: %v, Pair:%s", amount, candle.Pair)
+	amount := s.calculateOpenPositionSize(quotePosition, float64(s.pairOptions[option.Pair].Leverage), s.pairPrices[option.Pair], scoreRadio)
+	utils.Log.Infof("Position size: %v, Pair:%s", amount, option.Pair)
 	// 根据最新价格创建限价单
-	order, err := broker.CreateOrderLimit(finalPosition, candle.Pair, amount, s.pairPrices[candle.Pair])
+	order, err := broker.CreateOrderLimit(finalPosition, option.Pair, amount, s.pairPrices[option.Pair])
 	if err != nil {
 		utils.Log.Error(err)
 		return
 	}
 	// 设置止损订单
 	var tempSideType model.SideType
-	stopLossDistance := s.calculateStopLossDistancee(s.initLossRatio, order.Price, float64(s.pairOptions[candle.Pair].Leverage), amount)
+	stopLossDistance := s.calculateStopLossDistancee(s.initLossRatio, order.Price, float64(s.pairOptions[option.Pair].Leverage), amount)
 	var stopLossPrice float64
 	if finalPosition == model.SideTypeBuy {
 		tempSideType = model.SideTypeSell
@@ -184,7 +185,7 @@ func (s *StrategyService) openPosition(candle model.Candle, broker reference.Bro
 		tempSideType = model.SideTypeBuy
 		stopLossPrice = order.Price + stopLossDistance
 	}
-	_, err = broker.CreateOrderStopLimit(tempSideType, candle.Pair, amount, stopLossPrice)
+	_, err = broker.CreateOrderStopLimit(tempSideType, option.Pair, amount, stopLossPrice)
 	if err != nil {
 		utils.Log.Error(err)
 		return
