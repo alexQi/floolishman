@@ -151,10 +151,6 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 		utils.Log.Error(err)
 		return
 	}
-	// 有仓位时，不再开仓
-	if calc.Abs(assetPosition) > 0 {
-		return
-	}
 	// 无资产
 	if quotePosition <= 0 {
 		return
@@ -166,6 +162,22 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 	if totalScore == 0 {
 		utils.Log.Infof("[WAIT] Pair: %s | Price: %v | Strategy Count: %d, %d Matchers ", option.Pair, currentPirce, len(s.strategy.Strategies), len(matchers))
 		return
+	}
+	// 有仓位时，判断当前持仓方向是否与策略相同
+	if calc.Abs(assetPosition) > 0 {
+		// 当前仓位为多，最近策略为多，保持仓位
+		if assetPosition > 0 && finalPosition == model.SideTypeBuy {
+			return
+		}
+		// 当前仓位为空，最近策略为空，保持仓位
+		if assetPosition < 0 && finalPosition == model.SideTypeSell {
+			return
+		}
+		// 当前仓位为空，最近策略为多，平掉空单
+		_, err := broker.CreateOrderStopLimit(finalPosition, option.Pair, calc.Abs(assetPosition), currentPirce)
+		if err != nil {
+			utils.Log.Error(err)
+		}
 	}
 	// 根据分数动态计算仓位大小
 	scoreRadio := float64(currentScore / totalScore)
@@ -211,6 +223,7 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 	if s.started == false {
 		return
 	}
+	// TODO 考虑后续去掉这个网络检查 减少网络IO
 	assetPosition, _, err := broker.Position(option.Pair)
 	if err != nil {
 		utils.Log.Error(err)
@@ -219,6 +232,7 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 	if calc.Abs(assetPosition) == 0 {
 		return
 	}
+	// 直接获取当前交易对订单
 	positionOrders, err := broker.GetCurrentPositionOrders(option.Pair)
 	if err != nil {
 		utils.Log.Error(err)
@@ -257,7 +271,67 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 		currSideType = model.SideTypeSell
 		tempSideType = model.SideTypeBuy
 	}
-	if currentLossOrder.ExchangeID == 0 {
+	currentPirce := s.pairPrices[option.Pair]
+	// 已查询到止损单
+	isProfitable := s.checkIsProfitable(currentPirce, currentOrder.Price, currSideType)
+	// 判断是否盈利，盈利中则处理平仓及移动止损，反之则保持之前的止损单
+	if isProfitable {
+		// 判断当前利润比是否大于预设值
+		// 如果利润比大于预设值，则使用计算出得利润比 - 指定步进的利润比 得到新的止损利润比
+		profitRatio := s.calculateProfitRatio(currSideType, currentOrder.Price, currentPirce, float64(option.Leverage), currentOrder.Quantity)
+		if profitRatio < s.initProfitRatioLimit || profitRatio <= s.profitRatioLimit[option.Pair]+s.profitableScale {
+			utils.Log.Infof(
+				"[WATCH] Pair: %s | Price Order: %v, Current: %v | Quantity: %v | Profit Ratio: %s",
+				option.Pair,
+				currentOrder.Price,
+				currentPirce,
+				currentOrder.Quantity,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
+			)
+			return
+		}
+		// 递增利润比
+		s.profitRatioLimit[option.Pair] = profitRatio - s.profitableScale
+		// 使用新的止损利润比计算止损点数
+		stopLossDistance = s.calculateStopLossDistancee(s.profitRatioLimit[option.Pair], currentOrder.Price, float64(option.Leverage), calc.Abs(assetPosition))
+		// 重新计算止损价格
+		if currSideType == model.SideTypeSell {
+			stopLossPrice = currentOrder.Price - stopLossDistance
+		} else {
+			// 3094
+			stopLossPrice = currentOrder.Price + stopLossDistance
+		}
+		utils.Log.Infof(
+			"[GROW] Pair: %s | Price Order: %v, Current: %v | Quantity: %v | Profit Ratio: %s | Loss Price: %v, Ratio:%s",
+			option.Pair,
+			currentOrder.Price,
+			currentPirce,
+			currentOrder.Quantity,
+			fmt.Sprintf("%.2f%%", profitRatio*100),
+			stopLossPrice,
+			fmt.Sprintf("%.2f%%", s.profitRatioLimit[option.Pair]*100),
+		)
+
+		// 设置新的止损单
+		// 使用滚动利润比保证该止损利润是递增的
+		// 不再判断新的止损价格是否小于之前的止损价格
+		_, err := broker.CreateOrderStopLimit(tempSideType, option.Pair, calc.Abs(assetPosition), stopLossPrice)
+		if err != nil {
+			utils.Log.Error(err)
+		}
+		if currentLossOrder.ExchangeID == 0 {
+			return
+		}
+		// 取消之前的止损单
+		err = broker.Cancel(currentLossOrder)
+		if err != nil {
+			utils.Log.Error(err)
+			return
+		}
+	} else {
+		if currentLossOrder.ExchangeID > 0 {
+			return
+		}
 		// 未查询到止损单时，重设止损单
 		stopLossDistance := s.calculateStopLossDistancee(s.initLossRatio, currentOrder.Price, float64(option.Leverage), calc.Abs(assetPosition))
 		if assetPosition > 0 {
@@ -268,74 +342,6 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 		_, err := broker.CreateOrderStopLimit(tempSideType, option.Pair, calc.Abs(assetPosition), stopLossPrice)
 		if err != nil {
 			utils.Log.Error(err)
-		}
-	} else {
-		currentPirce := s.pairPrices[option.Pair]
-		// 已查询到止损单
-		isProfitable := s.checkIsProfitable(currentPirce, currentOrder.Price, currSideType)
-		// 判断是否盈利，盈利中则处理平仓及移动止损，反之则保持之前的止损单
-		if isProfitable {
-			// 判断当前利润比是否大于预设值
-			// 如果利润比大于预设值，则使用计算出得利润比 - 指定步进的利润比 得到新的止损利润比
-			profitRatio := s.calculateProfitRatio(currSideType, currentOrder.Price, currentPirce, float64(option.Leverage), currentOrder.Quantity)
-			if profitRatio < s.initProfitRatioLimit || profitRatio <= s.profitRatioLimit[option.Pair]+s.profitableScale {
-				utils.Log.Infof(
-					"[WATCH] Pair: %s | Price: %v | Quantity: %v | Profit Ratio: %s",
-					option.Pair,
-					currentOrder.Price,
-					currentOrder.Quantity,
-					fmt.Sprintf("%.2f%%", profitRatio*100),
-				)
-				return
-			}
-			// 递增利润比
-			s.profitRatioLimit[option.Pair] = profitRatio - s.profitableScale
-			// 使用新的止损利润比计算止损点数
-			stopLossDistance = s.calculateStopLossDistancee(s.profitRatioLimit[option.Pair], currentOrder.Price, float64(option.Leverage), calc.Abs(assetPosition))
-			// 重新计算止损价格
-			if currSideType == model.SideTypeSell {
-				stopLossPrice = currentOrder.Price - stopLossDistance
-			} else {
-				stopLossPrice = currentOrder.Price + stopLossDistance
-			}
-			utils.Log.Infof(
-				"[GROW] Pair: %s | Price: %v | Quantity: %v | Profit Ratio: %s | Loss Price: %v, Ratio:%s",
-				option.Pair,
-				currentOrder.Price,
-				currentOrder.Quantity,
-				fmt.Sprintf("%.2f%%", profitRatio*100),
-				stopLossPrice,
-				fmt.Sprintf("%.2f%%", s.profitRatioLimit[option.Pair]*100),
-			)
-
-			// 如果止损单是BUY，判断新的止损价格是否小于之前的止损价格
-			if tempSideType == model.SideTypeBuy && stopLossPrice < currentLossOrder.Price {
-				// 设置新的止损单
-				_, err := broker.CreateOrderStopLimit(tempSideType, option.Pair, calc.Abs(assetPosition), stopLossPrice)
-				if err != nil {
-					utils.Log.Error(err)
-				}
-				// 取消之前的止损单
-				err = broker.Cancel(currentLossOrder)
-				if err != nil {
-					utils.Log.Error(err)
-					return
-				}
-			}
-			// 如果止损单是SELL，判断新的止损价格是否小于之前的止损价格
-			if tempSideType == model.SideTypeBuy && stopLossPrice > currentLossOrder.Price {
-				// 设置新的止损单
-				_, err := broker.CreateOrderStopLimit(tempSideType, option.Pair, calc.Abs(assetPosition), stopLossPrice)
-				if err != nil {
-					utils.Log.Error(err)
-				}
-				// 取消之前的止损单
-				err = broker.Cancel(currentLossOrder)
-				if err != nil {
-					utils.Log.Error(err)
-					return
-				}
-			}
 		}
 	}
 }
