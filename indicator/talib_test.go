@@ -6,7 +6,10 @@ import (
 )
 
 func TestEma8(t *testing.T) {
-	data := []float64{3314.03, 3312.14, 3309.01, 3302, 3302.38, 3300.71, 3305.66, 3306.52, 3306.71}
-	a := EMA(data, 8)
-	fmt.Print(a)
+	value := 0.21345
+	formatted := value * 100.0 // 将小数转换为百分比
+	// 使用格式化字符串 %.2f%% 将浮点数格式化为百分比形式，并保留两位小数
+	result := fmt.Sprintf("%.2f%%", formatted)
+
+	fmt.Println(result) // 输出结果为 "21.34%"
 }

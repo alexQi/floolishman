@@ -8,43 +8,46 @@ import (
 	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/calc"
+	"fmt"
 	"reflect"
 	"sync"
 )
 
 type StrategyService struct {
-	ctx                 context.Context
-	volatilityThreshold float64
-	strategy            types.CompositesStrategy
-	dataframes          map[string]map[string]*model.Dataframe
-	samples             map[string]map[string]map[string]*model.Dataframe
-	realCandles         map[string]map[string]*model.Candle
-	pairPrices          map[string]float64
-	pairOptions         map[string]model.PairOption
-	broker              reference.Broker
-	started             bool
-	fullSpaceRadio      float64
-	initLossRatio       float64
-	profitableScale     float64
-	profitableRatio     float64
-	mu                  sync.Mutex
+	ctx                  context.Context
+	volatilityThreshold  float64
+	strategy             types.CompositesStrategy
+	dataframes           map[string]map[string]*model.Dataframe
+	samples              map[string]map[string]map[string]*model.Dataframe
+	realCandles          map[string]map[string]*model.Candle
+	pairPrices           map[string]float64
+	pairOptions          map[string]model.PairOption
+	broker               reference.Broker
+	started              bool
+	fullSpaceRadio       float64
+	initLossRatio        float64
+	profitableScale      float64
+	initProfitRatioLimit float64
+	profitRatioLimit     map[string]float64
+	mu                   sync.Mutex
 }
 
 func NewStrategyService(ctx context.Context, strategy types.CompositesStrategy, broker reference.Broker) *StrategyService {
 	return &StrategyService{
-		ctx:                 ctx,
-		dataframes:          make(map[string]map[string]*model.Dataframe),
-		samples:             make(map[string]map[string]map[string]*model.Dataframe),
-		realCandles:         make(map[string]map[string]*model.Candle),
-		pairPrices:          make(map[string]float64),
-		pairOptions:         make(map[string]model.PairOption),
-		strategy:            strategy,
-		broker:              broker,
-		volatilityThreshold: 0.002,
-		fullSpaceRadio:      0.1,
-		initLossRatio:       0.5,
-		profitableScale:     0.1,
-		profitableRatio:     0.25,
+		ctx:                  ctx,
+		dataframes:           make(map[string]map[string]*model.Dataframe),
+		samples:              make(map[string]map[string]map[string]*model.Dataframe),
+		realCandles:          make(map[string]map[string]*model.Candle),
+		pairPrices:           make(map[string]float64),
+		pairOptions:          make(map[string]model.PairOption),
+		strategy:             strategy,
+		broker:               broker,
+		volatilityThreshold:  0.002,
+		fullSpaceRadio:       0.1,
+		initLossRatio:        0.5,
+		profitableScale:      0.1,
+		initProfitRatioLimit: 0.25,
+		profitRatioLimit:     make(map[string]float64),
 	}
 }
 
@@ -57,6 +60,7 @@ func (s *StrategyService) Start() {
 func (s *StrategyService) SetPairDataframe(option model.PairOption) {
 	s.pairOptions[option.Pair] = option
 	s.pairPrices[option.Pair] = 0
+	s.profitRatioLimit[option.Pair] = 0
 	if s.dataframes[option.Pair] == nil {
 		s.dataframes[option.Pair] = make(map[string]*model.Dataframe)
 	}
@@ -178,6 +182,7 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 		totalScore,
 		currentScore,
 	)
+	s.profitRatioLimit[option.Pair] = 0
 	// 根据最新价格创建限价单
 	order, err := broker.CreateOrderLimit(finalPosition, option.Pair, amount, currentPirce)
 	if err != nil {
@@ -271,21 +276,37 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 		// 判断是否盈利，盈利中则处理平仓及移动止损，反之则保持之前的止损单
 		if isProfitable {
 			// 判断当前利润比是否大于预设值
+			// 如果利润比大于预设值，则使用计算出得利润比 - 指定步进的利润比 得到新的止损利润比
 			profitRatio := s.calculateProfitRatio(currSideType, currentOrder.Price, currentPirce, float64(option.Leverage), currentOrder.Quantity)
-			if profitRatio < s.profitableRatio {
-				utils.Log.Infof("Pair: %s is profiting, ratio: %v, loss ratio: %v", option.Pair, profitRatio, s.profitableRatio)
+			if profitRatio < s.initProfitRatioLimit || profitRatio <= s.profitRatioLimit[option.Pair]+s.profitableScale {
+				utils.Log.Infof(
+					"[WATCH] Pair: %s | Price: %v | Quantity: %v | Profit Ratio: %s",
+					option.Pair,
+					currentOrder.Price,
+					currentOrder.Quantity,
+					fmt.Sprintf("%.2f%%", profitRatio*100),
+				)
 				return
 			}
-			stopLossDistance = s.calculateStopLossDistancee(s.profitableRatio-s.profitableScale, currentOrder.Price, float64(option.Leverage), calc.Abs(assetPosition))
 			// 递增利润比
-			s.profitableRatio = s.profitableRatio + s.profitableScale
+			s.profitRatioLimit[option.Pair] = profitRatio - s.profitableScale
+			// 使用新的止损利润比计算止损点数
+			stopLossDistance = s.calculateStopLossDistancee(s.profitRatioLimit[option.Pair], currentOrder.Price, float64(option.Leverage), calc.Abs(assetPosition))
 			// 重新计算止损价格
 			if currSideType == model.SideTypeSell {
 				stopLossPrice = currentOrder.Price - stopLossDistance
 			} else {
 				stopLossPrice = currentOrder.Price + stopLossDistance
 			}
-			utils.Log.Infof("Pair: %s profit is growing, ratio: %v, new loss ratio: %v, new loss price: %v", option.Pair, profitRatio, s.profitableRatio, stopLossPrice)
+			utils.Log.Infof(
+				"[GROW] Pair: %s | Price: %v | Quantity: %v | Profit Ratio: %s | Loss Price: %v, Ratio:%s",
+				option.Pair,
+				currentOrder.Price,
+				currentOrder.Quantity,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
+				stopLossPrice,
+				fmt.Sprintf("%.2f%%", s.profitRatioLimit[option.Pair]*100),
+			)
 
 			// 如果止损单是BUY，判断新的止损价格是否小于之前的止损价格
 			if tempSideType == model.SideTypeBuy && stopLossPrice < currentLossOrder.Price {
