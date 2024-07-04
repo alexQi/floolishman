@@ -78,10 +78,10 @@ func writer(logPath string, level string, save uint) *rotatelogs.RotateLogs {
 
 	tempFileFlag += level
 	logFullPath := path.Join(logPath, tempFileFlag)
-	logFullPath = fmt.Sprintf("%s-%v-part", logFullPath, viper.GetInt32("kafka.partition"))
+	logFullPath = fmt.Sprintf("%s", logFullPath)
 
 	logier, err := rotatelogs.New(
-		logFullPath+"%Y%m%d"+viper.GetString("log.suffix"),
+		logFullPath+"-%Y%m%d."+viper.GetString("log.suffix"),
 		rotatelogs.WithRotationTime(time.Second),    // 日志切割时间间隔
 		rotatelogs.WithMaxAge(-1),                   // 关闭过期清理
 		rotatelogs.WithLinkName(logFullPath+".out"), // 生成软链，指向最新日志文件

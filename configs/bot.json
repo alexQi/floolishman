@@ -7,6 +7,7 @@
         "level": "info",
         "flag": "floolishman",
         "path": "runtime/logs",
+        "suffix": "log",
         "stdout": true
     },
     "api": {
