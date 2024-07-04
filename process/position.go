@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	CheckOpenInterval  = 30
-	CheckCloseInterval = 10
+	CheckOpenInterval  = 15
+	CheckCloseInterval = 5
 )
 
 func CheckOpenPoistion(options map[string]model.PairOption, borker reference.Broker, callback types.OpenPositionFunc) {
