@@ -11,10 +11,11 @@ import (
 	"floolishman/types"
 	"floolishman/utils"
 	"fmt"
+	"github.com/spf13/viper"
+	"os"
+	"path/filepath"
 	"sync"
 )
-
-const defaultDatabase = "floolisher.db"
 
 type OrderSubscriber interface {
 	OnOrder(model.Order)
@@ -60,7 +61,17 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 	// 加载storage
 	var err error
 	if bot.storage == nil {
-		bot.storage, err = storage.FromFile(defaultDatabase)
+		storagePath := viper.GetString("storage.path")
+		dir := filepath.Dir(storagePath)
+		// 判断文件目录是否存在
+		_, err := os.Stat(dir)
+		if err != nil {
+			err = os.MkdirAll(dir, os.ModePerm)
+			if err != nil {
+				utils.Log.Panicf("mkdir error : %s", err.Error())
+			}
+		}
+		bot.storage, err = storage.FromFile(storagePath)
 		if err != nil {
 			return nil, err
 		}

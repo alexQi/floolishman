@@ -15,6 +15,7 @@
 /floolisher.db
 /backtest.db
 /dist/
+/runtime/
 /vendor
 
 # IDE

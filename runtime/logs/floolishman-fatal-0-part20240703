@@ -1,3 +1,0 @@
-time="2024-07-03 10:35:14" level=fatal msg="binance ping fail: Get \"https://fapi.binance.com/fapi/v1/ping\": proxyconnect tcp: dial tcp 127.0.0.1:7890: connect: connection refused"
-time="2024-07-03 10:35:31" level=fatal msg="binance ping fail: Get \"https://fapi.binance.com/fapi/v1/ping\": proxyconnect tcp: dial tcp 127.0.0.1:7890: connect: connection refused"
-time="2024-07-03 21:02:07" level=fatal msg="error with load pem file:open certs/binance/xiang_Private_key.pem: no such file or directory"

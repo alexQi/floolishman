@@ -33,11 +33,11 @@ func main() {
 				Leverage:   100,
 				MarginType: constants.MarginTypeCrossed,
 			},
-			{
-				Pair:       "BTCUSDT",
-				Leverage:   100,
-				MarginType: constants.MarginTypeCrossed,
-			},
+			//{
+			//	Pair:       "BTCUSDT",
+			//	Leverage:   100,
+			//	MarginType: constants.MarginTypeCrossed,
+			//},
 		},
 		Telegram: model.TelegramSettings{
 			Enabled: false,
@@ -70,6 +70,7 @@ func main() {
 		Strategies: []types.Strategy{
 			//&strategies.Rsi1m{},
 			//&strategies.Emacross1m{},
+			&strategies.Momentum15m{},
 			&strategies.Rsi15m{},
 			&strategies.Rsi1h{},
 			&strategies.Emacross15m{},

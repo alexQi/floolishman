@@ -42,7 +42,7 @@ func NewStrategyService(ctx context.Context, strategy types.CompositesStrategy, 
 		broker:              broker,
 		volatilityThreshold: 0.002,
 		fullSpaceRadio:      0.1,
-		initLossRatio:       0.45,
+		initLossRatio:       0.5,
 		profitableScale:     0.1,
 		profitableRatio:     0.25,
 	}
@@ -111,7 +111,7 @@ func (s *StrategyService) OnRealCandle(timeframe string, candle model.Candle) {
 	s.mu.Lock()         // 加锁
 	defer s.mu.Unlock() // 解锁
 	oldCandle, ok := s.realCandles[candle.Pair][timeframe]
-	if ok && oldCandle.Time.Before(candle.Time) == false {
+	if ok && oldCandle.UpdatedAt.Before(candle.UpdatedAt) == false {
 		return
 	}
 	s.realCandles[candle.Pair][timeframe] = &candle
@@ -157,19 +157,29 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 	}
 	matchers := s.strategy.CallMatchers(s.realCandles[option.Pair], s.samples[option.Pair])
 	// 判断策略结果
+	currentPirce := s.pairPrices[option.Pair]
 	totalScore, currentScore, finalPosition := s.judgeStrategyForScore(matchers)
 	if totalScore == 0 {
-		utils.Log.Infof("[WAIT] Pair: %s Count %d | %d Matchers | Price: %v", option.Pair, len(s.strategy.Strategies), len(matchers), s.pairPrices[option.Pair])
+		utils.Log.Infof("[WAIT] Pair: %s | Price: %v | Strategy Count: %d, %d Matchers ", option.Pair, currentPirce, len(s.strategy.Strategies), len(matchers))
 		return
 	}
-	utils.Log.Infof("[OPEN] Pair: %s Count %d | %d Matchers %s | Price: %v | Side: %s | Total Score: %d | Final Score: %d", option.Pair, len(s.strategy.Strategies), len(matchers), matchers, s.pairPrices[option.Pair], finalPosition, totalScore, currentScore)
-
 	// 根据分数动态计算仓位大小
 	scoreRadio := float64(currentScore / totalScore)
-	amount := s.calculateOpenPositionSize(quotePosition, float64(s.pairOptions[option.Pair].Leverage), s.pairPrices[option.Pair], scoreRadio)
-	utils.Log.Infof("Position size: %v, Pair:%s", amount, option.Pair)
+	amount := s.calculateOpenPositionSize(quotePosition, float64(s.pairOptions[option.Pair].Leverage), currentPirce, scoreRadio)
+	utils.Log.Infof(
+		"[OPEN] Pair: %s | Price: %v | Quantity: %v | Strategy Count %d, %d Matchers: %s  | Side: %s | Total Score: %d | Final Score: %d",
+		option.Pair,
+		currentPirce,
+		amount,
+		len(s.strategy.Strategies),
+		len(matchers),
+		matchers,
+		finalPosition,
+		totalScore,
+		currentScore,
+	)
 	// 根据最新价格创建限价单
-	order, err := broker.CreateOrderLimit(finalPosition, option.Pair, amount, s.pairPrices[option.Pair])
+	order, err := broker.CreateOrderLimit(finalPosition, option.Pair, amount, currentPirce)
 	if err != nil {
 		utils.Log.Error(err)
 		return
@@ -255,12 +265,13 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 			utils.Log.Error(err)
 		}
 	} else {
+		currentPirce := s.pairPrices[option.Pair]
 		// 已查询到止损单
-		isProfitable := s.checkIsProfitable(s.pairPrices[option.Pair], currentOrder.Price, currSideType)
+		isProfitable := s.checkIsProfitable(currentPirce, currentOrder.Price, currSideType)
 		// 判断是否盈利，盈利中则处理平仓及移动止损，反之则保持之前的止损单
 		if isProfitable {
 			// 判断当前利润比是否大于预设值
-			profitRatio := s.calculateProfitRatio(currentOrder.Price, s.pairPrices[option.Pair], float64(option.Leverage), currentOrder.Quantity)
+			profitRatio := s.calculateProfitRatio(currentOrder.Price, currentPirce, float64(option.Leverage), currentOrder.Quantity)
 			if profitRatio < s.profitableRatio {
 				utils.Log.Infof("Pair: %s is profiting, ratio: %v, loss ratio: %v", option.Pair, profitRatio, s.profitableRatio)
 				return

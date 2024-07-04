@@ -1,2 +1,0 @@
-time="2024-07-04 02:01:02" level=fatal msg="binance ping fail: Get \"https://fapi.binance.com/fapi/v1/ping\": EOF"
-time="2024-07-04 02:03:30" level=fatal msg="binance ping fail: Get \"https://fapi.binance.com/fapi/v1/ping\": EOF"

@@ -685,7 +685,7 @@ func (b *BinanceFuture) CandlesByPeriod(ctx context.Context, pair, period string
 func FutureCandleFromKline(pair string, k futures.Kline) model.Candle {
 	var err error
 	t := time.Unix(0, k.OpenTime*int64(time.Millisecond))
-	candle := model.Candle{Pair: pair, Time: t, UpdatedAt: t}
+	candle := model.Candle{Pair: pair, Time: t, UpdatedAt: time.Now()}
 	candle.Open, err = strconv.ParseFloat(k.Open, 64)
 	if err != nil {
 		utils.Log.Warn(err)
@@ -714,7 +714,7 @@ func FutureCandleFromKline(pair string, k futures.Kline) model.Candle {
 func FutureCandleFromWsKline(pair string, k futures.WsKline) model.Candle {
 	var err error
 	t := time.Unix(0, k.StartTime*int64(time.Millisecond))
-	candle := model.Candle{Pair: pair, Time: t, UpdatedAt: t}
+	candle := model.Candle{Pair: pair, Time: t, UpdatedAt: time.Now()}
 	candle.Open, err = strconv.ParseFloat(k.Open, 64)
 	if err != nil {
 		utils.Log.Warn(err)

@@ -1,0 +1,21 @@
+{
+    "storage": {
+        "driver": "buntdb",
+        "path": "runtime/data/floolishman.db"
+    },
+    "log": {
+        "level": "info",
+        "flag": "floolishman",
+        "path": "runtime/logs",
+        "stdout": true
+    },
+    "api": {
+        "encrypt": "ED25519",
+        "key": "",
+        "pem": ""
+    },
+    "telegram": {
+        "token": "",
+        "user": ""
+    }
+}

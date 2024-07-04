@@ -1,1 +1,0 @@
-time="2024-07-01 15:16:23" level=fatal msg="binance ping fail: Get \"https://testnet.binancefuture.com/fapi/v1/ping\": EOF"

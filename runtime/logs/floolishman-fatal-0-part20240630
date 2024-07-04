@@ -1,2 +1,0 @@
-time="2024-06-30 21:07:33" level=fatal msg="binance ping fail: Get \"https://fapi.binance.com/fapi/v1/ping\": dial tcp 108.160.165.8:443: i/o timeout"
-time="2024-06-30 21:07:44" level=fatal msg="<APIError> code=-2015, msg=Invalid API-key, IP, or permissions for action"
