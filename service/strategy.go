@@ -196,6 +196,31 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 			utils.Log.Error(err)
 		}
 	}
+	// 判断之前是否已有未成交的限价单
+	// 直接获取当前交易对订单
+	positionOrders, err := broker.GetCurrentPositionOrders(option.Pair)
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	if len(positionOrders) > 0 {
+		existOrders := map[model.OrderStatusType]*model.Order{}
+		for _, order := range positionOrders {
+			existOrders[order.Status] = order
+		}
+		// 判断当前是否已有限价单
+		if newLimitOrder, ok := existOrders[model.OrderStatusTypeNew]; ok {
+			if newLimitOrder.Type == model.OrderTypeLimit {
+				// 取消之前的止损单
+				err = broker.Cancel(*newLimitOrder)
+				if err != nil {
+					utils.Log.Error(err)
+					return
+				}
+			}
+		}
+	}
+
 	// 根据分数动态计算仓位大小
 	scoreRadio := float64(currentScore / totalScore)
 	amount := s.calculateOpenPositionSize(quotePosition, float64(s.pairOptions[option.Pair].Leverage), currentPirce, scoreRadio)
@@ -211,6 +236,7 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 		totalScore,
 		currentScore,
 	)
+	// 重置当前交易对止损比例
 	s.profitRatioLimit[option.Pair] = 0
 	// 根据最新价格创建限价单
 	order, err := broker.CreateOrderLimit(finalPosition, option.Pair, amount, currentPirce)

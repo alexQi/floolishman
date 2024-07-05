@@ -1,4 +1,11 @@
 {
+    "mode": "product",
+    "pairs": {
+        "ETHUSDT": {
+            "leverage": 100,
+            "marginType": "CROSSED"
+        }
+    },
     "trading": {
         "volatilityThreshold": 0.002,
         "fullSpaceRadio": 0.1,
