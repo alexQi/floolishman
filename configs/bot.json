@@ -1,4 +1,11 @@
 {
+    "trading": {
+        "volatilityThreshold": 0.002,
+        "fullSpaceRadio": 0.1,
+        "initLossRatio": 0.5,
+        "profitableScale": 0.1,
+        "initProfitRatioLimit": 0.25
+    },
     "proxy": {
         "status": true,
         "url": "http://127.0.0.1:7890"
@@ -17,6 +24,7 @@
     "api": {
         "encrypt": "ED25519",
         "key": "",
+        "secret": "",
         "pem": ""
     },
     "telegram": {

@@ -13,9 +13,16 @@ import (
 	"sync"
 )
 
+type StrategyServiceSetting struct {
+	VolatilityThreshold  float64
+	FullSpaceRadio       float64
+	InitLossRatio        float64
+	ProfitableScale      float64
+	InitProfitRatioLimit float64
+}
+
 type StrategyService struct {
 	ctx                  context.Context
-	volatilityThreshold  float64
 	strategy             types.CompositesStrategy
 	dataframes           map[string]map[string]*model.Dataframe
 	samples              map[string]map[string]map[string]*model.Dataframe
@@ -24,6 +31,7 @@ type StrategyService struct {
 	pairOptions          map[string]model.PairOption
 	broker               reference.Broker
 	started              bool
+	volatilityThreshold  float64
 	fullSpaceRadio       float64
 	initLossRatio        float64
 	profitableScale      float64
@@ -32,7 +40,7 @@ type StrategyService struct {
 	mu                   sync.Mutex
 }
 
-func NewStrategyService(ctx context.Context, strategy types.CompositesStrategy, broker reference.Broker) *StrategyService {
+func NewStrategyService(ctx context.Context, tradingSetting StrategyServiceSetting, strategy types.CompositesStrategy, broker reference.Broker) *StrategyService {
 	return &StrategyService{
 		ctx:                  ctx,
 		dataframes:           make(map[string]map[string]*model.Dataframe),
@@ -42,11 +50,11 @@ func NewStrategyService(ctx context.Context, strategy types.CompositesStrategy, 
 		pairOptions:          make(map[string]model.PairOption),
 		strategy:             strategy,
 		broker:               broker,
-		volatilityThreshold:  0.002,
-		fullSpaceRadio:       0.1,
-		initLossRatio:        0.5,
-		profitableScale:      0.1,
-		initProfitRatioLimit: 0.25,
+		volatilityThreshold:  tradingSetting.VolatilityThreshold,
+		fullSpaceRadio:       tradingSetting.FullSpaceRadio,
+		initLossRatio:        tradingSetting.InitLossRatio,
+		profitableScale:      tradingSetting.ProfitableScale,
+		initProfitRatioLimit: tradingSetting.InitProfitRatioLimit,
 		profitRatioLimit:     make(map[string]float64),
 	}
 }
@@ -212,7 +220,7 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 	}
 	// 设置止损订单
 	var tempSideType model.SideType
-	stopLossDistance := s.calculateStopLossDistancee(s.initLossRatio, order.Price, float64(s.pairOptions[option.Pair].Leverage), amount)
+	stopLossDistance := s.calculateStopLossDistance(s.initLossRatio, order.Price, float64(s.pairOptions[option.Pair].Leverage), amount)
 	var stopLossPrice float64
 	if finalPosition == model.SideTypeBuy {
 		tempSideType = model.SideTypeSell
@@ -302,7 +310,7 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 		// 递增利润比
 		s.profitRatioLimit[option.Pair] = profitRatio - s.profitableScale
 		// 使用新的止损利润比计算止损点数
-		stopLossDistance = s.calculateStopLossDistancee(s.profitRatioLimit[option.Pair], currentOrder.Price, float64(option.Leverage), calc.Abs(assetPosition))
+		stopLossDistance = s.calculateStopLossDistance(s.profitRatioLimit[option.Pair], currentOrder.Price, float64(option.Leverage), calc.Abs(assetPosition))
 		// 重新计算止损价格
 		if currSideType == model.SideTypeSell {
 			stopLossPrice = currentOrder.Price - stopLossDistance
@@ -342,7 +350,7 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 			return
 		}
 		// 未查询到止损单时，重设止损单
-		stopLossDistance := s.calculateStopLossDistancee(s.initLossRatio, currentOrder.Price, float64(option.Leverage), calc.Abs(assetPosition))
+		stopLossDistance := s.calculateStopLossDistance(s.initLossRatio, currentOrder.Price, float64(option.Leverage), calc.Abs(assetPosition))
 		if assetPosition > 0 {
 			stopLossPrice = currentOrder.Price - stopLossDistance
 		} else {
@@ -457,7 +465,7 @@ func (s *StrategyService) calculateProfitRatio(side model.SideType, entryPrice f
 	return profit / margin
 }
 
-func (s *StrategyService) calculateStopLossDistancee(profitRatio float64, entryPrice float64, leverage float64, quantity float64) float64 {
+func (s *StrategyService) calculateStopLossDistance(profitRatio float64, entryPrice float64, leverage float64, quantity float64) float64 {
 	// 计算保证金
 	margin := (entryPrice * quantity) / leverage
 	// 根据保证金，利润比计算利润

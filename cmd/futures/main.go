@@ -6,6 +6,7 @@ import (
 	"floolishman/constants"
 	"floolishman/exchange"
 	"floolishman/model"
+	"floolishman/service"
 	"floolishman/strategies"
 	"floolishman/types"
 	"floolishman/utils"
@@ -16,15 +17,22 @@ import (
 func main() {
 	// 获取基础配置
 	var (
-		ctx           = context.Background()
-		apiKeyType    = viper.GetString("api.encrypt")
-		apiKey        = viper.GetString("api.key")
-		secretKey     = viper.GetString("api.secret")
-		secretPem     = viper.GetString("api.pem")
-		telegramToken = viper.GetString("telegram.token")
-		telegramUser  = viper.GetInt("telegram.user")
-		proxyStatus   = viper.GetBool("proxy.status")
-		proxyUrl      = viper.GetString("proxy.url")
+		ctx            = context.Background()
+		apiKeyType     = viper.GetString("api.encrypt")
+		apiKey         = viper.GetString("api.key")
+		secretKey      = viper.GetString("api.secret")
+		secretPem      = viper.GetString("api.pem")
+		telegramToken  = viper.GetString("telegram.token")
+		telegramUser   = viper.GetInt("telegram.user")
+		proxyStatus    = viper.GetBool("proxy.status")
+		proxyUrl       = viper.GetString("proxy.url")
+		tradingSetting = service.StrategyServiceSetting{
+			VolatilityThreshold:  0.002,
+			FullSpaceRadio:       0.1,
+			InitLossRatio:        0.5,
+			ProfitableScale:      0.1,
+			InitProfitRatioLimit: 0.25,
+		}
 	)
 
 	// 设置需要处理的交易对
@@ -86,7 +94,7 @@ func main() {
 			//&strategies.Emacross4h{},
 		},
 	}
-	b, err := bot.NewBot(ctx, settings, binance, compositesStrategy)
+	b, err := bot.NewBot(ctx, settings, binance, tradingSetting, compositesStrategy)
 	if err != nil {
 		utils.Log.Fatalln(err)
 	}

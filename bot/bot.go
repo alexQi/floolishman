@@ -26,12 +26,13 @@ type CandleSubscriber interface {
 }
 
 type Bot struct {
-	storage  storage.Storage
-	settings model.Settings
-	exchange reference.Exchange
-	notifier reference.Notifier
-	telegram reference.Telegram
-	strategy types.CompositesStrategy
+	storage        storage.Storage
+	settings       model.Settings
+	tradingSetting service.StrategyServiceSetting
+	exchange       reference.Exchange
+	notifier       reference.Notifier
+	telegram       reference.Telegram
+	strategy       types.CompositesStrategy
 
 	orderService         *service.OrderService
 	strategyService      *service.StrategyService
@@ -43,7 +44,7 @@ type Bot struct {
 
 type Option func(*Bot)
 
-func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, strategy types.CompositesStrategy,
+func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, tradingSetting service.StrategyServiceSetting, strategy types.CompositesStrategy,
 	options ...Option) (*Bot, error) {
 	// 初始化bot参数
 	bot := &Bot{
@@ -79,7 +80,7 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 	// 加载订单服务
 	bot.orderService = service.NewOrderService(ctx, exch, bot.storage, bot.orderFeed)
 	// 加载策略服务
-	bot.strategyService = service.NewStrategyService(ctx, strategy, bot.orderService)
+	bot.strategyService = service.NewStrategyService(ctx, tradingSetting, strategy, bot.orderService)
 	// 加载通知服务
 	if settings.Telegram.Enabled {
 		bot.telegram, err = notification.NewTelegram(bot.orderService, settings)
