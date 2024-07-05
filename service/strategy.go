@@ -163,10 +163,19 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 		utils.Log.Infof("[WAIT] Pair: %s | Price: %v | Strategy Count: %d, %d Matchers ", option.Pair, currentPirce, len(s.strategy.Strategies), len(matchers))
 		return
 	}
+	// TODO 仓位类型改为双向持仓 下单时根据类型可下对冲单。通过协程提升平仓在开仓的效率
 	// 有仓位时，判断当前持仓方向是否与策略相同
+	// 开多单: side=BUY&positionSide=LONG
+	// 平多单: side=SELL&positionSide=LONG
+	// 开空单: side=SELL&positionSide=SHORT
+	// 平空单: side=BUY&positionSide=SHORT
 	if calc.Abs(assetPosition) > 0 {
 		// 当前仓位为多，最近策略为多，保持仓位
 		if assetPosition > 0 && finalPosition == model.SideTypeBuy {
+			return
+		}
+		// 当前分数小于总分数/策略总数,保持仓位
+		if currentScore < totalScore/len(s.strategy.Strategies) {
 			return
 		}
 		// 当前仓位为空，最近策略为空，保持仓位

@@ -13,7 +13,7 @@ type Rsi15m struct {
 }
 
 func (s Rsi15m) SortScore() int {
-	return StrategyScoresConst[s.Timeframe()]
+	return 70
 }
 
 func (s Rsi15m) Timeframe() string {

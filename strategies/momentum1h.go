@@ -13,7 +13,7 @@ type Momentum1h struct {
 }
 
 func (s Momentum1h) SortScore() int {
-	return StrategyScoresConst[s.Timeframe()]
+	return 100
 }
 
 func (s Momentum1h) Timeframe() string {

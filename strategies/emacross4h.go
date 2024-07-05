@@ -13,7 +13,7 @@ type Emacross4h struct {
 }
 
 func (s Emacross4h) SortScore() int {
-	return StrategyScoresConst[s.Timeframe()]
+	return 75
 }
 
 func (s Emacross4h) Timeframe() string {

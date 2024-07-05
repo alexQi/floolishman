@@ -5,16 +5,6 @@ import (
 	"floolishman/model"
 )
 
-var StrategyScoresConst = map[string]int{
-	"12h": 240,
-	"8h":  120,
-	"4h":  60,
-	"1h":  30,
-	"15m": 20,
-	"5m":  10,
-	"1m":  5,
-}
-
 type BaseStrategy struct {
 }
 

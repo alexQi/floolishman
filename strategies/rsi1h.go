@@ -13,7 +13,7 @@ type Rsi1h struct {
 }
 
 func (s Rsi1h) SortScore() int {
-	return StrategyScoresConst[s.Timeframe()]
+	return 80
 }
 
 func (s Rsi1h) Timeframe() string {
@@ -21,7 +21,7 @@ func (s Rsi1h) Timeframe() string {
 }
 
 func (s Rsi1h) WarmupPeriod() int {
-	return 36 // RSI的预热期设定为14个数据点
+	return 24 // RSI的预热期设定为14个数据点
 }
 
 func (s Rsi1h) Indicators(df *model.Dataframe) []types.ChartIndicator {
