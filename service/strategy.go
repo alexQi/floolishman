@@ -182,12 +182,12 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 		if assetPosition > 0 && finalPosition == model.SideTypeBuy {
 			return
 		}
-		// 当前分数小于总分数/策略总数,保持仓位
-		if currentScore < totalScore/len(s.strategy.Strategies) {
-			return
-		}
 		// 当前仓位为空，最近策略为空，保持仓位
 		if assetPosition < 0 && finalPosition == model.SideTypeSell {
+			return
+		}
+		// 当前分数小于总分数/策略总数,保持仓位
+		if currentScore < totalScore/len(s.strategy.Strategies) {
 			return
 		}
 		// 当前仓位为空，最近策略为多，平掉空单
