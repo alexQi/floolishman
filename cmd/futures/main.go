@@ -27,11 +27,11 @@ func main() {
 		proxyStatus    = viper.GetBool("proxy.status")
 		proxyUrl       = viper.GetString("proxy.url")
 		tradingSetting = service.StrategyServiceSetting{
-			VolatilityThreshold:  0.002,
-			FullSpaceRadio:       0.1,
-			InitLossRatio:        0.5,
-			ProfitableScale:      0.1,
-			InitProfitRatioLimit: 0.25,
+			VolatilityThreshold:  viper.GetFloat64("trading.volatilityThreshold"),
+			FullSpaceRadio:       viper.GetFloat64("trading.fullSpaceRadio"),
+			InitLossRatio:        viper.GetFloat64("trading.initLossRatio"),
+			ProfitableScale:      viper.GetFloat64("trading.profitableScale"),
+			InitProfitRatioLimit: viper.GetFloat64("trading.initProfitRatioLimit"),
 		}
 	)
 
@@ -71,6 +71,7 @@ func main() {
 		exhangeOptions = append(
 			exhangeOptions,
 			exchange.WithBinanceFutureProxy(proxyUrl),
+			exchange.WithBinanceFutureTestnet(),
 		)
 	}
 
