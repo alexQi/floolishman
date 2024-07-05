@@ -12,6 +12,8 @@
 *.out
 
 /runtime/
+.env
+/certs/*
 
 # IDE
 .idea
