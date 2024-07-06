@@ -345,7 +345,7 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 				// 递增利润比
 				s.profitRatioLimit[option.Pair] = profitRatio - s.profitableScale
 				// 使用新的止损利润比计算止损点数
-				stopLossDistance = s.calculateStopLossDistance(s.profitRatioLimit[option.Pair], positionOrder.Price, float64(option.Leverage), calc.Abs(assetPosition))
+				stopLossDistance = s.calculateStopLossDistance(s.profitRatioLimit[option.Pair], positionOrder.Price, float64(option.Leverage), positionOrder.Quantity)
 				// 重新计算止损价格
 				if positionOrder.Side == model.SideTypeSell {
 					stopLossPrice = positionOrder.Price - stopLossDistance
@@ -370,7 +370,7 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 				// 设置新的止损单
 				// 使用滚动利润比保证该止损利润是递增的
 				// 不再判断新的止损价格是否小于之前的止损价格
-				_, err := broker.CreateOrderStopLimit(tempSideType, positionOrder.PositionSide, option.Pair, calc.Abs(assetPosition), stopLossPrice, positionOrder.OrderFlag)
+				_, err := broker.CreateOrderStopLimit(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, stopLossPrice, positionOrder.OrderFlag)
 				if err != nil {
 					utils.Log.Error(err)
 				}

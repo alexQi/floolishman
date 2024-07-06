@@ -36,7 +36,7 @@ func (s *Momentum1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) typ
 	// 判断是否换线
 	tendency := s.checkCandleTendency(df, 3)
 	// 趋势判断
-	if momentums[1] > 0 && momentums[0] > momentums[1] && realCandle.Close > df.Close.Last(0) && tendency == "bullish" {
+	if momentums[1] > 0 && momentums[0] > momentums[1] && realCandle.Low > df.Close.Last(0) && tendency == "bullish" {
 		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeBuy,
@@ -45,7 +45,7 @@ func (s *Momentum1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) typ
 			Score:        s.SortScore(),
 		}
 	}
-	if momentums[1] < 0 && momentums[0] < momentums[1] && realCandle.Close < df.Close.Last(0) && tendency == "bearish" {
+	if momentums[1] < 0 && momentums[0] < momentums[1] && realCandle.Low < df.Close.Last(0) && tendency == "bearish" {
 		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeSell,
