@@ -41,49 +41,42 @@ func (s *Range15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types
 	rsi := df.Metadata["rsi"].Last(0)
 	bbUpper := df.Metadata["bb_upper"]
 	bbLower := df.Metadata["bb_lower"]
-	max := df.Metadata["max"]
-	min := df.Metadata["min"]
+	maxPrices := df.Metadata["max"]
+	minPrices := df.Metadata["min"]
 
 	topCount := 0
 	bottomCount := 0
 
-	for i := 0; i < len(max)-1; i++ {
-		if max[i] > bbUpper[i] {
+	for i := 0; i < len(maxPrices)-1; i++ {
+		if maxPrices[i] > bbUpper[i] {
 			topCount++
 		}
 	}
-	for i := 0; i < len(min)-1; i++ {
-		if min[i] < bbLower[i] {
+	for i := 0; i < len(minPrices)-1; i++ {
+		if minPrices[i] < bbLower[i] {
 			bottomCount++
 		}
 	}
 
 	const limitBreak = 3
 
-	var strategyPosition types.StrategyPosition
+	strategyPosition := types.StrategyPosition{
+		Tendency:     s.checkMarketTendency(df),
+		StrategyName: reflect.TypeOf(s).Elem().Name(),
+		Pair:         df.Pair,
+		Score:        s.SortScore(),
+	}
 
 	// 判断量价关系
 	if rsi < 30 && bottomCount <= limitBreak && calc.Abs(realCandle.Close-df.Low.Last(0))/bbLower.Last(0) < 0.003 {
-		strategyPosition = types.StrategyPosition{
-			Useable:      true,
-			Side:         model.SideTypeBuy,
-			Pair:         df.Pair,
-			StrategyName: reflect.TypeOf(s).Elem().Name(),
-			Score:        s.SortScore(),
-			Price:        realCandle.Close,
-		}
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeBuy
 	}
 
 	if rsi > 70 && topCount <= limitBreak && calc.Abs(realCandle.Close-df.High.Last(0))/bbUpper.Last(0) < 0.003 {
-		strategyPosition = types.StrategyPosition{
-			Useable:      true,
-			Side:         model.SideTypeSell,
-			Pair:         df.Pair,
-			StrategyName: reflect.TypeOf(s).Elem().Name(),
-			Score:        s.SortScore(),
-		}
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeSell
 	}
-	strategyPosition.Tendency = s.checkMarketTendency(df)
 
 	return strategyPosition
 }

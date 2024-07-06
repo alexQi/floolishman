@@ -35,18 +35,18 @@ var (
 )
 
 type Order struct {
-	ID               int64            `db:"id" json:"id" gorm:"primaryKey,autoIncrement"`
-	ExchangeID       int64            `db:"exchange_id" json:"exchange_id"`
-	NewClientOrderId string           `db:"new_client_order_id" json:"new_client_order_id"`
-	OrderFlag        string           `db:"order_flag" json:"order_flag"`
-	Pair             string           `db:"pair" json:"pair"`
-	Side             SideType         `db:"side" json:"side"`
-	Type             OrderType        `db:"type" json:"type"`
-	Status           OrderStatusType  `db:"status" json:"status"`
-	Price            float64          `db:"price" json:"price"`
-	Quantity         float64          `db:"quantity" json:"quantity"`
-	PositionSide     PositionSideType `db:"position_side" json:"position_side"`
-	TradingStatus    int64            `db:"trading_status" json:"trading_status"`
+	ID            int64            `db:"id" json:"id" gorm:"primaryKey,autoIncrement"`
+	ExchangeID    int64            `db:"exchange_id" json:"exchange_id"`
+	ClientOrderId string           `db:"client_order_id" json:"client_order_id"`
+	OrderFlag     string           `db:"order_flag" json:"order_flag"`
+	Pair          string           `db:"pair" json:"pair"`
+	Side          SideType         `db:"side" json:"side"`
+	Type          OrderType        `db:"type" json:"type"`
+	Status        OrderStatusType  `db:"status" json:"status"`
+	Price         float64          `db:"price" json:"price"`
+	Quantity      float64          `db:"quantity" json:"quantity"`
+	PositionSide  PositionSideType `db:"position_side" json:"position_side"`
+	TradingStatus int64            `db:"trading_status" json:"trading_status"`
 
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
@@ -64,5 +64,5 @@ type Order struct {
 
 func (o Order) String() string {
 	return fmt.Sprintf("[%s] %s %s %s | OrderFlag: %s, ID: %d,ClientOrderId: %s, Type: %s, %f x $%f (~$%.f)",
-		o.Status, o.Side, o.PositionSide, o.Pair, o.OrderFlag, o.ID, o.NewClientOrderId, o.Type, o.Quantity, o.Price, o.Quantity*o.Price)
+		o.Status, o.Side, o.PositionSide, o.Pair, o.OrderFlag, o.ID, o.ClientOrderId, o.Type, o.Quantity, o.Price, o.Quantity*o.Price)
 }

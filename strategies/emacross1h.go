@@ -34,27 +34,22 @@ func (s *Emacross1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) typ
 	ema21 := df.Metadata["ema21"]
 	ova := df.Metadata["ova"]
 
-	var strategyPosition types.StrategyPosition
+	strategyPosition := types.StrategyPosition{
+		Tendency:     s.checkMarketTendency(df),
+		StrategyName: reflect.TypeOf(s).Elem().Name(),
+		Pair:         df.Pair,
+		Score:        s.SortScore(),
+	}
 	// 判断量价关系
 	if ema8.Crossover(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] && realCandle.Close > df.Close.Last(0) {
-		strategyPosition = types.StrategyPosition{
-			Useable:      true,
-			Side:         model.SideTypeBuy,
-			Pair:         df.Pair,
-			StrategyName: reflect.TypeOf(s).Elem().Name(),
-			Score:        s.SortScore(),
-		}
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeBuy
 	}
 
 	if ema8.Crossunder(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] && realCandle.Close < df.Close.Last(0) {
-		strategyPosition = types.StrategyPosition{
-			Useable:      true,
-			Side:         model.SideTypeSell,
-			Pair:         df.Pair,
-			StrategyName: reflect.TypeOf(s).Elem().Name(),
-			Score:        s.SortScore(),
-		}
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeSell
 	}
-	strategyPosition.Tendency = s.checkMarketTendency(df)
+
 	return strategyPosition
 }

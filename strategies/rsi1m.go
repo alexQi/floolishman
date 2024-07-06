@@ -34,28 +34,23 @@ func (s Rsi1m) Indicators(df *model.Dataframe) {
 }
 
 func (s *Rsi1m) OnCandle(_ *model.Candle, df *model.Dataframe) types.StrategyPosition {
-	var strategyPosition types.StrategyPosition
+	strategyPosition := types.StrategyPosition{
+		Tendency:     s.checkMarketTendency(df),
+		StrategyName: reflect.TypeOf(s).Elem().Name(),
+		Pair:         df.Pair,
+		Score:        s.SortScore(),
+	}
 
 	rsi := df.Metadata["rsi"].Last(0)
 
 	// 趋势判断
 	if rsi >= 55 {
-		strategyPosition = types.StrategyPosition{
-			Useable:      true,
-			Side:         model.SideTypeSell,
-			Pair:         df.Pair,
-			StrategyName: reflect.TypeOf(s).Elem().Name(),
-			Score:        s.SortScore(),
-		}
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeSell
 	}
 	if rsi < 45 {
-		strategyPosition = types.StrategyPosition{
-			Useable:      true,
-			Side:         model.SideTypeBuy,
-			Pair:         df.Pair,
-			StrategyName: reflect.TypeOf(s).Elem().Name(),
-			Score:        s.SortScore(),
-		}
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeBuy
 	}
 	strategyPosition.Tendency = s.checkMarketTendency(df)
 

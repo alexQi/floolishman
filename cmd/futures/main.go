@@ -106,14 +106,12 @@ func main() {
 		Strategies: []types.Strategy{
 			&strategies.Range15m{},
 			&strategies.Momentum15m{},
-			//&strategies.Momentum1h{},
 			&strategies.Rsi1h{},
 			&strategies.Emacross15m{},
 			&strategies.Emacross1h{},
+			//&strategies.Momentum1h{},
 
 			//&strategies.Rsi1m{},
-
-			//&strategies.Emacross1m{},
 			//&strategies.Rsi15m{},
 			//&strategies.Emacross4h{},
 		},

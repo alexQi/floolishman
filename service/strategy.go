@@ -155,6 +155,9 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 	if !s.started {
 		return
 	}
+	if _, ok := s.realCandles[option.Pair]; !ok {
+		return
+	}
 	assetPosition, quotePosition, err := s.broker.Position(option.Pair)
 	if err != nil {
 		utils.Log.Error(err)
@@ -217,18 +220,17 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 	// 判断当前是否已有仓位
 	// 仓位类型双向持仓 下单时根据类型可下对冲单。通过协程提升平仓在开仓的效率
 	// 有仓位时，判断当前持仓方向是否与策略相同
-	// 开多单: side=BUY&positionSide=LONG
-	// 平多单: side=SELL&positionSide=LONG
-	// 开空单: side=SELL&positionSide=SHORT
-	// 平空单: side=BUY&positionSide=SHORT
+	sameSideOrder := model.Order{}
 	if _, ok := existOrders[model.OrderTypeLimit]; ok {
 		positionOrders, ok := existOrders[model.OrderTypeLimit][model.OrderStatusTypeFilled]
 		if ok && len(positionOrders) > 0 {
 			for _, positionOrder := range positionOrders {
 				// 原始止损单方向和当前策略判断方向相同，则取消原始止损单
 				if positionOrder.Side == finalPosition {
+					sameSideOrder = *positionOrder
 					continue
 				}
+
 				if positionOrder.Side == model.SideTypeBuy {
 					tempSideType = model.SideTypeSell
 					postionSide = model.PositionSideTypeLong
@@ -244,19 +246,30 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 			}
 		}
 	}
+	if sameSideOrder.ExchangeID > 0 {
+		utils.Log.Infof(
+			"[EXIST] Tendency: %s | Pair: %s | Price: %v | Quantity: %v  | Side: %s | Total Score: %d | Final Score: %d |  OrderFlag: %s",
+			finalTendency,
+			option.Pair,
+			currentPirce,
+			sameSideOrder.Quantity,
+			finalPosition,
+			totalScore,
+			currentScore,
+			sameSideOrder.OrderFlag,
+		)
+		return
+	}
 
 	// 根据分数动态计算仓位大小
 	scoreRadio := float64(currentScore) / float64(totalScore)
 	amount := s.calculateOpenPositionSize(quotePosition, float64(s.pairOptions[option.Pair].Leverage), currentPirce, scoreRadio)
 	utils.Log.Infof(
-		"[OPEN] Tendency: %s | Pair: %s | Price: %v | Quantity: %v | Strategy Count %d, %d Matchers: %s  | Side: %s | Total Score: %d | Final Score: %d",
+		"[OPEN] Tendency: %s | Pair: %s | Price: %v | Quantity: %v | Side: %s | Total Score: %d | Final Score: %d",
 		finalTendency,
 		option.Pair,
 		currentPirce,
 		amount,
-		len(s.strategy.Strategies),
-		len(matchers),
-		matchers,
 		finalPosition,
 		totalScore,
 		currentScore,
@@ -323,6 +336,7 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 		if !ok {
 			continue
 		}
+		// todo 这里的逻辑需要排查
 		for _, positionOrder := range positionOrders {
 			// 已查询到止损单
 			isProfitable := s.checkIsProfitable(currentPirce, positionOrder.Price, positionOrder.Side)

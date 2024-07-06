@@ -34,7 +34,12 @@ func (s Rsi1h) Indicators(df *model.Dataframe) {
 }
 
 func (s *Rsi1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
-	var strategyPosition types.StrategyPosition
+	strategyPosition := types.StrategyPosition{
+		Tendency:     s.checkMarketTendency(df),
+		StrategyName: reflect.TypeOf(s).Elem().Name(),
+		Pair:         df.Pair,
+		Score:        s.SortScore(),
+	}
 	rsi := df.Metadata["rsi"].Last(0)
 	bbUpper := df.Metadata["bb_upper"].Last(0)
 	bbLower := df.Metadata["bb_lower"].Last(0)
@@ -42,25 +47,14 @@ func (s *Rsi1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.St
 	tendency := s.checkCandleTendency(df, 2)
 	// 趋势判断
 	if rsi >= 85 && df.Close.Last(0) > bbUpper && realCandle.Close < df.Close.Last(0) && tendency == "bullish" {
-		strategyPosition = types.StrategyPosition{
-			Useable:      true,
-			Side:         model.SideTypeSell,
-			Pair:         df.Pair,
-			StrategyName: reflect.TypeOf(s).Elem().Name(),
-			Score:        s.SortScore(),
-		}
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeSell
 	}
 	// RSI 小于30，买入信号
 	if rsi <= 15 && df.Close.Last(0) < bbLower && realCandle.Close > df.Close.Last(0) && tendency == "bearish" {
-		strategyPosition = types.StrategyPosition{
-			Useable:      true,
-			Side:         model.SideTypeBuy,
-			Pair:         df.Pair,
-			StrategyName: reflect.TypeOf(s).Elem().Name(),
-			Score:        s.SortScore(),
-		}
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeBuy
 	}
-	strategyPosition.Tendency = s.checkMarketTendency(df)
 
 	return strategyPosition
 }

@@ -28,7 +28,12 @@ func (s Momentum15m) Indicators(df *model.Dataframe) {
 }
 
 func (s *Momentum15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
-	var strategyPosition types.StrategyPosition
+	strategyPosition := types.StrategyPosition{
+		Tendency:     s.checkMarketTendency(df),
+		StrategyName: reflect.TypeOf(s).Elem().Name(),
+		Pair:         df.Pair,
+		Score:        s.SortScore(),
+	}
 
 	momentums := df.Metadata["momentum"].LastValues(2)
 
@@ -36,24 +41,13 @@ func (s *Momentum15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) ty
 	tendency := s.checkCandleTendency(df, 3)
 	// 趋势判断
 	if momentums[1] > 0 && momentums[0] > momentums[1] && realCandle.Low > df.Close.Last(0) && tendency == "bullish" {
-		strategyPosition = types.StrategyPosition{
-			Useable:      true,
-			Side:         model.SideTypeBuy,
-			Pair:         df.Pair,
-			StrategyName: reflect.TypeOf(s).Elem().Name(),
-			Score:        s.SortScore(),
-		}
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeBuy
 	}
 	if momentums[1] < 0 && momentums[0] < momentums[1] && realCandle.Low < df.Close.Last(0) && tendency == "bearish" {
-		strategyPosition = types.StrategyPosition{
-			Useable:      true,
-			Side:         model.SideTypeSell,
-			Pair:         df.Pair,
-			StrategyName: reflect.TypeOf(s).Elem().Name(),
-			Score:        s.SortScore(),
-		}
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeSell
 	}
-	strategyPosition.Tendency = s.checkMarketTendency(df)
 
 	return strategyPosition
 }
