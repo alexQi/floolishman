@@ -3,6 +3,7 @@ package types
 import (
 	"floolishman/model"
 	"floolishman/reference"
+	"floolishman/utils"
 	"fmt"
 	"reflect"
 )
@@ -14,10 +15,11 @@ type StrategyPosition struct {
 	StrategyName string
 	Score        int
 	Price        float64
+	Tendency     string
 }
 
 func (sp StrategyPosition) String() string {
-	return fmt.Sprintf("%s %s | Strategy: %s, Score: %d", sp.Side, sp.Pair, sp.StrategyName, sp.Score)
+	return fmt.Sprintf("[%s] %s %s | Strategy: %s, Score: %d", sp.Tendency, sp.Side, sp.Pair, sp.StrategyName, sp.Score)
 }
 
 type OpenPositionFunc func(option model.PairOption, broker reference.Broker)
@@ -33,7 +35,7 @@ type Strategy interface {
 	// This time is measured in the period specified in the `Timeframe` function.
 	WarmupPeriod() int
 	// Indicators will be executed for each new candle, in order to fill indicators before `OnCandle` function is called.
-	Indicators(df *model.Dataframe) []ChartIndicator
+	Indicators(df *model.Dataframe)
 	// OnCandle will be executed for each new candle, after indicators are filled, here you can do your trading logic.
 	// OnCandle is executed after the candle close.
 	OnCandle(realCandle *model.Candle, df *model.Dataframe) StrategyPosition
@@ -42,6 +44,12 @@ type Strategy interface {
 type CompositesStrategy struct {
 	Strategies   []Strategy
 	PositionSize float64 // 每次交易的仓位大小
+}
+
+func (cs *CompositesStrategy) GetDetail() {
+	for _, strategy := range cs.Strategies {
+		utils.Log.Infof("Loaded Strategy: %s, Timeframe: %s", reflect.TypeOf(strategy).Elem().Name(), strategy.Timeframe())
+	}
 }
 
 // TimeFrameMap 获取当前策略时间周期对应的热启动区间数
@@ -71,9 +79,6 @@ func (cs *CompositesStrategy) CallMatchers(
 			realCandles[strategy.Timeframe()],
 			dataframes[strategy.Timeframe()][strategyName],
 		)
-		if strategyPosition.Useable == false {
-			continue
-		}
 		matchers = append(matchers, strategyPosition)
 	}
 	return matchers

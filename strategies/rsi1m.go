@@ -7,23 +7,23 @@ import (
 	"reflect"
 )
 
-type Rsi15m struct {
+type Rsi1m struct {
 	BaseStrategy
 }
 
-func (s Rsi15m) SortScore() int {
-	return 60
+func (s Rsi1m) SortScore() int {
+	return 80
 }
 
-func (s Rsi15m) Timeframe() string {
-	return "15m"
+func (s Rsi1m) Timeframe() string {
+	return "1m"
 }
 
-func (s Rsi15m) WarmupPeriod() int {
+func (s Rsi1m) WarmupPeriod() int {
 	return 24 // RSI的预热期设定为14个数据点
 }
 
-func (s Rsi15m) Indicators(df *model.Dataframe) {
+func (s Rsi1m) Indicators(df *model.Dataframe) {
 	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 	// 计算布林带（Bollinger Bands）
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
@@ -33,17 +33,13 @@ func (s Rsi15m) Indicators(df *model.Dataframe) {
 	df.Metadata["bb_lower"] = bbLower
 }
 
-func (s *Rsi15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
+func (s *Rsi1m) OnCandle(_ *model.Candle, df *model.Dataframe) types.StrategyPosition {
 	var strategyPosition types.StrategyPosition
 
-	rsis := df.Metadata["rsi"].LastValues(2)
-	bbUpper := df.Metadata["bb_upper"].Last(0)
-	bbLower := df.Metadata["bb_lower"].Last(0)
+	rsi := df.Metadata["rsi"].Last(0)
 
-	// 判断是否换线
-	tendency := s.checkCandleTendency(df, 3)
 	// 趋势判断
-	if rsis[1] >= 70 && rsis[0] >= 70 && df.Close.Last(0) > bbUpper && realCandle.Close < df.Close.Last(0) && tendency == "bullish" {
+	if rsi >= 55 {
 		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeSell,
@@ -52,7 +48,7 @@ func (s *Rsi15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.S
 			Score:        s.SortScore(),
 		}
 	}
-	if rsis[1] <= 30 && rsis[0] <= 30 && df.Close.Last(0) < bbLower && realCandle.Close > df.Close.Last(0) && tendency == "bearish" {
+	if rsi < 45 {
 		strategyPosition = types.StrategyPosition{
 			Useable:      true,
 			Side:         model.SideTypeBuy,

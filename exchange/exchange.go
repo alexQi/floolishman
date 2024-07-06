@@ -93,15 +93,13 @@ func (d *DataFeedSubscription) Preload(pair, timeframe string, candles []model.C
 
 func (d *DataFeedSubscription) Connect() {
 	utils.Log.Infof("Connecting to the exchange.")
-	index := 0
 	for feed := range d.Feeds.Iter() {
 		pair, timeframe := d.pairTimeframeFromKey(feed)
-		ccandle, cerr := d.exchange.CandlesSubscription(context.Background(), pair, timeframe, index == 0)
+		ccandle, cerr := d.exchange.CandlesSubscription(context.Background(), pair, timeframe)
 		d.DataFeeds[feed] = &DataFeed{
 			Data: ccandle,
 			Err:  cerr,
 		}
-		index++
 	}
 }
 

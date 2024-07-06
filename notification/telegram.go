@@ -9,7 +9,6 @@ import (
 	"floolishman/utils"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -65,8 +64,6 @@ func NewTelegram(orderService *service.OrderService, settings model.Settings, op
 		balanceBtn = menu.Text("/balance")
 		startBtn   = menu.Text("/start")
 		stopBtn    = menu.Text("/stop")
-		buyBtn     = menu.Text("/buy")
-		sellBtn    = menu.Text("/sell")
 	)
 
 	err = client.SetCommands([]tb.Command{
@@ -76,8 +73,6 @@ func NewTelegram(orderService *service.OrderService, settings model.Settings, op
 		{Text: "/status", Description: "Check bot status"},
 		{Text: "/balance", Description: "Wallet balance"},
 		{Text: "/profit", Description: "Summary of last trade results"},
-		{Text: "/buy", Description: "open a buy order"},
-		{Text: "/sell", Description: "open a sell order"},
 	})
 	if err != nil {
 		return nil, err
@@ -85,7 +80,7 @@ func NewTelegram(orderService *service.OrderService, settings model.Settings, op
 
 	menu.Reply(
 		menu.Row(statusBtn, balanceBtn, profitBtn),
-		menu.Row(startBtn, stopBtn, buyBtn, sellBtn),
+		menu.Row(startBtn, stopBtn),
 	)
 
 	bot := &telegram{
@@ -105,8 +100,6 @@ func NewTelegram(orderService *service.OrderService, settings model.Settings, op
 	client.Handle("/status", bot.StatusHandle)
 	client.Handle("/balance", bot.BalanceHandle)
 	client.Handle("/profit", bot.ProfitHandle)
-	client.Handle("/buy", bot.BuyHandle)
-	client.Handle("/sell", bot.SellHandle)
 
 	return bot, nil
 }
@@ -209,108 +202,6 @@ func (t telegram) ProfitHandle(m *tb.Message) {
 			utils.Log.Error(err)
 		}
 	}
-}
-
-func (t telegram) BuyHandle(m *tb.Message) {
-	match := buyRegexp.FindStringSubmatch(m.Text)
-	if len(match) == 0 {
-		_, err := t.client.Send(m.Sender, "Invalid command.\nExamples of usage:\n`/buy BTCUSDT 100`\n\n`/buy BTCUSDT 50%`")
-		if err != nil {
-			utils.Log.Error(err)
-		}
-		return
-	}
-
-	command := make(map[string]string)
-	for i, name := range buyRegexp.SubexpNames() {
-		if i != 0 && name != "" {
-			command[name] = match[i]
-		}
-	}
-
-	pair := strings.ToUpper(command["pair"])
-	amount, err := strconv.ParseFloat(command["amount"], 64)
-	if err != nil {
-		utils.Log.Error(err)
-		t.OnError(err)
-		return
-	} else if amount <= 0 {
-		_, err := t.client.Send(m.Sender, "Invalid amount")
-		if err != nil {
-			utils.Log.Error(err)
-		}
-		return
-	}
-
-	if command["percent"] != "" {
-		_, quote, err := t.orderService.Position(pair)
-		if err != nil {
-			utils.Log.Error(err)
-			t.OnError(err)
-			return
-		}
-
-		amount = amount * quote / 100.0
-	}
-
-	order, err := t.orderService.CreateOrderMarketQuote(model.SideTypeBuy, pair, amount)
-	if err != nil {
-		return
-	}
-	utils.Log.Info("[TELEGRAM]: BUY ORDER CREATED: ", order)
-}
-
-func (t telegram) SellHandle(m *tb.Message) {
-	match := sellRegexp.FindStringSubmatch(m.Text)
-	if len(match) == 0 {
-		_, err := t.client.Send(m.Sender, "Invalid command.\nExample of usage:\n`/sell BTCUSDT 100`\n\n`/sell BTCUSDT 50%")
-		if err != nil {
-			utils.Log.Error(err)
-		}
-		return
-	}
-
-	command := make(map[string]string)
-	for i, name := range sellRegexp.SubexpNames() {
-		if i != 0 && name != "" {
-			command[name] = match[i]
-		}
-	}
-
-	pair := strings.ToUpper(command["pair"])
-	amount, err := strconv.ParseFloat(command["amount"], 64)
-	if err != nil {
-		utils.Log.Error(err)
-		t.OnError(err)
-		return
-	} else if amount <= 0 {
-		_, err := t.client.Send(m.Sender, "Invalid amount")
-		if err != nil {
-			utils.Log.Error(err)
-		}
-		return
-	}
-
-	if command["percent"] != "" {
-		asset, _, err := t.orderService.Position(pair)
-		if err != nil {
-			return
-		}
-
-		amount = amount * asset / 100.0
-		order, err := t.orderService.CreateOrderMarket(model.SideTypeSell, pair, amount)
-		if err != nil {
-			return
-		}
-		utils.Log.Info("[TELEGRAM]: SELL ORDER CREATED: ", order)
-		return
-	}
-
-	order, err := t.orderService.CreateOrderMarketQuote(model.SideTypeSell, pair, amount)
-	if err != nil {
-		return
-	}
-	utils.Log.Info("[TELEGRAM]: SELL ORDER CREATED: ", order)
 }
 
 func (t telegram) StatusHandle(m *tb.Message) {

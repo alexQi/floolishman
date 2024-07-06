@@ -26,6 +26,8 @@ const (
 
 	// IndexNotFound IndexNotFound
 	IndexNotFound = -1
+
+	charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 
 // region empty checks
@@ -1797,6 +1799,17 @@ func Rand(size int, kind int) string {
 	}
 
 	return string(result)
+}
+
+func RandomString(length int) string {
+	src := rand.NewSource(time.Now().UnixNano()) // 使用当前时间的纳秒级时间戳作为种子
+	r := rand.New(src)
+
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[r.Intn(len(charset))]
+	}
+	return string(b)
 }
 
 // endregion

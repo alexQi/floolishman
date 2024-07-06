@@ -7,9 +7,10 @@ import (
 )
 
 type OrderCondition struct {
-	Condition func(df *model.Dataframe) bool
-	Size      float64
-	Side      model.SideType
+	Condition    func(df *model.Dataframe) bool
+	Size         float64
+	Side         model.SideType
+	PositionSide model.PositionSideType
 }
 
 type Scheduler struct {
@@ -38,7 +39,7 @@ func (s *Scheduler) BuyWhen(size float64, condition func(df *model.Dataframe) bo
 func (s *Scheduler) Update(df *model.Dataframe, broker reference.Broker) {
 	s.orderConditions = lo.Filter[OrderCondition](s.orderConditions, func(oc OrderCondition, _ int) bool {
 		if oc.Condition(df) {
-			_, err := broker.CreateOrderMarket(oc.Side, s.pair, oc.Size)
+			_, err := broker.CreateOrderMarket(oc.Side, oc.PositionSide, s.pair, oc.Size)
 			if err != nil {
 				Log.Error(err)
 				return true

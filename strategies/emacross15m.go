@@ -1,7 +1,6 @@
 package strategies
 
 import (
-	"floolishman/constants"
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/types"
@@ -24,58 +23,10 @@ func (s Emacross15m) WarmupPeriod() int {
 	return 30
 }
 
-func (s Emacross15m) Indicators(df *model.Dataframe) []types.ChartIndicator {
+func (s Emacross15m) Indicators(df *model.Dataframe) {
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
 	df.Metadata["ova"] = indicator.SMA(df.Volume, 14)
-
-	return []types.ChartIndicator{
-		{
-			Overlay:   true,
-			GroupName: "MA's",
-			Time:      df.Time,
-			Metrics: []types.IndicatorMetric{
-				{
-					Values: df.Metadata["ema8"],
-					Name:   "EMA 7",
-					Color:  "red",
-					Style:  constants.StyleLine,
-				},
-				{
-					Values: df.Metadata["ema21"],
-					Name:   "EMA 25",
-					Color:  "blue",
-					Style:  constants.StyleLine,
-				},
-			},
-		},
-		{
-			Overlay:   false,
-			GroupName: "OV",
-			Time:      df.Time,
-			Metrics: []types.IndicatorMetric{
-				{
-					Values: df.Volume,
-					Name:   "Volume",
-					Color:  "pink",
-					Style:  constants.StyleLine,
-				},
-			},
-		},
-		{
-			Overlay:   false,
-			GroupName: "OVA",
-			Time:      df.Time,
-			Metrics: []types.IndicatorMetric{
-				{
-					Values: df.Metadata["ova"],
-					Name:   "Volume Avg",
-					Color:  "green",
-					Style:  constants.StyleLine,
-				},
-			},
-		},
-	}
 }
 
 func (s *Emacross15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
@@ -105,5 +56,7 @@ func (s *Emacross15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) ty
 			Score:        s.SortScore(),
 		}
 	}
+	strategyPosition.Tendency = s.checkMarketTendency(df)
+
 	return strategyPosition
 }

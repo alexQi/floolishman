@@ -1,5 +1,5 @@
 {
-    "mode": "product",
+    "mode": "online",
     "pairs": {
         "ETHUSDT": {
             "leverage": 100,

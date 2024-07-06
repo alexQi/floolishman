@@ -217,24 +217,20 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 			// link to ninja bot controller
 			n.dataFeed.Subscribe(option.Pair, timeframe, n.onCandle, false)
 		}
-
-		// link to ninja bot controller
-		//for _, s := range n.strategy.Strategies {
-		//	n.dataFeed.Subscribe(option.Pair, s.Timeframe(), n.onCandle, false)
-		//}
 	}
-	n.strategyService.Start()
 }
 
 // Run will initialize the strategy controller, order controller, preload data and start the bot
 func (n *Bot) Run(ctx context.Context) {
+	n.strategy.GetDetail()
+
 	n.orderFeed.Start()
 	n.orderService.Start()
 	defer n.orderService.Stop()
 
-	utils.Log.Infof("Loaded with %d Strategy.", len(n.strategy.Strategies))
-
 	n.SettingPairs(ctx)
+
+	n.strategyService.Start()
 
 	// start data feed and receives new candles
 	n.dataFeed.Start()

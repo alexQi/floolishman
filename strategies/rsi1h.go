@@ -1,7 +1,6 @@
 package strategies
 
 import (
-	"floolishman/constants"
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/types"
@@ -13,7 +12,7 @@ type Rsi1h struct {
 }
 
 func (s Rsi1h) SortScore() int {
-	return 80
+	return 70
 }
 
 func (s Rsi1h) Timeframe() string {
@@ -24,7 +23,7 @@ func (s Rsi1h) WarmupPeriod() int {
 	return 24 // RSI的预热期设定为14个数据点
 }
 
-func (s Rsi1h) Indicators(df *model.Dataframe) []types.ChartIndicator {
+func (s Rsi1h) Indicators(df *model.Dataframe) {
 	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 	// 计算布林带（Bollinger Bands）
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
@@ -32,22 +31,6 @@ func (s Rsi1h) Indicators(df *model.Dataframe) []types.ChartIndicator {
 	df.Metadata["bb_upper"] = bbUpper
 	df.Metadata["bb_middle"] = bbMiddle
 	df.Metadata["bb_lower"] = bbLower
-
-	return []types.ChartIndicator{
-		{
-			Overlay:   true,
-			GroupName: "RSI Indicator",
-			Time:      df.Time,
-			Metrics: []types.IndicatorMetric{
-				{
-					Values: df.Metadata["rsi"],
-					Name:   "RSI (14)",
-					Color:  "blue",
-					Style:  constants.StyleLine,
-				},
-			},
-		},
-	}
 }
 
 func (s *Rsi1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
@@ -77,5 +60,7 @@ func (s *Rsi1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.St
 			Score:        s.SortScore(),
 		}
 	}
+	strategyPosition.Tendency = s.checkMarketTendency(df)
+
 	return strategyPosition
 }

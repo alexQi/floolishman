@@ -1,7 +1,6 @@
 package strategies
 
 import (
-	"floolishman/constants"
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/types"
@@ -24,27 +23,8 @@ func (s Momentum15m) WarmupPeriod() int {
 	return 24 // 预热期设定为24个数据点
 }
 
-func (s Momentum15m) Indicators(df *model.Dataframe) []types.ChartIndicator {
-	// 计算动量指标
-	momentum := indicator.Momentum(df.Close, 14)
-
-	df.Metadata["momentum"] = momentum
-
-	return []types.ChartIndicator{
-		{
-			Overlay:   true,
-			GroupName: "Momentum Indicator",
-			Time:      df.Time,
-			Metrics: []types.IndicatorMetric{
-				{
-					Values: df.Metadata["momentum"],
-					Name:   "Momentum (14)",
-					Color:  "orange",
-					Style:  constants.StyleLine,
-				},
-			},
-		},
-	}
+func (s Momentum15m) Indicators(df *model.Dataframe) {
+	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
 }
 
 func (s *Momentum15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
@@ -73,5 +53,7 @@ func (s *Momentum15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) ty
 			Score:        s.SortScore(),
 		}
 	}
+	strategyPosition.Tendency = s.checkMarketTendency(df)
+
 	return strategyPosition
 }
