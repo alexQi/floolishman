@@ -51,10 +51,6 @@ type Order struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 
-	// OCO Orders only
-	Stop    *float64 `db:"stop" json:"stop"`
-	GroupID *int64   `db:"group_id" json:"group_id"`
-
 	// Internal use (Plot)
 	RefPrice    float64 `json:"ref_price" gorm:"-"`
 	Profit      float64 `json:"profit" gorm:"-"`
@@ -64,5 +60,5 @@ type Order struct {
 
 func (o Order) String() string {
 	return fmt.Sprintf("[%s] %s %s %s | OrderFlag: %s, ID: %d,ClientOrderId: %s, Type: %s, %f x $%f (~$%.f)",
-		o.Status, o.Side, o.PositionSide, o.Pair, o.OrderFlag, o.ID, o.ClientOrderId, o.Type, o.Quantity, o.Price, o.Quantity*o.Price)
+		o.Status, o.Side, o.PositionSide, o.Pair, o.OrderFlag, o.ExchangeID, o.ClientOrderId, o.Type, o.Quantity, o.Price, o.Quantity*o.Price)
 }

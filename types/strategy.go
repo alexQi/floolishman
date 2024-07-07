@@ -19,7 +19,7 @@ type StrategyPosition struct {
 }
 
 func (sp StrategyPosition) String() string {
-	return fmt.Sprintf("Strategy: %s | Tendency: %s, Side: %s | %s, Score: %d", sp.StrategyName, sp.Tendency, sp.Side, sp.Pair, sp.Score)
+	return fmt.Sprintf("<< Strategy: %s | Tendency: %s, Side: %s | %s, Score: %d >>", sp.StrategyName, sp.Tendency, sp.Side, sp.Pair, sp.Score)
 }
 
 type OpenPositionFunc func(option model.PairOption, broker reference.Broker)

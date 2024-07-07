@@ -180,9 +180,6 @@ type Position struct {
 
 func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 	price := order.Price
-	if order.Type == model.OrderTypeStopLoss || order.Type == model.OrderTypeStopLossLimit {
-		price = *order.Stop
-	}
 
 	if p.Side == order.Side {
 		p.AvgPrice = (p.AvgPrice*p.Quantity + price*order.Quantity) / (p.Quantity + order.Quantity)
@@ -388,6 +385,7 @@ func (c *OrderService) updateOrders() {
 		}
 		excOrder.ID = order.ID
 		excOrder.OrderFlag = order.OrderFlag
+		excOrder.Type = order.Type
 		// 判断交易状态,如果已完成，关闭仓位 及止盈止损仓位
 		if excOrder.Status == model.OrderStatusTypeFilled && (excOrder.Type == model.OrderTypeStop || excOrder.Type == model.OrderTypeStopMarket) {
 			// 修改当前止损止盈单状态为已交易完成

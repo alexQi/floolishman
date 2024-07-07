@@ -31,6 +31,6 @@ func Bac(balance, leverage, currentPrice float64, scoreRadio float64) float64 {
 }
 
 func TestA(t *testing.T) {
-	amount := Bac(850, 100, 2940, 0.6)
-	fmt.Print(amount)
+	a := fmt.Sprintf("%.2f%%", -0.001*100)
+	fmt.Println(a)
 }
