@@ -66,14 +66,15 @@ func (s *Range15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
 	}
-
+	// 判断是否换线
+	tendency := s.checkCandleTendency(df, 1)
 	// 判断量价关系
-	if rsi < 30 && bottomCount <= limitBreak && calc.Abs(realCandle.Close-df.Low.Last(0))/bbLower.Last(0) < 0.003 {
+	if rsi < 30 && bottomCount <= limitBreak && calc.Abs(realCandle.Close-df.Close.Last(0))/bbLower.Last(0) < 0.003 && tendency == "bullish" {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 
-	if rsi > 70 && topCount <= limitBreak && calc.Abs(realCandle.Close-df.High.Last(0))/bbUpper.Last(0) < 0.003 {
+	if rsi > 70 && topCount <= limitBreak && calc.Abs(realCandle.Close-df.Close.Last(0))/bbUpper.Last(0) < 0.003 && tendency == "bearish" {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
