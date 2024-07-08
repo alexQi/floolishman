@@ -226,7 +226,7 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 	// 判断当前是否已有仓位
 	// 仓位类型双向持仓 下单时根据类型可下对冲单。通过协程提升平仓在开仓的效率
 	// 有仓位时，判断当前持仓方向是否与策略相同
-	sameSideOrder := model.Order{}
+	holdedOrder := model.Order{}
 	if _, ok := existOrders[model.OrderTypeLimit]; ok {
 		// 判断是否已有仓位
 		positionOrders, ok := existOrders[model.OrderTypeLimit][model.OrderStatusTypeFilled]
@@ -234,7 +234,7 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 			for _, positionOrder := range positionOrders {
 				// 原始止损单方向和当前策略判断方向相同，则取消原始止损单
 				if positionOrder.Side == finalPosition {
-					sameSideOrder = *positionOrder
+					holdedOrder = *positionOrder
 					continue
 				}
 
@@ -245,28 +245,30 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 					tempSideType = model.SideTypeBuy
 					postionSide = model.PositionSideTypeShort
 				}
-				// 当前分数小于总分数/2,保持仓位
-				if currentScore < totalScore/2 {
+				// 当前分数小于仓位分数，不要在开仓
+				if currentScore < positionOrder.Score {
+					holdedOrder = *positionOrder
 					continue
 				}
 				// 判断仓位方向为反方向，平掉现有仓位
-				_, err := broker.CreateOrderStopMarket(tempSideType, postionSide, option.Pair, positionOrder.Quantity, currentPirce, positionOrder.OrderFlag)
+				_, err := broker.CreateOrderStopMarket(tempSideType, postionSide, option.Pair, positionOrder.Quantity, currentPirce, positionOrder.OrderFlag, positionOrder.Score)
 				if err != nil {
 					utils.Log.Error(err)
 				}
 			}
 		}
-		if sameSideOrder.ExchangeID == 0 {
+		if holdedOrder.ExchangeID == 0 {
 			positionNewOrders, ok := existOrders[model.OrderTypeLimit][model.OrderStatusTypeNew]
 			if ok && len(positionNewOrders) > 0 {
 				for _, positionNewOrder := range positionNewOrders {
 					// 原始止损单方向和当前策略判断方向相同，则取消原始止损单
 					if positionNewOrder.Side == finalPosition {
-						sameSideOrder = *positionNewOrder
+						holdedOrder = *positionNewOrder
 						continue
 					}
-					// 当前分数小于总分数/策略总数,保持仓位
-					if currentScore < totalScore/len(s.strategy.Strategies) {
+					// 当前分数小于仓位分数，不要在开仓
+					if currentScore < positionNewOrder.Score {
+						holdedOrder = *positionNewOrder
 						continue
 					}
 					// 取消之前的限价单
@@ -279,15 +281,15 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 			}
 		}
 	}
-	if sameSideOrder.ExchangeID > 0 {
+	if holdedOrder.ExchangeID > 0 {
 		utils.Log.Infof(
 			"[ODER EXIST - %s] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
-			sameSideOrder.Status,
+			holdedOrder.Status,
 			option.Pair,
-			sameSideOrder.Price,
-			sameSideOrder.Quantity,
-			sameSideOrder.Side,
-			sameSideOrder.OrderFlag,
+			holdedOrder.Price,
+			holdedOrder.Quantity,
+			holdedOrder.Side,
+			holdedOrder.OrderFlag,
 		)
 		return
 	}
@@ -312,7 +314,7 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 		postionSide = model.PositionSideTypeShort
 	}
 	// 根据最新价格创建限价单
-	order, err := broker.CreateOrderLimit(finalPosition, postionSide, option.Pair, amount, currentPirce)
+	order, err := broker.CreateOrderLimit(finalPosition, postionSide, option.Pair, amount, currentPirce, currentScore)
 	if err != nil {
 		utils.Log.Error(err)
 		return
@@ -328,7 +330,7 @@ func (s *StrategyService) openPosition(option model.PairOption, broker reference
 		tempSideType = model.SideTypeBuy
 		stopLossPrice = order.Price + stopLossDistance
 	}
-	_, err = broker.CreateOrderStopLimit(tempSideType, postionSide, option.Pair, amount, stopLossPrice, order.OrderFlag)
+	_, err = broker.CreateOrderStopLimit(tempSideType, postionSide, option.Pair, amount, stopLossPrice, order.OrderFlag, currentScore)
 	if err != nil {
 		utils.Log.Error(err)
 		return
@@ -424,7 +426,7 @@ func (s *StrategyService) closeOption(option model.PairOption, broker reference.
 			// 设置新的止损单
 			// 使用滚动利润比保证该止损利润是递增的
 			// 不再判断新的止损价格是否小于之前的止损价格
-			_, err := broker.CreateOrderStopLimit(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, stopLossPrice, positionOrder.OrderFlag)
+			_, err := broker.CreateOrderStopLimit(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, stopLossPrice, positionOrder.OrderFlag, positionOrder.Score)
 			if err != nil {
 				utils.Log.Error(err)
 			}

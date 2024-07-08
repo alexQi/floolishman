@@ -359,6 +359,7 @@ func (c *OrderService) updateOrders() {
 	orders, err := c.storage.Orders(
 		storage.WithStatusIn(
 			model.OrderStatusTypeNew,
+			model.OrderStatusTypeFilled,
 			model.OrderStatusTypePartiallyFilled,
 			model.OrderStatusTypePendingCancel,
 		),
@@ -378,14 +379,15 @@ func (c *OrderService) updateOrders() {
 			utils.Log.WithField("id", order.ExchangeID).Error("orderControler/get: ", err)
 			continue
 		}
-
-		// no status change
-		if excOrder.Status == order.Status {
-			continue
-		}
 		excOrder.ID = order.ID
 		excOrder.OrderFlag = order.OrderFlag
 		excOrder.Type = order.Type
+		excOrder.Score = order.Score
+		// 排出限价单已成交的部分 查询 限价单未成交 及 止损单 no status change
+		if excOrder.Status == order.Status {
+			continue
+		}
+
 		// 判断交易状态,如果已完成，关闭仓位 及止盈止损仓位
 		if excOrder.Status == model.OrderStatusTypeFilled && (excOrder.Type == model.OrderTypeStop || excOrder.Type == model.OrderTypeStopMarket) {
 			// 修改当前止损止盈单状态为已交易完成
@@ -487,12 +489,12 @@ func (c *OrderService) Order(pair string, id int64) (model.Order, error) {
 	return c.exchange.Order(pair, id)
 }
 
-func (c *OrderService) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64) (model.Order, error) {
+func (c *OrderService) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, score int) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating LIMIT %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderLimit(side, positionSide, pair, size, limit)
+	order, err := c.exchange.CreateOrderLimit(side, positionSide, pair, size, limit, score)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -508,12 +510,12 @@ func (c *OrderService) CreateOrderLimit(side model.SideType, positionSide model.
 	return order, nil
 }
 
-func (c *OrderService) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, size float64) (model.Order, error) {
+func (c *OrderService) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, size float64, score int) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating MARKET %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderMarket(side, positionSide, pair, size)
+	order, err := c.exchange.CreateOrderMarket(side, positionSide, pair, size, score)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -531,12 +533,12 @@ func (c *OrderService) CreateOrderMarket(side model.SideType, positionSide model
 	return order, err
 }
 
-func (c *OrderService) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, orderFlag string) (model.Order, error) {
+func (c *OrderService) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, orderFlag string, score int) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating STOP LIMIT %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderStopLimit(side, positionSide, pair, size, limit, orderFlag)
+	order, err := c.exchange.CreateOrderStopLimit(side, positionSide, pair, size, limit, orderFlag, score)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -552,12 +554,12 @@ func (c *OrderService) CreateOrderStopLimit(side model.SideType, positionSide mo
 	return order, nil
 }
 
-func (c *OrderService) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string, size, stopPrice float64, orderFlag string) (model.Order, error) {
+func (c *OrderService) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string, size, stopPrice float64, orderFlag string, score int) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating STOP MARKET %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderStopMarket(side, positionSide, pair, size, stopPrice, orderFlag)
+	order, err := c.exchange.CreateOrderStopMarket(side, positionSide, pair, size, stopPrice, orderFlag, score)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err

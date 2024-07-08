@@ -203,7 +203,7 @@ func (b *BinanceFuture) formatQuantity(pair string, value float64) string {
 }
 
 func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64) (model.Order, error) {
+	quantity float64, limit float64, score int) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -249,10 +249,11 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		Status:        model.OrderStatusType(order.Status),
 		Price:         price,
 		Quantity:      quantity,
+		Score:         score,
 	}, nil
 }
 
-func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64) (model.Order, error) {
+func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, score int) (model.Order, error) {
 	err := b.validate(pair, quantity)
 	if err != nil {
 		return model.Order{}, err
@@ -295,11 +296,12 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 		Status:        model.OrderStatusType(order.Status),
 		Price:         cost / quantity,
 		Quantity:      quantity,
+		Score:         score,
 	}, nil
 }
 
 func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, orderFlag string) (model.Order, error) {
+	quantity float64, limit float64, orderFlag string, score int) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -345,11 +347,12 @@ func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide m
 		Status:        model.OrderStatusType(order.Status),
 		Price:         price,
 		Quantity:      quantity,
+		Score:         score,
 	}, nil
 }
 
 func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, stopPrice float64, orderFlag string) (model.Order, error) {
+	quantity float64, stopPrice float64, orderFlag string, score int) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -394,6 +397,7 @@ func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide 
 		Status:        model.OrderStatusType(order.Status),
 		Price:         price,
 		Quantity:      quantity,
+		Score:         score,
 	}, nil
 }
 

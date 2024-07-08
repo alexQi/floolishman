@@ -51,6 +51,9 @@ type Order struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 
+	// strategy score
+	Score int `db:"score" json:"score"`
+
 	// Internal use (Plot)
 	RefPrice    float64 `json:"ref_price" gorm:"-"`
 	Profit      float64 `json:"profit" gorm:"-"`
