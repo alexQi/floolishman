@@ -6,13 +6,13 @@ import (
 	"floolishman/exchange"
 	"floolishman/model"
 	"floolishman/service"
+	"floolishman/storage"
 	"floolishman/strategies"
 	"floolishman/types"
 	"floolishman/utils"
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/spf13/viper"
 	"log"
-	"os"
 	"strings"
 )
 
@@ -25,21 +25,15 @@ var ConstStraties = map[string]types.Strategy{
 	"Emacross1h":    &strategies.Emacross1h{},
 	"Momentum1h":    &strategies.Momentum1h{},
 	"Rsi15m":        &strategies.Rsi15m{},
+	"Emacross4h":    &strategies.Emacross4h{},
 }
 
 func main() {
 	// 获取基础配置
 	var (
 		ctx            = context.Background()
-		mode           = viper.GetString("mode")
-		apiKeyType     = viper.GetString("api.encrypt")
-		apiKey         = viper.GetString("api.key")
-		secretKey      = viper.GetString("api.secret")
-		secretPem      = viper.GetString("api.pem")
 		telegramToken  = viper.GetString("telegram.token")
 		telegramUser   = viper.GetInt("telegram.user")
-		proxyStatus    = viper.GetBool("proxy.status")
-		proxyUrl       = viper.GetString("proxy.url")
 		tradingSetting = service.StrategyServiceSetting{
 			CheckMode:            viper.GetString("trading.checkMode"),
 			VolatilityThreshold:  viper.GetFloat64("trading.volatilityThreshold"),
@@ -83,42 +77,54 @@ func main() {
 			MarginType: futures.MarginType(strings.ToUpper(marginType)), // 假设 futures.MarginType 是一个类型别名
 		})
 	}
-
-	if apiKeyType != "HMAC" {
-		tempSecretKey, err := os.ReadFile(secretPem)
-		if err != nil {
-			utils.Log.Fatalf("error with load pem file:%s", err.Error())
-		}
-		secretKey = string(tempSecretKey)
-	}
-
-	exhangeOptions := []exchange.BinanceFutureOption{
-		exchange.WithBinanceFutureCredentials(apiKey, secretKey, apiKeyType),
-	}
-	if mode == "test" {
-		exhangeOptions = append(
-			exhangeOptions,
-			exchange.WithBinanceFutureTestnet(),
-		)
-	}
-	if proxyStatus {
-		exhangeOptions = append(
-			exhangeOptions,
-			exchange.WithBinanceFutureProxy(proxyUrl),
-		)
-	}
-
-	// Initialize your exchange with futures
-	binance, err := exchange.NewBinanceFuture(ctx, exhangeOptions...)
-	if err != nil {
-		utils.Log.Fatal(err)
-	}
+	tradingSetting.CheckMode = "candle"
 
 	compositesStrategy := types.CompositesStrategy{}
 	for _, strategyName := range strategiesSetting {
 		compositesStrategy.Strategies = append(compositesStrategy.Strategies, ConstStraties[strategyName])
 	}
-	b, err := bot.NewBot(ctx, settings, binance, tradingSetting, compositesStrategy)
+
+	csvFeed, err := exchange.NewCSVFeed(
+		exchange.PairFeed{
+			Pair:      "ETHUSDT",
+			File:      "testdata/eth-1h.csv",
+			Timeframe: "1h",
+		},
+		exchange.PairFeed{
+			Pair:      "ETHUSDT",
+			File:      "testdata/eth-15m.csv",
+			Timeframe: "15m",
+		},
+		//exchange.PairFeed{
+		//	Pair:      "ETHUSDT",
+		//	File:      "testdata/eth-1m.csv",
+		//	Timeframe: "1m",
+		//},
+	)
+
+	// initialize a database in memory
+	//memory, err := storage.FromFile("runtime/data/backtest.db")
+	memory, err := storage.FromMemory()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// create a paper wallet for simulation, initializing with 10.000 USDT
+	wallet := exchange.NewPaperWallet(
+		ctx,
+		"USDT",
+		exchange.WithPaperAsset("USDT", 10000),
+		exchange.WithDataFeed(csvFeed),
+	)
+
+	b, err := bot.NewBot(
+		ctx,
+		settings,
+		wallet,
+		tradingSetting,
+		compositesStrategy,
+		bot.WithBacktest(wallet),
+		bot.WithStorage(memory),
+	)
 	if err != nil {
 		utils.Log.Fatalln(err)
 	}

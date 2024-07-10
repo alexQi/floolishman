@@ -20,16 +20,20 @@ import (
 )
 
 type summary struct {
-	Pair             string
-	WinLong          []float64
-	WinLongPercent   []float64
-	WinShort         []float64
-	WinShortPercent  []float64
-	LoseLong         []float64
-	LoseLongPercent  []float64
-	LoseShort        []float64
-	LoseShortPercent []float64
-	Volume           float64
+	Pair              string
+	WinLong           []float64
+	WinLongPercent    []float64
+	WinLongStrateis   map[string]int
+	WinShort          []float64
+	WinShortPercent   []float64
+	WinShortStrateis  map[string]int
+	LoseLong          []float64
+	LoseLongPercent   []float64
+	LoseLongStrateis  map[string]int
+	LoseShort         []float64
+	LoseShortPercent  []float64
+	LoseShortStrateis map[string]int
+	Volume            float64
 }
 
 func (s summary) Win() []float64 {
@@ -121,7 +125,7 @@ func (s summary) String() string {
 		{"Loss", strconv.Itoa(len(s.Lose()))},
 		{"% Win", fmt.Sprintf("%.1f", s.WinPercentage())},
 		{"Payoff", fmt.Sprintf("%.1f", s.Payoff()*100)},
-		{"Pr.Fact", fmt.Sprintf("%.1f", s.Payoff()*100)},
+		{"Pr.Fact", fmt.Sprintf("%.1f", s.ProfitFactor()*100)},
 		{"Profit", fmt.Sprintf("%.4f %s", s.Profit(), quote)},
 		{"Volume", fmt.Sprintf("%.4f %s", s.Volume, quote)},
 	}
@@ -166,50 +170,85 @@ type Result struct {
 	Pair          string
 	ProfitPercent float64
 	ProfitValue   float64
+	Strategy      string
 	Side          model.SideType
 	Duration      time.Duration
 	CreatedAt     time.Time
 }
 
 type Position struct {
-	Side      model.SideType
-	AvgPrice  float64
-	Quantity  float64
-	CreatedAt time.Time
+	Side         model.SideType
+	PositionSide model.PositionSideType
+	Strategy     string
+	AvgPrice     float64
+	Quantity     float64
+	CreatedAt    time.Time
 }
 
 func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 	price := order.Price
 
-	if p.Side == order.Side {
-		p.AvgPrice = (p.AvgPrice*p.Quantity + price*order.Quantity) / (p.Quantity + order.Quantity)
-		p.Quantity += order.Quantity
-	} else {
-		if p.Quantity == order.Quantity {
-			finished = true
-		} else if p.Quantity > order.Quantity {
-			p.Quantity -= order.Quantity
+	// 多单
+	if p.PositionSide == order.PositionSide && p.PositionSide == model.PositionSideTypeLong {
+		// 开仓
+		if p.Side == order.Side && p.Side == model.SideTypeBuy {
+			p.AvgPrice = (p.AvgPrice*p.Quantity + price*order.Quantity) / (p.Quantity + order.Quantity)
+			p.Quantity += order.Quantity
+		} else { // 平仓
+			// 平仓
+			if p.Quantity == order.Quantity {
+				finished = true
+			} else {
+				p.Quantity -= order.Quantity
+			}
+
+			quantity := math.Min(p.Quantity, order.Quantity)
+			order.Profit = (price - p.AvgPrice) / p.AvgPrice
+			order.ProfitValue = (price - p.AvgPrice) * quantity
+
+			result = &Result{
+				CreatedAt:     order.CreatedAt,
+				Pair:          order.Pair,
+				Duration:      order.CreatedAt.Sub(p.CreatedAt),
+				ProfitPercent: order.Profit,
+				ProfitValue:   order.ProfitValue,
+				Side:          p.Side,
+				Strategy:      order.Strategy,
+			}
+
+			return result, finished
+		}
+	}
+	// 空单
+	if p.PositionSide == order.PositionSide && p.PositionSide == model.PositionSideTypeShort {
+		// 开仓
+		if p.Side == order.Side && p.Side == model.SideTypeSell {
+			p.AvgPrice = (p.AvgPrice*p.Quantity + price*order.Quantity) / (p.Quantity + order.Quantity)
+			p.Quantity += order.Quantity
 		} else {
-			p.Quantity = order.Quantity - p.Quantity
-			p.Side = order.Side
-			p.CreatedAt = order.CreatedAt
-			p.AvgPrice = price
+			// 平仓
+			if p.Quantity == order.Quantity {
+				finished = true
+			} else {
+				p.Quantity -= order.Quantity
+			}
+
+			quantity := math.Min(p.Quantity, order.Quantity)
+			order.Profit = (p.AvgPrice - price) / p.AvgPrice
+			order.ProfitValue = (p.AvgPrice - price) * quantity
+
+			result = &Result{
+				CreatedAt:     order.CreatedAt,
+				Pair:          order.Pair,
+				Duration:      order.CreatedAt.Sub(p.CreatedAt),
+				ProfitPercent: order.Profit,
+				ProfitValue:   order.ProfitValue,
+				Side:          p.Side,
+				Strategy:      order.Strategy,
+			}
+
+			return result, finished
 		}
-
-		quantity := math.Min(p.Quantity, order.Quantity)
-		order.Profit = (price - p.AvgPrice) / p.AvgPrice
-		order.ProfitValue = (price - p.AvgPrice) * quantity
-
-		result = &Result{
-			CreatedAt:     order.CreatedAt,
-			Pair:          order.Pair,
-			Duration:      order.CreatedAt.Sub(p.CreatedAt),
-			ProfitPercent: order.Profit,
-			ProfitValue:   order.ProfitValue,
-			Side:          p.Side,
-		}
-
-		return result, finished
 	}
 
 	return nil, false
@@ -276,10 +315,12 @@ func (c *OrderService) updatePosition(o *model.Order) {
 	position, ok := c.position[o.Pair]
 	if !ok {
 		c.position[o.Pair] = &Position{
-			AvgPrice:  o.Price,
-			Quantity:  o.Quantity,
-			CreatedAt: o.CreatedAt,
-			Side:      o.Side,
+			AvgPrice:     o.Price,
+			Quantity:     o.Quantity,
+			CreatedAt:    o.CreatedAt,
+			Side:         o.Side,
+			PositionSide: o.PositionSide,
+			Strategy:     o.Strategy,
 		}
 		return
 	}
@@ -295,17 +336,33 @@ func (c *OrderService) updatePosition(o *model.Order) {
 			if result.Side == model.SideTypeBuy {
 				c.Results[o.Pair].WinLong = append(c.Results[o.Pair].WinLong, result.ProfitValue)
 				c.Results[o.Pair].WinLongPercent = append(c.Results[o.Pair].WinLongPercent, result.ProfitPercent)
+				if _, ok := c.Results[o.Pair].WinLongStrateis[result.Strategy]; !ok {
+					c.Results[o.Pair].WinLongStrateis = make(map[string]int)
+				}
+				c.Results[o.Pair].WinLongStrateis[result.Strategy] += 1
 			} else {
 				c.Results[o.Pair].WinShort = append(c.Results[o.Pair].WinShort, result.ProfitValue)
 				c.Results[o.Pair].WinShortPercent = append(c.Results[o.Pair].WinShortPercent, result.ProfitPercent)
+				if _, ok := c.Results[o.Pair].WinShortStrateis[result.Strategy]; !ok {
+					c.Results[o.Pair].WinShortStrateis = make(map[string]int)
+				}
+				c.Results[o.Pair].WinShortStrateis[result.Strategy] += 1
 			}
 		} else {
 			if result.Side == model.SideTypeBuy {
 				c.Results[o.Pair].LoseLong = append(c.Results[o.Pair].LoseLong, result.ProfitValue)
 				c.Results[o.Pair].LoseLongPercent = append(c.Results[o.Pair].LoseLongPercent, result.ProfitPercent)
+				if _, ok := c.Results[o.Pair].LoseLongStrateis[result.Strategy]; !ok {
+					c.Results[o.Pair].LoseLongStrateis = make(map[string]int)
+				}
+				c.Results[o.Pair].LoseLongStrateis[result.Strategy] += 1
 			} else {
 				c.Results[o.Pair].LoseShort = append(c.Results[o.Pair].LoseShort, result.ProfitValue)
 				c.Results[o.Pair].LoseShortPercent = append(c.Results[o.Pair].LoseShortPercent, result.ProfitPercent)
+				if _, ok := c.Results[o.Pair].LoseShortStrateis[result.Strategy]; !ok {
+					c.Results[o.Pair].LoseShortStrateis = make(map[string]int)
+				}
+				c.Results[o.Pair].LoseShortStrateis[result.Strategy] += 1
 			}
 		}
 
@@ -359,7 +416,6 @@ func (c *OrderService) updateOrders() {
 	orders, err := c.storage.Orders(
 		storage.WithStatusIn(
 			model.OrderStatusTypeNew,
-			model.OrderStatusTypeFilled,
 			model.OrderStatusTypePartiallyFilled,
 			model.OrderStatusTypePendingCancel,
 		),
@@ -371,22 +427,28 @@ func (c *OrderService) updateOrders() {
 		return
 	}
 
+	processedPositionOrders := map[string]*model.Order{}
 	// For each pending order, check for updates
 	var updatedOrders []model.Order
 	for _, order := range orders {
+		if _, ok := processedPositionOrders[order.ClientOrderId]; ok {
+			continue
+		}
 		excOrder, err := c.exchange.Order(order.Pair, order.ExchangeID)
 		if err != nil {
 			utils.Log.WithField("id", order.ExchangeID).Error("orderControler/get: ", err)
 			continue
 		}
-		excOrder.ID = order.ID
-		excOrder.OrderFlag = order.OrderFlag
-		excOrder.Type = order.Type
-		excOrder.Score = order.Score
 		// 排出限价单已成交的部分 查询 限价单未成交 及 止损单 no status change
 		if excOrder.Status == order.Status {
 			continue
 		}
+
+		excOrder.ID = order.ID
+		excOrder.OrderFlag = order.OrderFlag
+		excOrder.Type = order.Type
+		excOrder.Score = order.Score
+		excOrder.Strategy = order.Strategy
 
 		// 判断交易状态,如果已完成，关闭仓位 及止盈止损仓位
 		if excOrder.Status == model.OrderStatusTypeFilled && (excOrder.Type == model.OrderTypeStop || excOrder.Type == model.OrderTypeStopMarket) {
@@ -412,6 +474,7 @@ func (c *OrderService) updateOrders() {
 						c.notifyError(err)
 						continue
 					}
+					processedPositionOrders[positionOrder.ClientOrderId] = positionOrder
 				}
 			}
 		}
@@ -434,6 +497,10 @@ func (c *OrderService) updateOrders() {
 
 func (c *OrderService) Status() Status {
 	return c.status
+}
+
+func (c *OrderService) ListenUpdateOrders() {
+	c.updateOrders()
 }
 
 func (c *OrderService) Start() {
@@ -489,12 +556,12 @@ func (c *OrderService) Order(pair string, id int64) (model.Order, error) {
 	return c.exchange.Order(pair, id)
 }
 
-func (c *OrderService) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, score int) (model.Order, error) {
+func (c *OrderService) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, score int, strategyName string) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating LIMIT %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderLimit(side, positionSide, pair, size, limit, score)
+	order, err := c.exchange.CreateOrderLimit(side, positionSide, pair, size, limit, score, strategyName)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -510,12 +577,12 @@ func (c *OrderService) CreateOrderLimit(side model.SideType, positionSide model.
 	return order, nil
 }
 
-func (c *OrderService) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, size float64, score int) (model.Order, error) {
+func (c *OrderService) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, size float64, score int, strategyName string) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating MARKET %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderMarket(side, positionSide, pair, size, score)
+	order, err := c.exchange.CreateOrderMarket(side, positionSide, pair, size, score, strategyName)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -533,12 +600,12 @@ func (c *OrderService) CreateOrderMarket(side model.SideType, positionSide model
 	return order, err
 }
 
-func (c *OrderService) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, orderFlag string, score int) (model.Order, error) {
+func (c *OrderService) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, stopPrice float64, orderFlag string, score int, strategyName string) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating STOP LIMIT %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderStopLimit(side, positionSide, pair, size, limit, orderFlag, score)
+	order, err := c.exchange.CreateOrderStopLimit(side, positionSide, pair, size, limit, stopPrice, orderFlag, score, strategyName)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -554,12 +621,12 @@ func (c *OrderService) CreateOrderStopLimit(side model.SideType, positionSide mo
 	return order, nil
 }
 
-func (c *OrderService) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string, size, stopPrice float64, orderFlag string, score int) (model.Order, error) {
+func (c *OrderService) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string, size, stopPrice float64, orderFlag string, score int, strategyName string) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating STOP MARKET %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderStopMarket(side, positionSide, pair, size, stopPrice, orderFlag, score)
+	order, err := c.exchange.CreateOrderStopMarket(side, positionSide, pair, size, stopPrice, orderFlag, score, strategyName)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err

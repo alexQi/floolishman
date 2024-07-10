@@ -28,7 +28,7 @@ func (s Momentum1h) Indicators(df *model.Dataframe) {
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
 }
 
-func (s *Momentum1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
+func (s *Momentum1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	strategyPosition := types.StrategyPosition{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
@@ -38,17 +38,22 @@ func (s *Momentum1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) typ
 
 	momentums := df.Metadata["momentum"].LastValues(2)
 
-	// 判断是否换线
-	tendency := s.checkCandleTendency(df, 3)
+	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
+	isUpperPinBar, isLowerPinBar, isRise := s.checkPinBar(
+		df.Open.Last(0),
+		df.Close.Last(0),
+		df.High.Last(0),
+		df.Low.Last(0),
+	)
 	// 趋势判断
-	if momentums[1] > 0 && momentums[0] > momentums[1] && realCandle.Low > df.Close.Last(0) && tendency == "bullish" {
+	if momentums[1] > 0 && momentums[0] > momentums[1] && isRise && !isUpperPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
-	if momentums[1] < 0 && momentums[0] < momentums[1] && realCandle.Low < df.Close.Last(0) && tendency == "bearish" {
+	// 动量递减向下 且未下方插针
+	if momentums[1] < 0 && momentums[0] < momentums[1] && !isRise && !isLowerPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
-
 	return strategyPosition
 }

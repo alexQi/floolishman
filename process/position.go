@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	CheckOpenInterval  = 15
+	CheckOpenInterval  = 10
 	CheckCloseInterval = 5
 )
 

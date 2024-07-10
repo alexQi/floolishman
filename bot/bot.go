@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"bytes"
 	"context"
 	"floolishman/exchange"
 	"floolishman/model"
@@ -10,10 +11,14 @@ import (
 	"floolishman/storage"
 	"floolishman/types"
 	"floolishman/utils"
+	"floolishman/utils/metrics"
 	"fmt"
+	"github.com/aybabtme/uniplot/histogram"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/viper"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 )
 
@@ -26,6 +31,7 @@ type CandleSubscriber interface {
 }
 
 type Bot struct {
+	backtest       bool
 	storage        storage.Storage
 	settings       model.Settings
 	tradingSetting service.StrategyServiceSetting
@@ -33,6 +39,7 @@ type Bot struct {
 	notifier       reference.Notifier
 	telegram       reference.Telegram
 	strategy       types.CompositesStrategy
+	paperWallet    *exchange.PaperWallet
 
 	orderService         *service.OrderService
 	strategyService      *service.StrategyService
@@ -80,7 +87,7 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 	// 加载订单服务
 	bot.orderService = service.NewOrderService(ctx, exch, bot.storage, bot.orderFeed)
 	// 加载策略服务
-	bot.strategyService = service.NewStrategyService(ctx, tradingSetting, strategy, bot.orderService)
+	bot.strategyService = service.NewStrategyService(ctx, tradingSetting, strategy, bot.orderService, bot.backtest)
 	// 加载通知服务
 	if settings.Telegram.Enabled {
 		bot.telegram, err = notification.NewTelegram(bot.orderService, settings)
@@ -92,6 +99,23 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 	}
 
 	return bot, nil
+}
+
+// WithBacktest sets the bot to run in backtest mode, it is required for backtesting environments
+// Backtest mode optimize the input read for CSV and deal with race conditions
+func WithBacktest(wallet *exchange.PaperWallet) Option {
+	return func(bot *Bot) {
+		bot.backtest = true
+		opt := WithPaperWallet(wallet)
+		opt(bot)
+	}
+}
+
+// WithPaperWallet sets the paper wallet for the bot (used for backtesting and live simulation)
+func WithPaperWallet(wallet *exchange.PaperWallet) Option {
+	return func(bot *Bot) {
+		bot.paperWallet = wallet
+	}
 }
 
 // WithStorage sets the storage for the bot, by default it uses a local file called ninjabot.db
@@ -145,7 +169,106 @@ func (n *Bot) OrderService() *service.OrderService {
 	return n.orderService
 }
 
-func (n Bot) SaveReturns(outputDir string) error {
+func (n *Bot) Summary() {
+	var (
+		total  float64
+		wins   int
+		loses  int
+		volume float64
+		sqn    float64
+	)
+
+	buffer := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buffer)
+	table.SetHeader([]string{"Pair", "Trades", "Win", "Loss", "% Win", "Payoff", "Pr Fact.", "SQN", "Profit", "Volume"})
+	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
+	avgPayoff := 0.0
+	avgProfitFactor := 0.0
+
+	returns := make([]float64, 0)
+	for _, summary := range n.orderService.Results {
+		avgPayoff += summary.Payoff() * float64(len(summary.Win())+len(summary.Lose()))
+		avgProfitFactor += summary.ProfitFactor() * float64(len(summary.Win())+len(summary.Lose()))
+		table.Append([]string{
+			summary.Pair,
+			strconv.Itoa(len(summary.Win()) + len(summary.Lose())),
+			strconv.Itoa(len(summary.Win())),
+			strconv.Itoa(len(summary.Lose())),
+			fmt.Sprintf("%.1f %%", float64(len(summary.Win()))/float64(len(summary.Win())+len(summary.Lose()))*100),
+			fmt.Sprintf("%.3f", summary.Payoff()),
+			fmt.Sprintf("%.3f", summary.ProfitFactor()),
+			fmt.Sprintf("%.1f", summary.SQN()),
+			fmt.Sprintf("%.2f", summary.Profit()),
+			fmt.Sprintf("%.2f", summary.Volume),
+		})
+		total += summary.Profit()
+		sqn += summary.SQN()
+		wins += len(summary.Win())
+		loses += len(summary.Lose())
+		volume += summary.Volume
+
+		returns = append(returns, summary.WinPercent()...)
+		returns = append(returns, summary.LosePercent()...)
+
+		fmt.Println("------ CALLED STRATEGY -------")
+		fmt.Printf("[ WinLong ] Pair: %s, %+v\n", summary.Pair, summary.WinLongStrateis)
+		fmt.Printf("[ WinShort ] Pair: %s %+v\n", summary.Pair, summary.WinShortStrateis)
+		fmt.Printf("[ LoseLong ] Pair: %s %+v\n", summary.Pair, summary.LoseLongStrateis)
+		fmt.Printf("[ LoseShort ] Pair: %s %+v\n", summary.Pair, summary.LoseShortStrateis)
+	}
+	fmt.Println()
+
+	table.SetFooter([]string{
+		"TOTAL",
+		strconv.Itoa(wins + loses),
+		strconv.Itoa(wins),
+		strconv.Itoa(loses),
+		fmt.Sprintf("%.1f %%", float64(wins)/float64(wins+loses)*100),
+		fmt.Sprintf("%.3f", avgPayoff/float64(wins+loses)),
+		fmt.Sprintf("%.3f", avgProfitFactor/float64(wins+loses)),
+		fmt.Sprintf("%.1f", sqn/float64(len(n.orderService.Results))),
+		fmt.Sprintf("%.2f", total),
+		fmt.Sprintf("%.2f", volume),
+	})
+	table.Render()
+
+	fmt.Println(buffer.String())
+	fmt.Println("------ RETURN -------")
+	totalReturn := 0.0
+	returnsPercent := make([]float64, len(returns))
+	for i, p := range returns {
+		returnsPercent[i] = p * 100
+		totalReturn += p
+	}
+	hist := histogram.Hist(15, returnsPercent)
+	histogram.Fprint(os.Stdout, hist, histogram.Linear(10))
+	fmt.Println()
+
+	fmt.Println("------ CONFIDENCE INTERVAL (95%) -------")
+	for pair, summary := range n.orderService.Results {
+		fmt.Printf("| %s |\n", pair)
+		returns := append(summary.WinPercent(), summary.LosePercent()...)
+		returnsInterval := metrics.Bootstrap(returns, metrics.Mean, 10000, 0.95)
+		payoffInterval := metrics.Bootstrap(returns, metrics.Payoff, 10000, 0.95)
+		profitFactorInterval := metrics.Bootstrap(returns, metrics.ProfitFactor, 10000, 0.95)
+
+		fmt.Printf("RETURN:      %.2f%% (%.2f%% ~ %.2f%%)\n",
+			returnsInterval.Mean*100, returnsInterval.Lower*100, returnsInterval.Upper*100)
+		fmt.Printf("PAYOFF:      %.2f (%.2f ~ %.2f)\n",
+			payoffInterval.Mean, payoffInterval.Lower, payoffInterval.Upper)
+		fmt.Printf("PROF.FACTOR: %.2f (%.2f ~ %.2f)\n",
+			profitFactorInterval.Mean, profitFactorInterval.Lower, profitFactorInterval.Upper)
+	}
+
+	fmt.Println()
+
+	if n.paperWallet != nil {
+		n.paperWallet.Summary()
+	}
+
+}
+
+func (n *Bot) SaveReturns(outputDir string) error {
 	for _, summary := range n.orderService.Results {
 		outputFile := fmt.Sprintf("%s/%s.csv", outputDir, summary.Pair)
 		if err := summary.SaveReturns(outputFile); err != nil {
@@ -175,6 +298,26 @@ func (n *Bot) processCandles(pair string, timeframe string) {
 	}
 }
 
+func (n *Bot) backtestCandles(pair string, timeframe string) {
+	utils.Log.Info("[SETUP] Starting backtesting")
+
+	for n.priorityQueueCandles[pair][timeframe].Len() > 0 {
+		item := n.priorityQueueCandles[pair][timeframe].Pop()
+
+		candle := item.(model.Candle)
+		// 监听蜡烛数据，更新exchange order
+		if n.paperWallet != nil {
+			n.paperWallet.OnCandle(candle)
+		}
+		// 监听exchange订单，更新订单控制器
+		n.orderService.ListenUpdateOrders()
+		// 更新订单最新价格
+		n.orderService.OnCandle(candle)
+		// 处理开仓策略相关
+		n.strategyService.OnCandle(timeframe, candle)
+	}
+}
+
 // Before Ninjabot start, we need to load the necessary data to fill strategy indicators
 // Then, we need to get the time frame and warmup period to fetch the necessary candles
 func (n *Bot) preload(ctx context.Context, pair string, timeframe string, period int) error {
@@ -193,6 +336,7 @@ func (n *Bot) preload(ctx context.Context, pair string, timeframe string, period
 
 func (n *Bot) SettingPairs(ctx context.Context) {
 	for _, option := range n.settings.PairOptions {
+		utils.Log.Info(option.String())
 		err := n.exchange.SetPairOption(ctx, option)
 		if err != nil {
 			utils.Log.Error(err)
@@ -222,8 +366,8 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 
 // Run will initialize the strategy controller, order controller, preload data and start the bot
 func (n *Bot) Run(ctx context.Context) {
-	n.strategy.GetDetail()
-
+	// 输出策略详情
+	n.strategy.Stdout()
 	n.orderFeed.Start()
 	n.orderService.Start()
 	defer n.orderService.Stop()
@@ -243,9 +387,15 @@ func (n *Bot) Run(ctx context.Context) {
 	for _, option := range n.settings.PairOptions {
 		timeframaMap := n.strategy.TimeWarmupMap()
 		for timeframe := range timeframaMap {
-			go n.processCandles(option.Pair, timeframe)
+			if n.backtest {
+				n.backtestCandles(option.Pair, timeframe)
+			} else {
+				go n.processCandles(option.Pair, timeframe)
+			}
 		}
 	}
-
+	if n.backtest {
+		n.Summary()
+	}
 	select {}
 }

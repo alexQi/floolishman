@@ -37,7 +37,7 @@ func (s Range15m) Indicators(df *model.Dataframe) {
 	df.Metadata["min"] = indicator.Min(df.Close, 21)
 }
 
-func (s *Range15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
+func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	rsi := df.Metadata["rsi"].Last(0)
 	bbUpper := df.Metadata["bb_upper"]
 	bbLower := df.Metadata["bb_lower"]
@@ -66,15 +66,13 @@ func (s *Range15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
 	}
-	// 判断是否换线
-	tendency := s.checkCandleTendency(df, 1)
 	// 判断量价关系
-	if rsi < 30 && bottomCount <= limitBreak && calc.Abs(realCandle.Close-df.Close.Last(0))/bbLower.Last(0) < 0.003 && tendency == "bullish" {
+	if rsi < 30 && bottomCount <= limitBreak && calc.Abs(bbLower.Last(0)-df.Close.Last(0))/bbLower.Last(0) < 0.005 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 
-	if rsi > 70 && topCount <= limitBreak && calc.Abs(realCandle.Close-df.Close.Last(0))/bbUpper.Last(0) < 0.003 && tendency == "bearish" {
+	if rsi > 70 && topCount <= limitBreak && calc.Abs(df.Close.Last(0)-bbLower.Last(0))/bbUpper.Last(0) < 0.005 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}

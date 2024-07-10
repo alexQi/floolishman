@@ -18,8 +18,6 @@ import (
 
 var ErrNoNeedChangeMarginType int64 = -4046
 
-type MetadataFetchers func(pair string, t time.Time) (string, float64)
-
 type ProxyOption struct {
 	Status bool
 	Url    string
@@ -203,7 +201,7 @@ func (b *BinanceFuture) formatQuantity(pair string, value float64) string {
 }
 
 func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, score int) (model.Order, error) {
+	quantity float64, limit float64, score int, strategyName string) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -250,10 +248,11 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		Price:         price,
 		Quantity:      quantity,
 		Score:         score,
+		Strategy:      strategyName,
 	}, nil
 }
 
-func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, score int) (model.Order, error) {
+func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, score int, strategyName string) (model.Order, error) {
 	err := b.validate(pair, quantity)
 	if err != nil {
 		return model.Order{}, err
@@ -297,11 +296,12 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 		Price:         cost / quantity,
 		Quantity:      quantity,
 		Score:         score,
+		Strategy:      strategyName,
 	}, nil
 }
 
 func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, orderFlag string, score int) (model.Order, error) {
+	quantity float64, limit float64, stopPrice float64, orderFlag string, score int, strategyName string) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -317,7 +317,8 @@ func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide m
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
 		Quantity(b.formatQuantity(pair, quantity)).
-		StopPrice(b.formatPrice(pair, limit)).
+		WorkingType(futures.WorkingTypeMarkPrice).
+		StopPrice(b.formatPrice(pair, stopPrice)).
 		Price(b.formatPrice(pair, limit)).
 		Do(b.ctx)
 	if err != nil {
@@ -348,11 +349,12 @@ func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide m
 		Price:         price,
 		Quantity:      quantity,
 		Score:         score,
+		Strategy:      strategyName,
 	}, nil
 }
 
 func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, stopPrice float64, orderFlag string, score int) (model.Order, error) {
+	quantity float64, stopPrice float64, orderFlag string, score int, strategyName string) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -368,6 +370,7 @@ func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide 
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
 		Quantity(b.formatQuantity(pair, quantity)).
+		WorkingType(futures.WorkingTypeMarkPrice).
 		StopPrice(b.formatPrice(pair, stopPrice)).
 		Do(b.ctx)
 	if err != nil {
@@ -398,6 +401,7 @@ func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide 
 		Price:         price,
 		Quantity:      quantity,
 		Score:         score,
+		Strategy:      strategyName,
 	}, nil
 }
 
@@ -421,7 +425,7 @@ func (b *BinanceFuture) Orders(pair string, limit int) ([]model.Order, error) {
 
 	orders := make([]model.Order, 0)
 	for _, order := range result {
-		orders = append(orders, newFutureOrder(order))
+		orders = append(orders, b.newFutureOrder(order))
 	}
 	return orders, nil
 }
@@ -436,7 +440,7 @@ func (b *BinanceFuture) Order(pair string, id int64) (model.Order, error) {
 		return model.Order{}, err
 	}
 
-	return newFutureOrder(order), nil
+	return b.newFutureOrder(order), nil
 }
 
 func (b *BinanceFuture) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
@@ -444,7 +448,7 @@ func (b *BinanceFuture) GetCurrentPositionOrders(pair string) ([]*model.Order, e
 	panic("implement me")
 }
 
-func newFutureOrder(order *futures.Order) model.Order {
+func (b *BinanceFuture) newFutureOrder(order *futures.Order) model.Order {
 	var (
 		price float64
 		err   error

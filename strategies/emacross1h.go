@@ -29,7 +29,7 @@ func (s Emacross1h) Indicators(df *model.Dataframe) {
 	df.Metadata["ova"] = indicator.SMA(df.Volume, 14)
 }
 
-func (s *Emacross1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
+func (s *Emacross1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	ema8 := df.Metadata["ema8"]
 	ema21 := df.Metadata["ema21"]
 	ova := df.Metadata["ova"]
@@ -40,13 +40,20 @@ func (s *Emacross1h) OnCandle(realCandle *model.Candle, df *model.Dataframe) typ
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
 	}
+	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
+	_, _, isRise := s.checkPinBar(
+		df.Open.Last(0),
+		df.Close.Last(0),
+		df.High.Last(0),
+		df.Low.Last(0),
+	)
 	// 判断量价关系
-	if ema8.Crossover(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] && realCandle.Close > df.Close.Last(0) {
+	if ema8.Crossover(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] && isRise {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 
-	if ema8.Crossunder(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] && realCandle.Close < df.Close.Last(0) {
+	if ema8.Crossunder(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] && !isRise {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}

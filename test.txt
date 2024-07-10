@@ -1,0 +1,11 @@
+
+//        "Range15m",
+//        "Momentum15m",
+//        "Rsi1h",
+//        "Emacross15m",
+//        "Emacross1h"
+
+go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 1h --futures --days 7 --output ./testdata/eth-1h.csv
+go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 15m --futures --days 7 --output ./testdata/eth-15m.csv
+
+go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 1m --futures --days 1 --output ./testdata/eth-1m.csv

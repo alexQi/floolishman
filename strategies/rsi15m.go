@@ -12,7 +12,7 @@ type Rsi15m struct {
 }
 
 func (s Rsi15m) SortScore() int {
-	return 60
+	return 90
 }
 
 func (s Rsi15m) Timeframe() string {
@@ -33,7 +33,7 @@ func (s Rsi15m) Indicators(df *model.Dataframe) {
 	df.Metadata["bb_lower"] = bbLower
 }
 
-func (s *Rsi15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
+func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	strategyPosition := types.StrategyPosition{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
@@ -42,17 +42,20 @@ func (s *Rsi15m) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.S
 	}
 
 	rsis := df.Metadata["rsi"].LastValues(2)
-	bbUpper := df.Metadata["bb_upper"].Last(0)
-	bbLower := df.Metadata["bb_lower"].Last(0)
-
-	// 判断是否换线
-	tendency := s.checkCandleTendency(df, 3)
+	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
+	isUpperPinBar, isLowerPinBar, isRise := s.checkPinBar(
+		df.Open.Last(0),
+		df.Close.Last(0),
+		df.High.Last(0),
+		df.Low.Last(0),
+	)
 	// 趋势判断
-	if rsis[1] >= 70 && rsis[0] >= 70 && df.Close.Last(0) > bbUpper && realCandle.Close < df.Close.Last(0) && tendency == "bullish" {
+	if rsis[0] >= 70 && rsis[1] > 70 && rsis[1] > rsis[0] && isUpperPinBar && !isRise {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
-	if rsis[1] <= 30 && rsis[0] <= 30 && df.Close.Last(0) < bbLower && realCandle.Close > df.Close.Last(0) && tendency == "bearish" {
+	// RSI 小于30，买入信号
+	if rsis[0] < 30 && rsis[1] < 30 && rsis[1] < rsis[0] && isLowerPinBar && isRise {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}

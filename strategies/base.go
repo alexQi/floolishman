@@ -3,7 +3,7 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
-	"github.com/markcheno/go-talib"
+	"floolishman/utils/calc"
 )
 
 type BaseStrategy struct {
@@ -20,17 +20,17 @@ func (bs *BaseStrategy) handleIndicatos(df *model.Dataframe) error {
 
 func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
 	// 移动平均线交叉
-	shortMA := talib.Sma(df.Close, 8) // 短期移动平均线
-	longMA := talib.Sma(df.Close, 21) // 长期移动平均线
+	shortMA := indicator.SMA(df.Close, 8) // 短期移动平均线
+	longMA := indicator.SMA(df.Close, 21) // 长期移动平均线
 
 	// 布林带
-	upper, _, lower := talib.BBands(df.Close, 21, 2, 2, talib.SMA)
+	upper, _, lower := indicator.BB(df.Close, 21, 2, indicator.TypeSMA)
 
 	// RSI
-	rsi := talib.Rsi(df.Close, 14)
+	rsi := indicator.RSI(df.Close, 14)
 
 	// ATR
-	atr := talib.Atr(df.High, df.Low, df.Close, 14)
+	atr := indicator.ATR(df.High, df.Low, df.Close, 14)
 
 	// 定义阈值
 	threshold := 0.4 // 允许超过阈值的比例
@@ -53,6 +53,20 @@ func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
 	} else {
 		return "range"
 	}
+}
+
+// checkPinBar 是否上方插针，是否上方插针，最终方向 true-方向向下，false-方向上香
+func (bs *BaseStrategy) checkPinBar(open, close, hight, low float64) (bool, bool, bool) {
+	upperShadow := hight - calc.Max(open, close)
+	lowerShadow := calc.Min(open, close) - low
+	bodyLength := calc.Abs(open - close)
+
+	// 上插针条件
+	isUpperPinBar := upperShadow >= 2*bodyLength && lowerShadow <= bodyLength/2
+	// 下插针条件
+	isLowerPinBar := lowerShadow >= 2*bodyLength && upperShadow <= bodyLength/2
+
+	return isUpperPinBar, isLowerPinBar, upperShadow < lowerShadow
 }
 
 func (bs *BaseStrategy) getCandleColor(open, close float64) string {

@@ -3,7 +3,6 @@ package model
 import (
 	"fmt"
 	"math"
-	"math/rand"
 	"strconv"
 	"time"
 )
@@ -55,10 +54,6 @@ type Dataframe struct {
 
 	// Custom user metadata
 	Metadata map[string]Series[float64]
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
 }
 
 func (df Dataframe) Sample(positions int) Dataframe {

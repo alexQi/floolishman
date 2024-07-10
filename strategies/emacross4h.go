@@ -29,7 +29,7 @@ func (s Emacross4h) Indicators(df *model.Dataframe) {
 	df.Metadata["ova"] = indicator.SMA(df.Volume, 14)
 }
 
-func (s *Emacross4h) OnCandle(realCandle *model.Candle, df *model.Dataframe) types.StrategyPosition {
+func (s *Emacross4h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	ema8 := df.Metadata["ema8"]
 	ema21 := df.Metadata["ema21"]
 	ova := df.Metadata["ova"]
@@ -41,12 +41,12 @@ func (s *Emacross4h) OnCandle(realCandle *model.Candle, df *model.Dataframe) typ
 	}
 
 	// 判断量价关系
-	if ema8.Crossover(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] && realCandle.Close > df.Close.Last(0) {
+	if ema8.Crossover(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 
-	if ema8.Crossunder(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] && realCandle.Close < df.Close.Last(0) {
+	if ema8.Crossunder(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}

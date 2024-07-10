@@ -52,7 +52,8 @@ type Order struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 
 	// strategy score
-	Score int `db:"score" json:"score"`
+	Score    int    `db:"score" json:"score"`
+	Strategy string `db:"strategy" json:"strategy"`
 
 	// Internal use (Plot)
 	RefPrice    float64 `json:"ref_price" gorm:"-"`

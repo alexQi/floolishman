@@ -6,12 +6,20 @@
             "marginType": "CROSSED"
         }
     },
+    "strategies": [
+        "Range15m",
+        "Momentum15m",
+        "Emacross15m",
+        "Rsi1h",
+        "Emacross1h"
+    ],
     "trading": {
+        "checkMode": "interval",
         "volatilityThreshold": 0.002,
         "fullSpaceRadio": 0.1,
-        "initLossRatio": 0.5,
-        "profitableScale": 0.1,
-        "initProfitRatioLimit": 0.25
+        "initLossRatio": 0.50,
+        "profitableScale": 0.8,
+        "initProfitRatioLimit": 0.22
     },
     "proxy": {
         "status": true,
