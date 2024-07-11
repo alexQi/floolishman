@@ -1,6 +1,9 @@
 package calc
 
-import "floolishman/model"
+import (
+	"floolishman/model"
+	"math"
+)
 
 func Max(a, b float64) float64 {
 	if a > b {
@@ -21,6 +24,34 @@ func Abs(a float64) float64 {
 		return -a
 	}
 	return a
+}
+
+// CalculateAngle 计算数字序列的方向角度（根据整体趋势）
+func CalculateAngle(sequence []float64) float64 {
+	n := len(sequence)
+	if n < 2 {
+		return 0.0 // 如果序列长度不足，返回默认角度
+	}
+
+	var sumX, sumY, sumXY, sumX2 float64
+	for i, y := range sequence {
+		x := float64(i)
+		sumX += x
+		sumY += y
+		sumXY += x * y
+		sumX2 += x * x
+	}
+
+	// 计算斜率 m = (n * Σ(xy) - Σx * Σy) / (n * Σ(x^2) - (Σx)^2)
+	m := (float64(n)*sumXY - sumX*sumY) / (float64(n)*sumX2 - sumX*sumX)
+
+	// 计算角度 angle = atan(m)
+	angle := math.Atan(m)
+
+	// 将弧度转换为角度
+	angle = angle * 180.0 / math.Pi
+
+	return angle
 }
 
 func PositionSize(balance, leverage, currentPrice float64) float64 {

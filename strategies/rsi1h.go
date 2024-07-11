@@ -11,6 +11,33 @@ type Rsi1h struct {
 	BaseStrategy
 }
 
+func (s Rsi1h) Indicators(df *model.Dataframe) {
+	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
+	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
+	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
+	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
+	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
+	df.Metadata["volume"] = df.Volume
+
+	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
+
+	df.Metadata["bb_upper"] = bbUpper
+	df.Metadata["bb_middle"] = bbMiddle
+	df.Metadata["bb_lower"] = bbLower
+
+	// 计算布林带宽度
+	bbWidth := make([]float64, len(bbUpper))
+	for i := 0; i < len(bbUpper); i++ {
+		bbWidth[i] = bbUpper[i] - bbLower[i]
+	}
+	changeRates := make([]float64, len(bbWidth)-1)
+	for i := 1; i < len(bbWidth); i++ {
+		changeRates[i-1] = (bbWidth[i] - bbWidth[i-1]) / bbWidth[i-1]
+	}
+	df.Metadata["bb_width"] = bbWidth
+	df.Metadata["bb_change_rate"] = changeRates
+}
+
 func (s Rsi1h) SortScore() int {
 	return 70
 }
@@ -21,10 +48,6 @@ func (s Rsi1h) Timeframe() string {
 
 func (s Rsi1h) WarmupPeriod() int {
 	return 24 // RSI的预热期设定为14个数据点
-}
-
-func (s Rsi1h) Indicators(df *model.Dataframe) {
-	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 }
 
 func (s *Rsi1h) OnCandle(df *model.Dataframe) types.StrategyPosition {

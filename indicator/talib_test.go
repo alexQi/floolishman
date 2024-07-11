@@ -30,7 +30,28 @@ func Bac(balance, leverage, currentPrice float64, scoreRadio float64) float64 {
 	return amount
 }
 
+func calculateWidthChangeRate(bbWidth []float64) (float64, error) {
+	if len(bbWidth) == 0 {
+		return 0, fmt.Errorf("bbWidth array is empty")
+	}
+
+	// 计算布林带宽度的平均值
+	var sumWidth float64
+	for _, width := range bbWidth {
+		sumWidth += width
+	}
+	averageWidth := sumWidth / float64(len(bbWidth))
+
+	// 获取当前周期的布林带宽度
+	currentWidth := bbWidth[len(bbWidth)-1]
+
+	// 计算变化率
+	widthChangeRate := (currentWidth - averageWidth) / averageWidth
+
+	return widthChangeRate, nil
+}
+
 func TestA(t *testing.T) {
-	a := fmt.Sprintf("%.2f%%", -0.001*100)
-	fmt.Println(a)
+	bbWith := []float64{100, 80, 80, 95, 70, 85, 90, 110, 90}
+	fmt.Println(calculateWidthChangeRate(bbWith))
 }

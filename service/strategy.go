@@ -45,7 +45,7 @@ type ServiceStrategy struct {
 
 var (
 	CheckOpenInterval     time.Duration = 10
-	CheckCloseInterval    time.Duration = 2
+	CheckCloseInterval    time.Duration = 3
 	CheckStrategyInterval time.Duration = 1
 	ResetStrategyInterval time.Duration = 120
 	StopLossDistanceRatio float64       = 0.9
@@ -161,9 +161,10 @@ func (s *ServiceStrategy) StartJudger(pair string) {
 			// 获取多空比
 			longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(s.positionJudgers[pair].Matchers)
 			utils.Log.Infof(
-				"[JUDGE] Pair: %s | LongShortRatio: %.2f | MatcherStrategy:【%s】",
+				"[JUDGE] Pair: %s | LongShortRatio: %.2f | TendencyCount: %v | MatcherStrategy:【%s】",
 				pair,
 				longShortRatio,
+				s.positionJudgers[pair].TendencyCount,
 				matcherStrategy,
 			)
 			// 多空比不满足开仓条件

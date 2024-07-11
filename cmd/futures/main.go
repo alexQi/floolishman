@@ -17,14 +17,13 @@ import (
 )
 
 var ConstStraties = map[string]types.Strategy{
-	"HighFrequency": &strategies.HighFrequency{},
-	"Range15m":      &strategies.Range15m{},
-	"Momentum15m":   &strategies.Momentum15m{},
-	"Rsi1h":         &strategies.Rsi1h{},
-	"Emacross15m":   &strategies.Emacross15m{},
-	"Emacross1h":    &strategies.Emacross1h{},
-	"Momentum1h":    &strategies.Momentum1h{},
-	"Rsi15m":        &strategies.Rsi15m{},
+	"Range15m":    &strategies.Range15m{},
+	"Momentum15m": &strategies.Momentum15m{},
+	"Rsi1h":       &strategies.Rsi1h{},
+	"Emacross15m": &strategies.Emacross15m{},
+	"Emacross1h":  &strategies.Emacross1h{},
+	"Momentum1h":  &strategies.Momentum1h{},
+	"Rsi15m":      &strategies.Rsi15m{},
 }
 
 func main() {

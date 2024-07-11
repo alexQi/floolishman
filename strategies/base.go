@@ -19,40 +19,18 @@ func (bs *BaseStrategy) handleIndicatos(df *model.Dataframe) error {
 }
 
 func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
-	// 移动平均线交叉
-	shortMA := indicator.SMA(df.Close, 8) // 短期移动平均线
-	longMA := indicator.SMA(df.Close, 21) // 长期移动平均线
+	bbMiddles := df.Metadata["bb_middle"]
+	bbMiddlesSma := indicator.SMA(bbMiddles.LastValues(21), 21)
+	tendencyAngle := calc.CalculateAngle(bbMiddlesSma)
 
-	// 布林带
-	upper, _, lower := indicator.BB(df.Close, 21, 2, indicator.TypeSMA)
-
-	// RSI
-	rsi := indicator.RSI(df.Close, 14)
-
-	// ATR
-	atr := indicator.ATR(df.High, df.Low, df.Close, 14)
-
-	// 定义阈值
-	threshold := 0.4 // 允许超过阈值的比例
-	count := 0
-	total := len(df.Close) // 计算区间的长度
-
-	for i := 0; i < len(df.Close); i++ {
-		if shortMA[i] > longMA[i] || df.Close[i] > upper[i] || df.Close[i] < lower[i] || rsi[i] > 70 || rsi[i] < 30 || atr[i] > 1.5 {
-			count++
-		}
-	}
-
-	if float64(count)/float64(total) > threshold {
-		// 判断是单边上升还是单边下降
-		if df.Close[len(df.Close)-1] > longMA[len(longMA)-1] {
+	if calc.Abs(tendencyAngle) > 8 {
+		if tendencyAngle > 0 {
 			return "rise"
 		} else {
 			return "down"
 		}
-	} else {
-		return "range"
 	}
+	return "range"
 }
 
 // checkPinBar 是否上方插针，是否上方插针，最终方向 true-方向向下，false-方向上香

@@ -4,11 +4,39 @@ import (
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/types"
+	"floolishman/utils/calc"
 	"reflect"
 )
 
 type Range15m struct {
 	BaseStrategy
+}
+
+func (s Range15m) Indicators(df *model.Dataframe) {
+	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
+	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
+	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
+	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
+	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
+	df.Metadata["volume"] = df.Volume
+
+	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
+
+	df.Metadata["bb_upper"] = bbUpper
+	df.Metadata["bb_middle"] = bbMiddle
+	df.Metadata["bb_lower"] = bbLower
+
+	// 计算布林带宽度
+	bbWidth := make([]float64, len(bbUpper))
+	for i := 0; i < len(bbUpper); i++ {
+		bbWidth[i] = bbUpper[i] - bbLower[i]
+	}
+	changeRates := make([]float64, len(bbWidth)-1)
+	for i := 1; i < len(bbWidth); i++ {
+		changeRates[i-1] = (bbWidth[i] - bbWidth[i-1]) / bbWidth[i-1]
+	}
+	df.Metadata["bb_width"] = bbWidth
+	df.Metadata["bb_change_rate"] = changeRates
 }
 
 func (s Range15m) SortScore() int {
@@ -23,41 +51,10 @@ func (s Range15m) WarmupPeriod() int {
 	return 30
 }
 
-func (s Range15m) Indicators(df *model.Dataframe) {
-	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
-	// 计算布林带（Bollinger Bands）
-	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
-
-	df.Metadata["bb_upper"] = bbUpper
-	df.Metadata["bb_middle"] = bbMiddle
-	df.Metadata["bb_lower"] = bbLower
-
-	df.Metadata["max"] = indicator.Max(df.Close, 21)
-	df.Metadata["min"] = indicator.Min(df.Close, 21)
-}
-
 func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	rsi := df.Metadata["rsi"].Last(0)
-	bbUpper := df.Metadata["bb_upper"]
-	bbLower := df.Metadata["bb_lower"]
-	maxPrices := df.Metadata["max"]
-	minPrices := df.Metadata["min"]
-
-	topCount := 0
-	bottomCount := 0
-
-	for i := 0; i < len(maxPrices)-1; i++ {
-		if maxPrices[i] > bbUpper[i] {
-			topCount++
-		}
-	}
-	for i := 0; i < len(minPrices)-1; i++ {
-		if minPrices[i] < bbLower[i] {
-			bottomCount++
-		}
-	}
-
-	const limitBreak = 3
+	rsis := df.Metadata["rsi"].LastValues(2)
+	bbUpper := df.Metadata["bb_upper"].Last(0)
+	bbLower := df.Metadata["bb_lower"].Last(0)
 
 	strategyPosition := types.StrategyPosition{
 		Tendency:     s.checkMarketTendency(df),
@@ -65,15 +62,17 @@ func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
 	}
-	// 判断量价关系
-	if rsi < 30 && bottomCount <= limitBreak {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeBuy
-	}
 
-	if rsi > 70 && topCount <= limitBreak {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeSell
+	if strategyPosition.Tendency == "range" {
+		if rsis[0] > rsis[1] && calc.Abs(bbLower-df.Close.Last(0))/bbLower < 0.005 {
+			strategyPosition.Useable = true
+			strategyPosition.Side = model.SideTypeBuy
+		}
+
+		if rsis[0] < rsis[1] && calc.Abs(df.Close.Last(0)-bbUpper)/bbUpper < 0.005 {
+			strategyPosition.Useable = true
+			strategyPosition.Side = model.SideTypeSell
+		}
 	}
 
 	return strategyPosition
