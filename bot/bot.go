@@ -31,18 +31,18 @@ type CandleSubscriber interface {
 }
 
 type Bot struct {
-	backtest       bool
-	storage        storage.Storage
-	settings       model.Settings
-	tradingSetting service.StrategyServiceSetting
-	exchange       reference.Exchange
-	notifier       reference.Notifier
-	telegram       reference.Telegram
-	strategy       types.CompositesStrategy
-	paperWallet    *exchange.PaperWallet
+	backtest        bool
+	storage         storage.Storage
+	settings        model.Settings
+	strategySetting service.StrategySetting
+	exchange        reference.Exchange
+	notifier        reference.Notifier
+	telegram        reference.Telegram
+	strategy        types.CompositesStrategy
+	paperWallet     *exchange.PaperWallet
 
-	orderService         *service.OrderService
-	strategyService      *service.StrategyService
+	serviceOrder         *service.ServiceOrder
+	serviceStrategy      *service.ServiceStrategy
 	priorityQueueCandles map[string]map[string]*model.PriorityQueue // [pair] [] queue
 	orderFeed            *model.Feed
 	dataFeed             *exchange.DataFeedSubscription
@@ -51,7 +51,7 @@ type Bot struct {
 
 type Option func(*Bot)
 
-func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, tradingSetting service.StrategyServiceSetting, strategy types.CompositesStrategy,
+func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, strategySetting service.StrategySetting, strategy types.CompositesStrategy,
 	options ...Option) (*Bot, error) {
 	// 初始化bot参数
 	bot := &Bot{
@@ -85,12 +85,12 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 		}
 	}
 	// 加载订单服务
-	bot.orderService = service.NewOrderService(ctx, exch, bot.storage, bot.orderFeed)
+	bot.serviceOrder = service.NewServiceOrder(ctx, exch, bot.storage, bot.orderFeed)
 	// 加载策略服务
-	bot.strategyService = service.NewStrategyService(ctx, tradingSetting, strategy, bot.orderService, bot.backtest)
+	bot.serviceStrategy = service.NewServiceStrategy(ctx, strategySetting, strategy, bot.serviceOrder, bot.backtest)
 	// 加载通知服务
 	if settings.Telegram.Enabled {
-		bot.telegram, err = notification.NewTelegram(bot.orderService, settings)
+		bot.telegram, err = notification.NewTelegram(bot.serviceOrder, settings)
 		if err != nil {
 			return nil, err
 		}
@@ -129,7 +129,7 @@ func WithStorage(storage storage.Storage) Option {
 func WithNotifier(notifier reference.Notifier) Option {
 	return func(bot *Bot) {
 		bot.notifier = notifier
-		bot.orderService.SetNotifier(notifier)
+		bot.serviceOrder.SetNotifier(notifier)
 		bot.SubscribeOrder(notifier)
 	}
 }
@@ -165,8 +165,8 @@ func (n *Bot) SubscribeOrder(subscriptions ...OrderSubscriber) {
 	}
 }
 
-func (n *Bot) OrderService() *service.OrderService {
-	return n.orderService
+func (n *Bot) OrderService() *service.ServiceOrder {
+	return n.serviceOrder
 }
 
 func (n *Bot) Summary() {
@@ -186,7 +186,7 @@ func (n *Bot) Summary() {
 	avgProfitFactor := 0.0
 
 	returns := make([]float64, 0)
-	for _, summary := range n.orderService.Results {
+	for _, summary := range n.serviceOrder.Results {
 		avgPayoff += summary.Payoff() * float64(len(summary.Win())+len(summary.Lose()))
 		avgProfitFactor += summary.ProfitFactor() * float64(len(summary.Win())+len(summary.Lose()))
 		table.Append([]string{
@@ -226,7 +226,7 @@ func (n *Bot) Summary() {
 		fmt.Sprintf("%.1f %%", float64(wins)/float64(wins+loses)*100),
 		fmt.Sprintf("%.3f", avgPayoff/float64(wins+loses)),
 		fmt.Sprintf("%.3f", avgProfitFactor/float64(wins+loses)),
-		fmt.Sprintf("%.1f", sqn/float64(len(n.orderService.Results))),
+		fmt.Sprintf("%.1f", sqn/float64(len(n.serviceOrder.Results))),
 		fmt.Sprintf("%.2f", total),
 		fmt.Sprintf("%.2f", volume),
 	})
@@ -245,7 +245,7 @@ func (n *Bot) Summary() {
 	fmt.Println()
 
 	fmt.Println("------ CONFIDENCE INTERVAL (95%) -------")
-	for pair, summary := range n.orderService.Results {
+	for pair, summary := range n.serviceOrder.Results {
 		fmt.Printf("| %s |\n", pair)
 		returns := append(summary.WinPercent(), summary.LosePercent()...)
 		returnsInterval := metrics.Bootstrap(returns, metrics.Mean, 10000, 0.95)
@@ -269,7 +269,7 @@ func (n *Bot) Summary() {
 }
 
 func (n *Bot) SaveReturns(outputDir string) error {
-	for _, summary := range n.orderService.Results {
+	for _, summary := range n.serviceOrder.Results {
 		outputFile := fmt.Sprintf("%s/%s.csv", outputDir, summary.Pair)
 		if err := summary.SaveReturns(outputFile); err != nil {
 			return err
@@ -284,10 +284,10 @@ func (n *Bot) onCandle(timeframe string, candle model.Candle) {
 
 func (n *Bot) processCandle(timeframe string, candle model.Candle) {
 	if candle.Complete {
-		n.strategyService.OnCandle(timeframe, candle)
-		n.orderService.OnCandle(candle)
+		n.serviceStrategy.OnCandle(timeframe, candle)
+		n.serviceOrder.OnCandle(candle)
 	} else {
-		n.strategyService.OnRealCandle(timeframe, candle)
+		n.serviceStrategy.OnRealCandle(timeframe, candle)
 	}
 }
 
@@ -310,11 +310,11 @@ func (n *Bot) backtestCandles(pair string, timeframe string) {
 			n.paperWallet.OnCandle(candle)
 		}
 		// 监听exchange订单，更新订单控制器
-		n.orderService.ListenUpdateOrders()
+		n.serviceOrder.ListenUpdateOrders()
 		// 更新订单最新价格
-		n.orderService.OnCandle(candle)
+		n.serviceOrder.OnCandle(candle)
 		// 处理开仓策略相关
-		n.strategyService.OnCandle(timeframe, candle)
+		n.serviceStrategy.OnCandle(timeframe, candle)
 	}
 }
 
@@ -342,7 +342,7 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 			utils.Log.Error(err)
 			return
 		}
-		n.strategyService.SetPairDataframe(option)
+		n.serviceStrategy.SetPairDataframe(option)
 
 		if n.priorityQueueCandles[option.Pair] == nil {
 			n.priorityQueueCandles[option.Pair] = make(map[string]*model.PriorityQueue)
@@ -369,12 +369,12 @@ func (n *Bot) Run(ctx context.Context) {
 	// 输出策略详情
 	n.strategy.Stdout()
 	n.orderFeed.Start()
-	n.orderService.Start()
-	defer n.orderService.Stop()
+	n.serviceOrder.Start()
+	defer n.serviceOrder.Stop()
 
 	n.SettingPairs(ctx)
 
-	n.strategyService.Start()
+	n.serviceStrategy.Start()
 
 	// start data feed and receives new candles
 	n.dataFeed.Start()

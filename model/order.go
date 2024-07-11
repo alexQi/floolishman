@@ -52,11 +52,9 @@ type Order struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 
 	// strategy score
-	Score    int    `db:"score" json:"score"`
-	Strategy string `db:"strategy" json:"strategy"`
+	LongShortRatio float64        `db:"long_short_ratio" json:"long_short_ratio"`
+	MatchStrategy  map[string]int `db:"match_strategy" json:"match_strategy"`
 
-	// Internal use (Plot)
-	RefPrice    float64 `json:"ref_price" gorm:"-"`
 	Profit      float64 `json:"profit" gorm:"-"`
 	ProfitValue float64 `json:"profit_value" gorm:"-"`
 	Candle      Candle  `json:"-" gorm:"-"`

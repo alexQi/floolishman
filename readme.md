@@ -20,8 +20,6 @@
 ```
 {
     "trading": {
-        // 价格波动回撤环比阈值 最好不要调整
-        "volatilityThreshold": 0.002,
         // 开仓大小 0.1表示10%的仓位
         "fullSpaceRadio": 0.1,
         // 初始止损亏损比例

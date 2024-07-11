@@ -242,7 +242,7 @@ func (b *Binance) CreateOrderLimit(side model.SideType, pair string,
 }
 
 func (b *Binance) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, stopPrice float64, orderFlag string, score int, strategyName string) (model.Order, error) {
+	quantity float64, limit float64, stopPrice float64, orderFlag string, longShortRatio float64, strategyName string) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {

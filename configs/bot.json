@@ -14,8 +14,7 @@
         "Emacross1h"
     ],
     "trading": {
-        "checkMode": "interval",
-        "volatilityThreshold": 0.002,
+        "checkMode": "frequency",
         "fullSpaceRadio": 0.1,
         "initLossRatio": 0.50,
         "profitableScale": 0.8,

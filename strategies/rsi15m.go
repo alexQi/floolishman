@@ -25,12 +25,6 @@ func (s Rsi15m) WarmupPeriod() int {
 
 func (s Rsi15m) Indicators(df *model.Dataframe) {
 	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
-	// 计算布林带（Bollinger Bands）
-	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
-
-	df.Metadata["bb_upper"] = bbUpper
-	df.Metadata["bb_middle"] = bbMiddle
-	df.Metadata["bb_lower"] = bbLower
 }
 
 func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {

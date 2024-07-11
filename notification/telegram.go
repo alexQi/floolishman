@@ -22,14 +22,14 @@ var (
 
 type telegram struct {
 	settings     model.Settings
-	orderService *service.OrderService
+	orderService *service.ServiceOrder
 	defaultMenu  *tb.ReplyMarkup
 	client       *tb.Bot
 }
 
 type Option func(telegram *telegram)
 
-func NewTelegram(orderService *service.OrderService, settings model.Settings, options ...Option) (reference.Telegram, error) {
+func NewTelegram(orderService *service.ServiceOrder, settings model.Settings, options ...Option) (reference.Telegram, error) {
 	menu := &tb.ReplyMarkup{ResizeReplyKeyboard: true}
 	poller := &tb.LongPoller{Timeout: 10 * time.Second}
 

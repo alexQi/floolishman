@@ -40,9 +40,8 @@ func main() {
 		telegramUser   = viper.GetInt("telegram.user")
 		proxyStatus    = viper.GetBool("proxy.status")
 		proxyUrl       = viper.GetString("proxy.url")
-		tradingSetting = service.StrategyServiceSetting{
+		tradingSetting = service.StrategySetting{
 			CheckMode:            viper.GetString("trading.checkMode"),
-			VolatilityThreshold:  viper.GetFloat64("trading.volatilityThreshold"),
 			FullSpaceRadio:       viper.GetFloat64("trading.fullSpaceRadio"),
 			InitLossRatio:        viper.GetFloat64("trading.initLossRatio"),
 			ProfitableScale:      viper.GetFloat64("trading.profitableScale"),

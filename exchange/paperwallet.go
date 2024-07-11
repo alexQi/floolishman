@@ -623,7 +623,7 @@ func (p *PaperWallet) Position(pair string) (asset, quote float64, err error) {
 }
 
 func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, score int, strategyName string) (model.Order, error) {
+	quantity float64, limit float64, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
 
 	p.Lock()
 	defer p.Unlock()
@@ -641,26 +641,26 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 	clientOrderId := strutil.RandomString(12)
 
 	order := model.Order{
-		ExchangeID:    p.ID(),
-		ClientOrderId: clientOrderId,
-		OrderFlag:     orderFlag,
-		CreatedAt:     p.lastCandle[pair].Time,
-		UpdatedAt:     p.lastCandle[pair].Time,
-		Pair:          pair,
-		Side:          side,
-		PositionSide:  positionSide,
-		Type:          model.OrderTypeLimit,
-		Status:        model.OrderStatusTypeNew,
-		Price:         limit,
-		Quantity:      quantity,
-		Score:         score,
-		Strategy:      strategyName,
+		ExchangeID:     p.ID(),
+		ClientOrderId:  clientOrderId,
+		OrderFlag:      orderFlag,
+		CreatedAt:      p.lastCandle[pair].Time,
+		UpdatedAt:      p.lastCandle[pair].Time,
+		Pair:           pair,
+		Side:           side,
+		PositionSide:   positionSide,
+		Type:           model.OrderTypeLimit,
+		Status:         model.OrderStatusTypeNew,
+		Price:          limit,
+		Quantity:       quantity,
+		LongShortRatio: longShortRatio,
+		MatchStrategy:  matchStrategy,
 	}
 	p.orders = append(p.orders, order)
 	return order, nil
 }
 
-func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, score int, strategyName string) (model.Order, error) {
+func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
 	p.Lock()
 	defer p.Unlock()
 	if quantity == 0 {
@@ -682,20 +682,20 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 	clientOrderId := strutil.RandomString(12)
 
 	order := model.Order{
-		ExchangeID:    p.ID(),
-		ClientOrderId: clientOrderId,
-		OrderFlag:     orderFlag,
-		CreatedAt:     p.lastCandle[pair].Time,
-		UpdatedAt:     p.lastCandle[pair].Time,
-		Pair:          pair,
-		Side:          side,
-		PositionSide:  positionSide,
-		Type:          model.OrderTypeMarket,
-		Status:        model.OrderStatusTypeFilled,
-		Price:         p.lastCandle[pair].Close,
-		Quantity:      quantity,
-		Score:         score,
-		Strategy:      strategyName,
+		ExchangeID:     p.ID(),
+		ClientOrderId:  clientOrderId,
+		OrderFlag:      orderFlag,
+		CreatedAt:      p.lastCandle[pair].Time,
+		UpdatedAt:      p.lastCandle[pair].Time,
+		Pair:           pair,
+		Side:           side,
+		PositionSide:   positionSide,
+		Type:           model.OrderTypeMarket,
+		Status:         model.OrderStatusTypeFilled,
+		Price:          p.lastCandle[pair].Close,
+		Quantity:       quantity,
+		LongShortRatio: longShortRatio,
+		MatchStrategy:  matchStrategy,
 	}
 
 	p.orders = append(p.orders, order)
@@ -704,7 +704,7 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 }
 
 func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, stopPrice float64, orderFlag string, score int, strategyName string) (model.Order, error) {
+	quantity float64, limit float64, stopPrice float64, orderFlag string, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -720,20 +720,20 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 	clientOrderId := strutil.RandomString(12)
 
 	order := model.Order{
-		ExchangeID:    p.ID(),
-		ClientOrderId: clientOrderId,
-		OrderFlag:     orderFlag,
-		CreatedAt:     p.lastCandle[pair].Time,
-		UpdatedAt:     p.lastCandle[pair].Time,
-		Pair:          pair,
-		Side:          side,
-		PositionSide:  positionSide,
-		Type:          model.OrderTypeStop,
-		Status:        model.OrderStatusTypeNew,
-		Price:         limit,
-		Quantity:      quantity,
-		Score:         score,
-		Strategy:      strategyName,
+		ExchangeID:     p.ID(),
+		ClientOrderId:  clientOrderId,
+		OrderFlag:      orderFlag,
+		CreatedAt:      p.lastCandle[pair].Time,
+		UpdatedAt:      p.lastCandle[pair].Time,
+		Pair:           pair,
+		Side:           side,
+		PositionSide:   positionSide,
+		Type:           model.OrderTypeStop,
+		Status:         model.OrderStatusTypeNew,
+		Price:          limit,
+		Quantity:       quantity,
+		LongShortRatio: longShortRatio,
+		MatchStrategy:  matchStrategy,
 	}
 
 	p.orders = append(p.orders, order)
@@ -741,7 +741,7 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 }
 
 func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, _ float64, orderFlag string, score int, strategyName string) (model.Order, error) {
+	quantity float64, _ float64, orderFlag string, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -756,20 +756,20 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 	clientOrderId := strutil.RandomString(12)
 
 	order := model.Order{
-		ExchangeID:    p.ID(),
-		ClientOrderId: clientOrderId,
-		OrderFlag:     orderFlag,
-		CreatedAt:     p.lastCandle[pair].Time,
-		UpdatedAt:     p.lastCandle[pair].Time,
-		Pair:          pair,
-		Side:          side,
-		PositionSide:  positionSide,
-		Type:          model.OrderTypeStopMarket,
-		Status:        model.OrderStatusTypeFilled,
-		Price:         p.lastCandle[pair].Close,
-		Quantity:      quantity,
-		Score:         score,
-		Strategy:      strategyName,
+		ExchangeID:     p.ID(),
+		ClientOrderId:  clientOrderId,
+		OrderFlag:      orderFlag,
+		CreatedAt:      p.lastCandle[pair].Time,
+		UpdatedAt:      p.lastCandle[pair].Time,
+		Pair:           pair,
+		Side:           side,
+		PositionSide:   positionSide,
+		Type:           model.OrderTypeStopMarket,
+		Status:         model.OrderStatusTypeFilled,
+		Price:          p.lastCandle[pair].Close,
+		Quantity:       quantity,
+		LongShortRatio: longShortRatio,
+		MatchStrategy:  matchStrategy,
 	}
 
 	p.orders = append(p.orders, order)

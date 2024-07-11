@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"floolishman/model"
-	"floolishman/reference"
 	"floolishman/types"
 	"floolishman/utils"
 	"reflect"
@@ -11,63 +10,59 @@ import (
 )
 
 type ServiceProcessor struct {
-	ctx         context.Context
-	strategy    types.CompositesStrategy
-	dataframes  map[string]map[string]*model.Dataframe
-	samples     map[string]map[string]map[string]*model.Dataframe
-	realCandles map[string]map[string]*model.Candle
-	pairPrices  map[string]float64
+	mu         sync.Mutex
+	ctx        context.Context
+	strategy   types.CompositesStrategy
+	dataframes map[string]map[string]*model.Dataframe
+
+	// 对外暴露
 	pairOptions map[string]model.PairOption
-	broker      reference.Broker
-	started     bool
-	mu          sync.Mutex
+	Samples     map[string]map[string]map[string]*model.Dataframe
+	RealCandles map[string]map[string]*model.Candle
+	PairPrices  map[string]float64
 }
 
-func NewServiceProcessor(ctx context.Context, strategy types.CompositesStrategy, broker reference.Broker) *ServiceProcessor {
+func NewServiceProcessor(ctx context.Context, strategy types.CompositesStrategy) *ServiceProcessor {
 	return &ServiceProcessor{
 		ctx:         ctx,
 		dataframes:  make(map[string]map[string]*model.Dataframe),
-		samples:     make(map[string]map[string]map[string]*model.Dataframe),
-		realCandles: make(map[string]map[string]*model.Candle),
-		pairPrices:  make(map[string]float64),
+		Samples:     make(map[string]map[string]map[string]*model.Dataframe),
+		RealCandles: make(map[string]map[string]*model.Candle),
+		PairPrices:  make(map[string]float64),
 		pairOptions: make(map[string]model.PairOption),
 		strategy:    strategy,
-		broker:      broker,
 	}
 }
 
-func (s *ServiceProcessor) Start() {
-	s.started = true
-}
-
-func (s *ServiceProcessor) SetPairDataframe(option model.PairOption) {
-	s.pairOptions[option.Pair] = option
-	s.pairPrices[option.Pair] = 0
-	if s.dataframes[option.Pair] == nil {
-		s.dataframes[option.Pair] = make(map[string]*model.Dataframe)
+func (sp *ServiceProcessor) SetPairDataframe(option model.PairOption) {
+	sp.pairOptions[option.Pair] = option
+	sp.PairPrices[option.Pair] = 0
+	if sp.dataframes[option.Pair] == nil {
+		sp.dataframes[option.Pair] = make(map[string]*model.Dataframe)
 	}
-	if s.samples[option.Pair] == nil {
-		s.samples[option.Pair] = make(map[string]map[string]*model.Dataframe)
+	if sp.Samples[option.Pair] == nil {
+		sp.Samples[option.Pair] = make(map[string]map[string]*model.Dataframe)
 	}
-	if s.realCandles[option.Pair] == nil {
-		s.realCandles[option.Pair] = make(map[string]*model.Candle)
+	if sp.RealCandles[option.Pair] == nil {
+		sp.RealCandles[option.Pair] = make(map[string]*model.Candle)
 	}
-	for _, strategy := range s.strategy.Strategies {
-		s.dataframes[option.Pair][strategy.Timeframe()] = &model.Dataframe{
+	// 初始化不同时间周期的dataframe 及 samples
+	for _, strategy := range sp.strategy.Strategies {
+		sp.dataframes[option.Pair][strategy.Timeframe()] = &model.Dataframe{
 			Pair:     option.Pair,
 			Metadata: make(map[string]model.Series[float64]),
 		}
-		if _, ok := s.samples[option.Pair][strategy.Timeframe()]; !ok {
-			s.samples[option.Pair][strategy.Timeframe()] = make(map[string]*model.Dataframe)
+		if _, ok := sp.Samples[option.Pair][strategy.Timeframe()]; !ok {
+			sp.Samples[option.Pair][strategy.Timeframe()] = make(map[string]*model.Dataframe)
 		}
-		s.samples[option.Pair][strategy.Timeframe()][reflect.TypeOf(strategy).Elem().Name()] = &model.Dataframe{
+		sp.Samples[option.Pair][strategy.Timeframe()][reflect.TypeOf(strategy).Elem().Name()] = &model.Dataframe{
 			Pair:     option.Pair,
 			Metadata: make(map[string]model.Series[float64]),
 		}
 	}
 }
 
-func (s *ServiceProcessor) setDataFrame(dataframe model.Dataframe, candle model.Candle) model.Dataframe {
+func (sp *ServiceProcessor) setDataFrame(dataframe model.Dataframe, candle model.Candle) model.Dataframe {
 	if len(dataframe.Time) > 0 && candle.Time.Equal(dataframe.Time[len(dataframe.Time)-1]) {
 		last := len(dataframe.Time) - 1
 		dataframe.Close[last] = candle.Close
@@ -94,43 +89,43 @@ func (s *ServiceProcessor) setDataFrame(dataframe model.Dataframe, candle model.
 	return dataframe
 }
 
-func (s *ServiceProcessor) updateDataFrame(timeframe string, candle model.Candle) {
-	tempDataframe := s.setDataFrame(*s.dataframes[candle.Pair][timeframe], candle)
-	s.dataframes[candle.Pair][timeframe] = &tempDataframe
+func (sp *ServiceProcessor) updateDataFrame(timeframe string, candle model.Candle) {
+	tempDataframe := sp.setDataFrame(*sp.dataframes[candle.Pair][timeframe], candle)
+	sp.dataframes[candle.Pair][timeframe] = &tempDataframe
 }
 
-func (s *ServiceProcessor) OnRealCandle(timeframe string, candle model.Candle) {
-	s.mu.Lock()         // 加锁
-	defer s.mu.Unlock() // 解锁
-	oldCandle, ok := s.realCandles[candle.Pair][timeframe]
+func (sp *ServiceProcessor) OnRealCandle(timeframe string, candle model.Candle) {
+	sp.mu.Lock()         // 加锁
+	defer sp.mu.Unlock() // 解锁
+	oldCandle, ok := sp.RealCandles[candle.Pair][timeframe]
 	if ok && oldCandle.UpdatedAt.Before(candle.UpdatedAt) == false {
 		return
 	}
-	s.realCandles[candle.Pair][timeframe] = &candle
-	s.pairPrices[candle.Pair] = candle.Close
+	sp.RealCandles[candle.Pair][timeframe] = &candle
+	sp.PairPrices[candle.Pair] = candle.Close
 	// 采样数据转换指标
-	for _, str := range s.strategy.Strategies {
-		if len(s.dataframes[candle.Pair][timeframe].Close) < str.WarmupPeriod() {
+	for _, str := range sp.strategy.Strategies {
+		if len(sp.dataframes[candle.Pair][timeframe].Close) < str.WarmupPeriod() {
 			continue
 		}
 		// 执行数据采样
-		sample := s.dataframes[candle.Pair][timeframe].Sample(str.WarmupPeriod())
+		sample := sp.dataframes[candle.Pair][timeframe].Sample(str.WarmupPeriod())
 		// 加入最新指标
-		sample = s.setDataFrame(sample, candle)
+		sample = sp.setDataFrame(sample, candle)
 		str.Indicators(&sample)
-		// 在向samples添加之前，确保对应的键存在
+		// 在向Samples添加之前，确保对应的键存在
 		if timeframe == str.Timeframe() {
-			s.samples[candle.Pair][timeframe][reflect.TypeOf(str).Elem().Name()] = &sample
+			sp.Samples[candle.Pair][timeframe][reflect.TypeOf(str).Elem().Name()] = &sample
 		}
 	}
 }
 
-func (s *ServiceProcessor) OnCandle(timeframe string, candle model.Candle) {
-	if len(s.dataframes[candle.Pair][timeframe].Time) > 0 && candle.Time.Before(s.dataframes[candle.Pair][timeframe].Time[len(s.dataframes[candle.Pair][timeframe].Time)-1]) {
+func (sp *ServiceProcessor) OnCandle(timeframe string, candle model.Candle) {
+	if len(sp.dataframes[candle.Pair][timeframe].Time) > 0 && candle.Time.Before(sp.dataframes[candle.Pair][timeframe].Time[len(sp.dataframes[candle.Pair][timeframe].Time)-1]) {
 		utils.Log.Errorf("late candle received: %#v", candle)
 		return
 	}
 	// 更新Dataframe
-	s.updateDataFrame(timeframe, candle)
-	s.OnRealCandle(timeframe, candle)
+	sp.updateDataFrame(timeframe, candle)
+	sp.OnRealCandle(timeframe, candle)
 }

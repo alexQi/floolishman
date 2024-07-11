@@ -6,6 +6,7 @@ import (
 	"floolishman/utils"
 	"fmt"
 	"reflect"
+	"time"
 )
 
 type StrategyPosition struct {
@@ -14,8 +15,19 @@ type StrategyPosition struct {
 	Pair         string
 	StrategyName string
 	Score        int
-	Price        float64
 	Tendency     string
+}
+
+type PositionJudger struct {
+	Pair          string             //交易对
+	Matchers      []StrategyPosition // 策略通过结果数组
+	TendencyCount map[string]int     // 趋势得分Map
+	Count         int                // 当前周期执行次数
+	CreatedAt     time.Time          // 本次Counter创建时间
+}
+
+func (pj PositionJudger) String() string {
+	return fmt.Sprintf("[FREQUENCY] %s Pair: %s | Count: %d | TendencyCount: %v | Matchers: %v ", pj.CreatedAt.Format("2006-01-02 15:04:05"), pj.Pair, pj.Count, pj.TendencyCount, pj.Matchers)
 }
 
 func (sp StrategyPosition) String() string {

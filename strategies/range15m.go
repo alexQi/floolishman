@@ -4,7 +4,6 @@ import (
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/types"
-	"floolishman/utils/calc"
 	"reflect"
 )
 
@@ -67,12 +66,12 @@ func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		Score:        s.SortScore(),
 	}
 	// 判断量价关系
-	if rsi < 30 && bottomCount <= limitBreak && calc.Abs(bbLower.Last(0)-df.Close.Last(0))/bbLower.Last(0) < 0.005 {
+	if rsi < 30 && bottomCount <= limitBreak {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 
-	if rsi > 70 && topCount <= limitBreak && calc.Abs(df.Close.Last(0)-bbLower.Last(0))/bbUpper.Last(0) < 0.005 {
+	if rsi > 70 && topCount <= limitBreak {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}

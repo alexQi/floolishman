@@ -170,19 +170,19 @@ type Result struct {
 	Pair          string
 	ProfitPercent float64
 	ProfitValue   float64
-	Strategy      string
+	MatchStrategy map[string]int
 	Side          model.SideType
 	Duration      time.Duration
 	CreatedAt     time.Time
 }
 
 type Position struct {
-	Side         model.SideType
-	PositionSide model.PositionSideType
-	Strategy     string
-	AvgPrice     float64
-	Quantity     float64
-	CreatedAt    time.Time
+	Side          model.SideType
+	PositionSide  model.PositionSideType
+	MatchStrategy map[string]int
+	AvgPrice      float64
+	Quantity      float64
+	CreatedAt     time.Time
 }
 
 func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
@@ -213,7 +213,7 @@ func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 				ProfitPercent: order.Profit,
 				ProfitValue:   order.ProfitValue,
 				Side:          p.Side,
-				Strategy:      order.Strategy,
+				MatchStrategy: order.MatchStrategy,
 			}
 
 			return result, finished
@@ -244,7 +244,7 @@ func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 				ProfitPercent: order.Profit,
 				ProfitValue:   order.ProfitValue,
 				Side:          p.Side,
-				Strategy:      order.Strategy,
+				MatchStrategy: order.MatchStrategy,
 			}
 
 			return result, finished
@@ -254,7 +254,7 @@ func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 	return nil, false
 }
 
-type OrderService struct {
+type ServiceOrder struct {
 	mtx            sync.Mutex
 	ctx            context.Context
 	exchange       reference.Exchange
@@ -270,10 +270,10 @@ type OrderService struct {
 	position map[string]*Position
 }
 
-func NewOrderService(ctx context.Context, exchange reference.Exchange, storage storage.Storage,
-	orderFeed *model.Feed) *OrderService {
+func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage storage.Storage,
+	orderFeed *model.Feed) *ServiceOrder {
 
-	return &OrderService{
+	return &ServiceOrder{
 		ctx:            ctx,
 		storage:        storage,
 		exchange:       exchange,
@@ -286,15 +286,15 @@ func NewOrderService(ctx context.Context, exchange reference.Exchange, storage s
 	}
 }
 
-func (c *OrderService) SetNotifier(notifier reference.Notifier) {
+func (c *ServiceOrder) SetNotifier(notifier reference.Notifier) {
 	c.notifier = notifier
 }
 
-func (c *OrderService) OnCandle(candle model.Candle) {
+func (c *ServiceOrder) OnCandle(candle model.Candle) {
 	c.lastPrice[candle.Pair] = candle.Close
 }
 
-func (c *OrderService) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
+func (c *ServiceOrder) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
 	orders := []*model.Order{}
 	orders, err := c.storage.Orders(
 		storage.WithPair(pair),
@@ -310,17 +310,17 @@ func (c *OrderService) GetCurrentPositionOrders(pair string) ([]*model.Order, er
 	return orders, nil
 }
 
-func (c *OrderService) updatePosition(o *model.Order) {
+func (c *ServiceOrder) updatePosition(o *model.Order) {
 	// get filled orders before the current order
 	position, ok := c.position[o.Pair]
 	if !ok {
 		c.position[o.Pair] = &Position{
-			AvgPrice:     o.Price,
-			Quantity:     o.Quantity,
-			CreatedAt:    o.CreatedAt,
-			Side:         o.Side,
-			PositionSide: o.PositionSide,
-			Strategy:     o.Strategy,
+			AvgPrice:      o.Price,
+			Quantity:      o.Quantity,
+			CreatedAt:     o.CreatedAt,
+			Side:          o.Side,
+			PositionSide:  o.PositionSide,
+			MatchStrategy: o.MatchStrategy,
 		}
 		return
 	}
@@ -336,33 +336,45 @@ func (c *OrderService) updatePosition(o *model.Order) {
 			if result.Side == model.SideTypeBuy {
 				c.Results[o.Pair].WinLong = append(c.Results[o.Pair].WinLong, result.ProfitValue)
 				c.Results[o.Pair].WinLongPercent = append(c.Results[o.Pair].WinLongPercent, result.ProfitPercent)
-				if _, ok := c.Results[o.Pair].WinLongStrateis[result.Strategy]; !ok {
-					c.Results[o.Pair].WinLongStrateis = make(map[string]int)
+
+				for s, i := range result.MatchStrategy {
+					if _, ok := c.Results[o.Pair].WinLongStrateis[s]; !ok {
+						c.Results[o.Pair].WinLongStrateis = make(map[string]int)
+					}
+					c.Results[o.Pair].WinLongStrateis[s] += i
 				}
-				c.Results[o.Pair].WinLongStrateis[result.Strategy] += 1
 			} else {
 				c.Results[o.Pair].WinShort = append(c.Results[o.Pair].WinShort, result.ProfitValue)
 				c.Results[o.Pair].WinShortPercent = append(c.Results[o.Pair].WinShortPercent, result.ProfitPercent)
-				if _, ok := c.Results[o.Pair].WinShortStrateis[result.Strategy]; !ok {
-					c.Results[o.Pair].WinShortStrateis = make(map[string]int)
+
+				for s, i := range result.MatchStrategy {
+					if _, ok := c.Results[o.Pair].WinShortStrateis[s]; !ok {
+						c.Results[o.Pair].WinShortStrateis = make(map[string]int)
+					}
+					c.Results[o.Pair].WinShortStrateis[s] += i
 				}
-				c.Results[o.Pair].WinShortStrateis[result.Strategy] += 1
 			}
 		} else {
 			if result.Side == model.SideTypeBuy {
 				c.Results[o.Pair].LoseLong = append(c.Results[o.Pair].LoseLong, result.ProfitValue)
 				c.Results[o.Pair].LoseLongPercent = append(c.Results[o.Pair].LoseLongPercent, result.ProfitPercent)
-				if _, ok := c.Results[o.Pair].LoseLongStrateis[result.Strategy]; !ok {
-					c.Results[o.Pair].LoseLongStrateis = make(map[string]int)
+
+				for s, i := range result.MatchStrategy {
+					if _, ok := c.Results[o.Pair].LoseLongStrateis[s]; !ok {
+						c.Results[o.Pair].LoseLongStrateis = make(map[string]int)
+					}
+					c.Results[o.Pair].LoseLongStrateis[s] += i
 				}
-				c.Results[o.Pair].LoseLongStrateis[result.Strategy] += 1
 			} else {
 				c.Results[o.Pair].LoseShort = append(c.Results[o.Pair].LoseShort, result.ProfitValue)
 				c.Results[o.Pair].LoseShortPercent = append(c.Results[o.Pair].LoseShortPercent, result.ProfitPercent)
-				if _, ok := c.Results[o.Pair].LoseShortStrateis[result.Strategy]; !ok {
-					c.Results[o.Pair].LoseShortStrateis = make(map[string]int)
+
+				for s, i := range result.MatchStrategy {
+					if _, ok := c.Results[o.Pair].LoseShortStrateis[s]; !ok {
+						c.Results[o.Pair].LoseShortStrateis = make(map[string]int)
+					}
+					c.Results[o.Pair].LoseShortStrateis[s] += i
 				}
-				c.Results[o.Pair].LoseShortStrateis[result.Strategy] += 1
 			}
 		}
 
@@ -377,21 +389,21 @@ func (c *OrderService) updatePosition(o *model.Order) {
 	}
 }
 
-func (c *OrderService) notify(message string) {
+func (c *ServiceOrder) notify(message string) {
 	utils.Log.Info(message)
 	if c.notifier != nil {
 		c.notifier.Notify(message)
 	}
 }
 
-func (c *OrderService) notifyError(err error) {
+func (c *ServiceOrder) notifyError(err error) {
 	utils.Log.Error(err)
 	if c.notifier != nil {
 		c.notifier.OnError(err)
 	}
 }
 
-func (c *OrderService) processTrade(order *model.Order) {
+func (c *ServiceOrder) processTrade(order *model.Order) {
 	if order.Status != model.OrderStatusTypeFilled {
 		return
 	}
@@ -408,7 +420,7 @@ func (c *OrderService) processTrade(order *model.Order) {
 	c.updatePosition(order)
 }
 
-func (c *OrderService) updateOrders() {
+func (c *ServiceOrder) updateOrders() {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -447,8 +459,8 @@ func (c *OrderService) updateOrders() {
 		excOrder.ID = order.ID
 		excOrder.OrderFlag = order.OrderFlag
 		excOrder.Type = order.Type
-		excOrder.Score = order.Score
-		excOrder.Strategy = order.Strategy
+		excOrder.LongShortRatio = order.LongShortRatio
+		excOrder.MatchStrategy = order.MatchStrategy
 
 		// 判断交易状态,如果已完成，关闭仓位 及止盈止损仓位
 		if excOrder.Status == model.OrderStatusTypeFilled && (excOrder.Type == model.OrderTypeStop || excOrder.Type == model.OrderTypeStopMarket) {
@@ -495,15 +507,15 @@ func (c *OrderService) updateOrders() {
 	}
 }
 
-func (c *OrderService) Status() Status {
+func (c *ServiceOrder) Status() Status {
 	return c.status
 }
 
-func (c *OrderService) ListenUpdateOrders() {
+func (c *ServiceOrder) ListenUpdateOrders() {
 	c.updateOrders()
 }
 
-func (c *OrderService) Start() {
+func (c *ServiceOrder) Start() {
 	if c.status != StatusRunning {
 		c.status = StatusRunning
 		// 监听已有仓位
@@ -523,7 +535,7 @@ func (c *OrderService) Start() {
 	}
 }
 
-func (c *OrderService) Stop() {
+func (c *ServiceOrder) Stop() {
 	if c.status == StatusRunning {
 		c.status = StatusStopped
 		c.updateOrders()
@@ -532,19 +544,19 @@ func (c *OrderService) Stop() {
 	}
 }
 
-func (c *OrderService) Account() (model.Account, error) {
+func (c *ServiceOrder) Account() (model.Account, error) {
 	return c.exchange.Account()
 }
 
-func (c *OrderService) Position(pair string) (asset, quote float64, err error) {
+func (c *ServiceOrder) Position(pair string) (asset, quote float64, err error) {
 	return c.exchange.Position(pair)
 }
 
-func (c *OrderService) LastQuote(pair string) (float64, error) {
+func (c *ServiceOrder) LastQuote(pair string) (float64, error) {
 	return c.exchange.LastQuote(c.ctx, pair)
 }
 
-func (c *OrderService) PositionValue(pair string) (float64, error) {
+func (c *ServiceOrder) PositionValue(pair string) (float64, error) {
 	asset, _, err := c.exchange.Position(pair)
 	if err != nil {
 		return 0, err
@@ -552,16 +564,16 @@ func (c *OrderService) PositionValue(pair string) (float64, error) {
 	return asset * c.lastPrice[pair], nil
 }
 
-func (c *OrderService) Order(pair string, id int64) (model.Order, error) {
+func (c *ServiceOrder) Order(pair string, id int64) (model.Order, error) {
 	return c.exchange.Order(pair, id)
 }
 
-func (c *OrderService) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, score int, strategyName string) (model.Order, error) {
+func (c *ServiceOrder) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating LIMIT %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderLimit(side, positionSide, pair, size, limit, score, strategyName)
+	order, err := c.exchange.CreateOrderLimit(side, positionSide, pair, size, limit, longShortRatio, matchStrategy)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -577,12 +589,12 @@ func (c *OrderService) CreateOrderLimit(side model.SideType, positionSide model.
 	return order, nil
 }
 
-func (c *OrderService) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, size float64, score int, strategyName string) (model.Order, error) {
+func (c *ServiceOrder) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, size float64, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating MARKET %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderMarket(side, positionSide, pair, size, score, strategyName)
+	order, err := c.exchange.CreateOrderMarket(side, positionSide, pair, size, longShortRatio, matchStrategy)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -600,12 +612,12 @@ func (c *OrderService) CreateOrderMarket(side model.SideType, positionSide model
 	return order, err
 }
 
-func (c *OrderService) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, stopPrice float64, orderFlag string, score int, strategyName string) (model.Order, error) {
+func (c *ServiceOrder) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, stopPrice float64, orderFlag string, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating STOP LIMIT %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderStopLimit(side, positionSide, pair, size, limit, stopPrice, orderFlag, score, strategyName)
+	order, err := c.exchange.CreateOrderStopLimit(side, positionSide, pair, size, limit, stopPrice, orderFlag, longShortRatio, matchStrategy)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -621,12 +633,12 @@ func (c *OrderService) CreateOrderStopLimit(side model.SideType, positionSide mo
 	return order, nil
 }
 
-func (c *OrderService) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string, size, stopPrice float64, orderFlag string, score int, strategyName string) (model.Order, error) {
+func (c *ServiceOrder) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string, size, stopPrice float64, orderFlag string, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating STOP MARKET %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderStopMarket(side, positionSide, pair, size, stopPrice, orderFlag, score, strategyName)
+	order, err := c.exchange.CreateOrderStopMarket(side, positionSide, pair, size, stopPrice, orderFlag, longShortRatio, matchStrategy)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -643,7 +655,7 @@ func (c *OrderService) CreateOrderStopMarket(side model.SideType, positionSide m
 	return order, nil
 }
 
-func (c *OrderService) Cancel(order model.Order) error {
+func (c *ServiceOrder) Cancel(order model.Order) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
