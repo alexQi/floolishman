@@ -15,9 +15,16 @@ func (s Rsi1h) Indicators(df *model.Dataframe) {
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
-	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
+
+	bbRsiZero := []float64{}
+	for _, val := range df.Close {
+		if val > 0 {
+			bbRsiZero = append(bbRsiZero, val)
+		}
+	}
+	df.Metadata["rsi"] = indicator.RSI(bbRsiZero, 6)
 
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
 

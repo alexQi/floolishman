@@ -20,10 +20,18 @@ func (bs *BaseStrategy) handleIndicatos(df *model.Dataframe) error {
 
 func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
 	bbMiddles := df.Metadata["bb_middle"]
-	bbMiddlesSma := indicator.SMA(bbMiddles.LastValues(21), 21)
-	tendencyAngle := calc.CalculateAngle(bbMiddlesSma)
+	bbMiddlesNotZero := []float64{}
+	for _, val := range bbMiddles.LastValues(30) {
+		if val > 0 {
+			bbMiddlesNotZero = append(bbMiddlesNotZero, val)
+		}
+	}
+	if len(bbMiddlesNotZero) < 10 {
+		return "ambiguity"
+	}
+	tendencyAngle := calc.CalculateAngle(bbMiddlesNotZero)
 
-	if calc.Abs(tendencyAngle) > 8 {
+	if calc.Abs(tendencyAngle) > 20 {
 		if tendencyAngle > 0 {
 			return "rise"
 		} else {

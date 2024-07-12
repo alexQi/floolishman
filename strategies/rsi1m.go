@@ -7,21 +7,24 @@ import (
 	"reflect"
 )
 
-type Momentum15m struct {
+type Rsi1m struct {
 	BaseStrategy
 }
 
-func (s Momentum15m) SortScore() int {
-	return 80
-}
-
-func (s Momentum15m) Indicators(df *model.Dataframe) {
+func (s Rsi1m) Indicators(df *model.Dataframe) {
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
-	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
+
+	bbRsiZero := []float64{}
+	for _, val := range df.Close {
+		if val > 0 {
+			bbRsiZero = append(bbRsiZero, val)
+		}
+	}
+	df.Metadata["rsi"] = indicator.RSI(bbRsiZero, 6)
 
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
 
@@ -42,15 +45,19 @@ func (s Momentum15m) Indicators(df *model.Dataframe) {
 	df.Metadata["bb_change_rate"] = changeRates
 }
 
-func (s Momentum15m) Timeframe() string {
+func (s Rsi1m) SortScore() int {
+	return 90
+}
+
+func (s Rsi1m) Timeframe() string {
 	return "15m"
 }
 
-func (s Momentum15m) WarmupPeriod() int {
-	return 30 // 预热期设定为24个数据点
+func (s Rsi1m) WarmupPeriod() int {
+	return 24 // RSI的预热期设定为14个数据点
 }
 
-func (s *Momentum15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
+func (s *Rsi1m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	strategyPosition := types.StrategyPosition{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
@@ -58,23 +65,17 @@ func (s *Momentum15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		Score:        s.SortScore(),
 	}
 
-	momentums := df.Metadata["momentum"].LastValues(2)
-	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
-	isUpperPinBar, isLowerPinBar, _ := s.checkPinBar(
-		df.Open.Last(0),
-		df.Close.Last(0),
-		df.High.Last(0),
-		df.Low.Last(0),
-	)
+	rsi := df.Metadata["rsi"].Last(0)
 	// 趋势判断
-	if strategyPosition.Tendency == "rise" && momentums[0] > 0 && momentums[0] < momentums[1] && !isUpperPinBar {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeBuy
-	}
-	// 动量递减向下 且未下方插针
-	if strategyPosition.Tendency == "down" && momentums[0] < 0 && momentums[0] > momentums[1] && !isLowerPinBar {
+	if rsi >= 60 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
+	// RSI 小于30，买入信号
+	if rsi >= 40 {
+		strategyPosition.Useable = true
+		strategyPosition.Side = model.SideTypeBuy
+	}
+
 	return strategyPosition
 }

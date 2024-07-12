@@ -68,12 +68,12 @@ func (s *Momentum1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		df.Low.Last(0),
 	)
 	// 趋势判断
-	if strategyPosition.Tendency == "rise" && momentums[1] > 0 && momentums[0] > momentums[1] && !isUpperPinBar {
+	if strategyPosition.Tendency == "rise" && momentums[0] > 0 && momentums[0] < momentums[1] && !isUpperPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 	// 动量递减向下 且未下方插针
-	if strategyPosition.Tendency == "down" && momentums[1] < 0 && momentums[0] < momentums[1] && !isLowerPinBar {
+	if strategyPosition.Tendency == "down" && momentums[0] < 0 && momentums[0] > momentums[1] && !isLowerPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}

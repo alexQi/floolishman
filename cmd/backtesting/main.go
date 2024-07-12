@@ -24,6 +24,8 @@ var ConstStraties = map[string]types.Strategy{
 	"Emacross1h":  &strategies.Emacross1h{},
 	"Momentum1h":  &strategies.Momentum1h{},
 	"Rsi15m":      &strategies.Rsi15m{},
+	"Test15m":     &strategies.Test15m{},
+	"Rsi1m":       &strategies.Rsi1m{},
 }
 
 func main() {
@@ -35,13 +37,15 @@ func main() {
 		tradingSetting = service.StrategySetting{
 			CheckMode:            viper.GetString("trading.checkMode"),
 			FullSpaceRadio:       viper.GetFloat64("trading.fullSpaceRadio"),
-			InitLossRatio:        viper.GetFloat64("trading.initLossRatio"),
+			BaseLossRatio:        viper.GetFloat64("trading.baseLossRatio"),
 			ProfitableScale:      viper.GetFloat64("trading.profitableScale"),
 			InitProfitRatioLimit: viper.GetFloat64("trading.initProfitRatioLimit"),
 		}
 		pairsSetting      = viper.GetStringMap("pairs")
 		strategiesSetting = viper.GetStringSlice("strategies")
 	)
+
+	utils.Log.SetLevel(5)
 
 	settings := model.Settings{
 		PairOptions: []model.PairOption{},
@@ -92,11 +96,6 @@ func main() {
 			File:      "testdata/eth-15m.csv",
 			Timeframe: "15m",
 		},
-		//exchange.PairFeed{
-		//	Pair:      "ETHUSDT",
-		//	File:      "testdata/eth-1m.csv",
-		//	Timeframe: "1m",
-		//},
 	)
 
 	// initialize a database in memory
@@ -109,7 +108,7 @@ func main() {
 	wallet := exchange.NewPaperWallet(
 		ctx,
 		"USDT",
-		exchange.WithPaperAsset("USDT", 10000),
+		exchange.WithPaperAsset("USDT", 800),
 		exchange.WithDataFeed(csvFeed),
 	)
 

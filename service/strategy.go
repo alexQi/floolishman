@@ -16,7 +16,7 @@ import (
 type StrategySetting struct {
 	CheckMode            string
 	FullSpaceRadio       float64
-	InitLossRatio        float64
+	BaseLossRatio        float64
 	ProfitableScale      float64
 	InitProfitRatioLimit float64
 }
@@ -34,7 +34,7 @@ type ServiceStrategy struct {
 	backtest             bool
 	checkMode            string
 	fullSpaceRadio       float64
-	initLossRatio        float64
+	baseLossRatio        float64
 	profitableScale      float64
 	initProfitRatioLimit float64
 	profitRatioLimit     map[string]float64
@@ -71,7 +71,7 @@ func NewServiceStrategy(
 		backtest:             backtest,
 		checkMode:            strategySetting.CheckMode,
 		fullSpaceRadio:       strategySetting.FullSpaceRadio,
-		initLossRatio:        strategySetting.InitLossRatio,
+		baseLossRatio:        strategySetting.BaseLossRatio,
 		profitableScale:      strategySetting.ProfitableScale,
 		initProfitRatioLimit: strategySetting.InitProfitRatioLimit,
 		profitRatioLimit:     make(map[string]float64),
@@ -252,6 +252,8 @@ func (s *ServiceStrategy) checkPosition(option model.PairOption) (float64, float
 
 // openPosition 开仓方法
 func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, quotePosition, longShortRatio float64, matcherStrategy map[string]int) {
+	s.mu.Lock()         // 加锁
+	defer s.mu.Unlock() // 解锁
 	// 无资产
 	if quotePosition <= 0 {
 		utils.Log.Errorf("Balance is not enough to create order")
@@ -283,7 +285,11 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 	}
 	// 原始为空 止损为多  当前为多
 	// 判断当前是否已有限价止损单
+	// 有限价止损单时，判断止损方向和当前方向一致说明反向了
+	// 在判断新的多空比和开仓多空比的大小，新的多空比绝对值比旧的小，需要继续持仓
+	// 反之取消所有的限价止损单
 	if _, ok := existOrders[model.OrderTypeStop]; ok {
+		// 取消限价止损单
 		stopLimitOrders, ok := existOrders[model.OrderTypeStop][model.OrderStatusTypeNew]
 		if ok && len(stopLimitOrders) > 0 {
 			for _, stopLimitOrder := range stopLimitOrders {
@@ -291,8 +297,32 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 				if stopLimitOrder.Side != finalPosition {
 					continue
 				}
+				// 计算相对分界线距离
+				if calc.Abs(0.5-longShortRatio) < calc.Abs(0.5-stopLimitOrder.LongShortRatio) {
+					continue
+				}
 				// 取消之前的止损单
 				err = s.broker.Cancel(*stopLimitOrder)
+				if err != nil {
+					utils.Log.Error(err)
+					return
+				}
+			}
+		}
+		// 取消市价止损单
+		stopLimitMarketOrders, ok := existOrders[model.OrderTypeStopMarket][model.OrderStatusTypeNew]
+		if ok && len(stopLimitOrders) > 0 {
+			for _, stopLimitMarketOrder := range stopLimitMarketOrders {
+				// 原始止损单方向和当前策略判断方向相同，则取消原始止损单
+				if stopLimitMarketOrder.Side != finalPosition {
+					continue
+				}
+				// 计算相对分界线距离
+				if calc.Abs(0.5-longShortRatio) < calc.Abs(0.5-stopLimitMarketOrder.LongShortRatio) {
+					continue
+				}
+				// 取消之前的止损单
+				err = s.broker.Cancel(*stopLimitMarketOrder)
 				if err != nil {
 					utils.Log.Error(err)
 					return
@@ -310,8 +340,13 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 		positionOrders, ok := existOrders[model.OrderTypeLimit][model.OrderStatusTypeFilled]
 		if ok && len(positionOrders) > 0 {
 			for _, positionOrder := range positionOrders {
-				// 原始止损单方向和当前策略判断方向相同，则取消原始止损单
+				// 原始单方向和当前策略判断方向相同，保留原始单
 				if positionOrder.Side == finalPosition {
+					holdedOrder = *positionOrder
+					continue
+				}
+				// 计算相对分界线距离
+				if calc.Abs(0.5-longShortRatio) < calc.Abs(0.5-positionOrder.LongShortRatio) {
 					holdedOrder = *positionOrder
 					continue
 				}
@@ -322,13 +357,6 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 					tempSideType = model.SideTypeBuy
 					postionSide = model.PositionSideTypeShort
 				}
-
-				// 计算相对分界线距离
-				if calc.Abs(0.5-longShortRatio) < calc.Abs(0.5-positionOrder.LongShortRatio) {
-					holdedOrder = *positionOrder
-					continue
-				}
-
 				// 判断仓位方向为反方向，平掉现有仓位
 				_, err := s.broker.CreateOrderStopMarket(tempSideType, postionSide, option.Pair, positionOrder.Quantity, currentPirce, positionOrder.OrderFlag, positionOrder.LongShortRatio, positionOrder.MatchStrategy)
 				if err != nil {
@@ -406,11 +434,11 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 	var stopLimitPrice float64
 	var stopTrigerPrice float64
 
-	var lossRatio = s.initLossRatio
+	var lossRatio = s.baseLossRatio * float64(option.Leverage)
 	if scoreRadio < 0.5 {
-		lossRatio = s.initLossRatio * 0.5
+		lossRatio = lossRatio * 0.5
 	} else {
-		lossRatio = s.initLossRatio * scoreRadio
+		lossRatio = lossRatio * scoreRadio
 	}
 	// 计算止损距离
 	stopLossDistance := calc.StopLossDistance(lossRatio, order.Price, float64(s.pairOptions[option.Pair].Leverage), amount)
@@ -433,6 +461,8 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 }
 
 func (s *ServiceStrategy) closeOption(option model.PairOption) {
+	s.mu.Lock()         // 加锁
+	defer s.mu.Unlock() // 解锁
 	existOrderMap, err := s.getExistOrders(option, s.broker)
 	if err != nil {
 		utils.Log.Error(err)
@@ -466,13 +496,14 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 				return
 			}
 			// 如果利润比大于预设值，则使用计算出得利润比 - 指定步进的利润比 得到新的止损利润比
-			if profitRatio < s.initProfitRatioLimit || profitRatio <= s.profitRatioLimit[option.Pair]+s.profitableScale {
+			// 0.22
+			if profitRatio < s.initProfitRatioLimit || profitRatio <= (s.profitRatioLimit[option.Pair]+s.profitableScale) {
 				return
 			}
 			// 递增利润比
-			s.profitRatioLimit[option.Pair] = profitRatio - s.profitableScale
+			currentLossLimitProfit := profitRatio - s.profitableScale
 			// 使用新的止损利润比计算止损点数
-			stopLossDistance = calc.StopLossDistance(s.profitRatioLimit[option.Pair], positionOrder.Price, float64(option.Leverage), positionOrder.Quantity)
+			stopLossDistance = calc.StopLossDistance(currentLossLimitProfit, positionOrder.Price, float64(option.Leverage), positionOrder.Quantity)
 			// 重新计算止损价格
 			if positionOrder.Side == model.SideTypeSell {
 				stopLimitPrice = positionOrder.Price - stopLossDistance
@@ -489,7 +520,7 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 					positionOrder.Quantity,
 					fmt.Sprintf("%.2f%%", profitRatio*100),
 					stopLimitPrice,
-					fmt.Sprintf("%.2f%%", s.profitRatioLimit[option.Pair]*100),
+					fmt.Sprintf("%.2f%%", currentLossLimitProfit*100),
 				)
 			}
 
@@ -503,8 +534,11 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			// 不再判断新的止损价格是否小于之前的止损价格
 			_, err := s.broker.CreateOrderStopMarket(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, stopLimitPrice, positionOrder.OrderFlag, positionOrder.LongShortRatio, positionOrder.MatchStrategy)
 			if err != nil {
+				// 如果重新挂限价止损失败则不在取消
 				utils.Log.Error(err)
+				continue
 			}
+			s.profitRatioLimit[option.Pair] = profitRatio - s.profitableScale
 			lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
 			if !ok {
 				continue
@@ -530,7 +564,6 @@ func (s *ServiceStrategy) getPositionOrders(option model.PairOption, broker refe
 		return existOrders, err
 	}
 	if len(positionOrders) > 0 {
-
 		for _, order := range positionOrders {
 			// 判断当前订单状态
 			if _, ok := existOrders[order.Type]; !ok {
@@ -564,7 +597,7 @@ func (s *ServiceStrategy) getExistOrders(option model.PairOption, broker referen
 				}
 				existOrders[order.OrderFlag]["position"] = append(existOrders[order.OrderFlag]["position"], order)
 			}
-			if order.Type == model.OrderTypeStop && order.Status == model.OrderStatusTypeNew {
+			if (order.Type == model.OrderTypeStop || order.Type == model.OrderTypeStopMarket) && order.Status == model.OrderStatusTypeNew {
 				if _, ok := existOrders[order.OrderFlag]["lossLimit"]; !ok {
 					existOrders[order.OrderFlag]["lossLimit"] = []*model.Order{}
 				}
@@ -680,6 +713,7 @@ func (s *ServiceStrategy) getStrategyLongShortRatio(currentMatchers []types.Stra
 func (s *ServiceStrategy) SetPairDataframe(option model.PairOption) {
 	s.pairOptions[option.Pair] = option
 	s.pairPrices[option.Pair] = 0
+	s.profitRatioLimit[option.Pair] = 0
 	if s.dataframes[option.Pair] == nil {
 		s.dataframes[option.Pair] = make(map[string]*model.Dataframe)
 	}

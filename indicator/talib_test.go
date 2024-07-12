@@ -1,6 +1,7 @@
 package indicator
 
 import (
+	"floolishman/utils/calc"
 	"fmt"
 	"testing"
 )
@@ -52,6 +53,14 @@ func calculateWidthChangeRate(bbWidth []float64) (float64, error) {
 }
 
 func TestA(t *testing.T) {
-	bbWith := []float64{100, 80, 80, 95, 70, 85, 90, 110, 90}
-	fmt.Println(calculateWidthChangeRate(bbWith))
+	// 示例数据：布林带中轨价格序列
+	sequence := []float64{100, 105, 110, 108, 106, 104, 102, 103, 105, 107}
+	a := -12.3
+	b := -22.1
+	fmt.Println(a < b)
+	// 计算布林带中轨的角度
+	angle := calc.CalculateAngle(sequence)
+
+	// 打印角度作为判断震荡行情的依据
+	fmt.Printf("Angle of the Bollinger Band's midline: %.2f degrees\n", angle)
 }

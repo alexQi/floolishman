@@ -330,63 +330,64 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		delete(c.position, o.Pair)
 	}
 
-	if result != nil {
-		// TODO: replace by a slice of Result
-		if result.ProfitPercent >= 0 {
-			if result.Side == model.SideTypeBuy {
-				c.Results[o.Pair].WinLong = append(c.Results[o.Pair].WinLong, result.ProfitValue)
-				c.Results[o.Pair].WinLongPercent = append(c.Results[o.Pair].WinLongPercent, result.ProfitPercent)
+	if result == nil {
+		return
+	}
+	// TODO: replace by a slice of Result
+	if result.ProfitPercent >= 0 {
+		if result.Side == model.SideTypeBuy {
+			c.Results[o.Pair].WinLong = append(c.Results[o.Pair].WinLong, result.ProfitValue)
+			c.Results[o.Pair].WinLongPercent = append(c.Results[o.Pair].WinLongPercent, result.ProfitPercent)
 
-				for s, i := range result.MatchStrategy {
-					if _, ok := c.Results[o.Pair].WinLongStrateis[s]; !ok {
-						c.Results[o.Pair].WinLongStrateis = make(map[string]int)
-					}
-					c.Results[o.Pair].WinLongStrateis[s] += i
+			for s, i := range result.MatchStrategy {
+				if _, ok := c.Results[o.Pair].WinLongStrateis[s]; !ok {
+					c.Results[o.Pair].WinLongStrateis = make(map[string]int)
 				}
-			} else {
-				c.Results[o.Pair].WinShort = append(c.Results[o.Pair].WinShort, result.ProfitValue)
-				c.Results[o.Pair].WinShortPercent = append(c.Results[o.Pair].WinShortPercent, result.ProfitPercent)
-
-				for s, i := range result.MatchStrategy {
-					if _, ok := c.Results[o.Pair].WinShortStrateis[s]; !ok {
-						c.Results[o.Pair].WinShortStrateis = make(map[string]int)
-					}
-					c.Results[o.Pair].WinShortStrateis[s] += i
-				}
+				c.Results[o.Pair].WinLongStrateis[s] += i
 			}
 		} else {
-			if result.Side == model.SideTypeBuy {
-				c.Results[o.Pair].LoseLong = append(c.Results[o.Pair].LoseLong, result.ProfitValue)
-				c.Results[o.Pair].LoseLongPercent = append(c.Results[o.Pair].LoseLongPercent, result.ProfitPercent)
+			c.Results[o.Pair].WinShort = append(c.Results[o.Pair].WinShort, result.ProfitValue)
+			c.Results[o.Pair].WinShortPercent = append(c.Results[o.Pair].WinShortPercent, result.ProfitPercent)
 
-				for s, i := range result.MatchStrategy {
-					if _, ok := c.Results[o.Pair].LoseLongStrateis[s]; !ok {
-						c.Results[o.Pair].LoseLongStrateis = make(map[string]int)
-					}
-					c.Results[o.Pair].LoseLongStrateis[s] += i
+			for s, i := range result.MatchStrategy {
+				if _, ok := c.Results[o.Pair].WinShortStrateis[s]; !ok {
+					c.Results[o.Pair].WinShortStrateis = make(map[string]int)
 				}
-			} else {
-				c.Results[o.Pair].LoseShort = append(c.Results[o.Pair].LoseShort, result.ProfitValue)
-				c.Results[o.Pair].LoseShortPercent = append(c.Results[o.Pair].LoseShortPercent, result.ProfitPercent)
-
-				for s, i := range result.MatchStrategy {
-					if _, ok := c.Results[o.Pair].LoseShortStrateis[s]; !ok {
-						c.Results[o.Pair].LoseShortStrateis = make(map[string]int)
-					}
-					c.Results[o.Pair].LoseShortStrateis[s] += i
-				}
+				c.Results[o.Pair].WinShortStrateis[s] += i
 			}
 		}
+	} else {
+		if result.Side == model.SideTypeBuy {
+			c.Results[o.Pair].LoseLong = append(c.Results[o.Pair].LoseLong, result.ProfitValue)
+			c.Results[o.Pair].LoseLongPercent = append(c.Results[o.Pair].LoseLongPercent, result.ProfitPercent)
 
-		_, quote := exchange.SplitAssetQuote(o.Pair)
-		c.notify(fmt.Sprintf(
-			"[PROFIT] %f %s (%f %%)\n`%s`",
-			result.ProfitValue,
-			quote,
-			result.ProfitPercent*100,
-			c.Results[o.Pair].String(),
-		))
+			for s, i := range result.MatchStrategy {
+				if _, ok := c.Results[o.Pair].LoseLongStrateis[s]; !ok {
+					c.Results[o.Pair].LoseLongStrateis = make(map[string]int)
+				}
+				c.Results[o.Pair].LoseLongStrateis[s] += i
+			}
+		} else {
+			c.Results[o.Pair].LoseShort = append(c.Results[o.Pair].LoseShort, result.ProfitValue)
+			c.Results[o.Pair].LoseShortPercent = append(c.Results[o.Pair].LoseShortPercent, result.ProfitPercent)
+
+			for s, i := range result.MatchStrategy {
+				if _, ok := c.Results[o.Pair].LoseShortStrateis[s]; !ok {
+					c.Results[o.Pair].LoseShortStrateis = make(map[string]int)
+				}
+				c.Results[o.Pair].LoseShortStrateis[s] += i
+			}
+		}
 	}
+
+	_, quote := exchange.SplitAssetQuote(o.Pair)
+	c.notify(fmt.Sprintf(
+		"[PROFIT] %f %s (%f %%)\n`%s`",
+		result.ProfitValue,
+		quote,
+		result.ProfitPercent*100,
+		c.Results[o.Pair].String(),
+	))
 }
 
 func (c *ServiceOrder) notify(message string) {
@@ -605,10 +606,10 @@ func (c *ServiceOrder) CreateOrderMarket(side model.SideType, positionSide model
 		c.notifyError(err)
 		return model.Order{}, err
 	}
+	utils.Log.Infof("[ORDER CREATED] %s", order)
 	// calculate profit
 	c.processTrade(&order)
 	go c.orderFeed.Publish(order, true)
-	utils.Log.Infof("[ORDER CREATED] %s", order)
 	return order, err
 }
 
@@ -649,9 +650,11 @@ func (c *ServiceOrder) CreateOrderStopMarket(side model.SideType, positionSide m
 		c.notifyError(err)
 		return model.Order{}, err
 	}
-	c.processTrade(&order)
-	go c.orderFeed.Publish(order, true)
 	utils.Log.Infof("[ORDER CREATED] %s", order)
+	if order.Status == model.OrderStatusTypeFilled {
+		c.processTrade(&order)
+		go c.orderFeed.Publish(order, true)
+	}
 	return order, nil
 }
 

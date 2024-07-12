@@ -16,9 +16,16 @@ func (s Range15m) Indicators(df *model.Dataframe) {
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
-	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
+
+	bbRsiZero := []float64{}
+	for _, val := range df.Close {
+		if val > 0 {
+			bbRsiZero = append(bbRsiZero, val)
+		}
+	}
+	df.Metadata["rsi"] = indicator.RSI(bbRsiZero, 6)
 
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
 
@@ -64,12 +71,12 @@ func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	}
 
 	if strategyPosition.Tendency == "range" {
-		if rsis[0] > rsis[1] && calc.Abs(bbLower-df.Close.Last(0))/bbLower < 0.005 {
+		if rsis[0] < rsis[1] && calc.Abs(bbLower-df.Close.Last(0))/bbLower < 0.005 {
 			strategyPosition.Useable = true
 			strategyPosition.Side = model.SideTypeBuy
 		}
 
-		if rsis[0] < rsis[1] && calc.Abs(df.Close.Last(0)-bbUpper)/bbUpper < 0.005 {
+		if rsis[0] > rsis[1] && calc.Abs(bbUpper-df.Close.Last(0))/bbUpper < 0.005 {
 			strategyPosition.Useable = true
 			strategyPosition.Side = model.SideTypeSell
 		}

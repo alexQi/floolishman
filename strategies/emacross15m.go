@@ -11,6 +11,18 @@ type Emacross15m struct {
 	BaseStrategy
 }
 
+func (s Emacross15m) SortScore() int {
+	return 60
+}
+
+func (s Emacross15m) Timeframe() string {
+	return "15m"
+}
+
+func (s Emacross15m) WarmupPeriod() int {
+	return 30
+}
+
 func (s Emacross15m) Indicators(df *model.Dataframe) {
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
@@ -38,22 +50,12 @@ func (s Emacross15m) Indicators(df *model.Dataframe) {
 	df.Metadata["bb_change_rate"] = changeRates
 }
 
-func (s Emacross15m) SortScore() int {
-	return 60
-}
-
-func (s Emacross15m) Timeframe() string {
-	return "15m"
-}
-
-func (s Emacross15m) WarmupPeriod() int {
-	return 30
-}
-
 func (s *Emacross15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	ema8 := df.Metadata["ema8"]
 	ema21 := df.Metadata["ema21"]
-	ova := df.Metadata["avgVolume"]
+	volume := df.Metadata["volume"].Last(0)
+	ova := df.Metadata["avgVolume"].Last(0)
+	rsi := df.Metadata["rsi"].Last(0)
 
 	strategyPosition := types.StrategyPosition{
 		Tendency:     s.checkMarketTendency(df),
@@ -69,12 +71,12 @@ func (s *Emacross15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	//	df.Low.Last(0),
 	//)
 	// 判断量价关系
-	if strategyPosition.Tendency == "rise" && ema8.Crossover(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] {
+	if strategyPosition.Tendency == "rise" && ema8.Crossover(ema21) && volume > ova && rsi < 70 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 
-	if strategyPosition.Tendency == "down" && ema8.Crossunder(ema21) && df.Volume[len(df.Volume)-1] > ova[len(ova)-1] {
+	if strategyPosition.Tendency == "down" && ema8.Crossunder(ema21) && volume > ova && rsi > 30 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}

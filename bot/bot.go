@@ -309,10 +309,10 @@ func (n *Bot) backtestCandles(pair string, timeframe string) {
 		if n.paperWallet != nil {
 			n.paperWallet.OnCandle(candle)
 		}
-		// 监听exchange订单，更新订单控制器
-		n.serviceOrder.ListenUpdateOrders()
 		// 更新订单最新价格
 		n.serviceOrder.OnCandle(candle)
+		// 监听exchange订单，更新订单控制器
+		n.serviceOrder.ListenUpdateOrders()
 		// 处理开仓策略相关
 		n.serviceStrategy.OnCandle(timeframe, candle)
 	}

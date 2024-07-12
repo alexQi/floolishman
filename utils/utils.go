@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"floolishman/internal/redisClient"
 	"floolishman/utils/config"
 	"floolishman/utils/log"
 	"github.com/go-redis/redis"
@@ -14,7 +13,7 @@ var Redis *redis.Client
 func init() {
 	config.LoadConf()
 	Log = log.InitLogger()
-	Redis = redisClient.New()
+	//Redis = redisClient.New()
 
 	Log.Infof("------------------------------------")
 	Log.Infof("----- Application Initializing -----")

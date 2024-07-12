@@ -15,9 +15,16 @@ func (s Rsi15m) Indicators(df *model.Dataframe) {
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
-	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
+
+	bbRsiZero := []float64{}
+	for _, val := range df.Close {
+		if val > 0 {
+			bbRsiZero = append(bbRsiZero, val)
+		}
+	}
+	df.Metadata["rsi"] = indicator.RSI(bbRsiZero, 6)
 
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
 
@@ -67,12 +74,12 @@ func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		df.Low.Last(0),
 	)
 	// 趋势判断
-	if rsis[0] >= 70 && rsis[1] > 70 && rsis[1] > rsis[0] && isUpperPinBar && !isRise {
+	if rsis[0] >= 70 && rsis[1] > rsis[0] && isUpperPinBar && !isRise {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
 	// RSI 小于30，买入信号
-	if rsis[0] < 30 && rsis[1] < 30 && rsis[1] < rsis[0] && isLowerPinBar && isRise {
+	if rsis[1] < 30 && rsis[1] < rsis[0] && isLowerPinBar && isRise {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
