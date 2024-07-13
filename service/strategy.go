@@ -165,7 +165,7 @@ func (s *ServiceStrategy) StartJudger(pair string) {
 			// 获取多空比
 			longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(finalTendency, s.positionJudgers[pair].Matchers)
 			utils.Log.Infof(
-				"[JUDGE] Pair: %s | LongShortRatio: %.2f | TendencyCount: %v | MatcherStrategy:【%s】",
+				"[JUDGE] Pair: %s | LongShortRatio: %.2f | TendencyCount: %v | MatcherStrategy:【%v】",
 				pair,
 				longShortRatio,
 				s.positionJudgers[pair].TendencyCount,
