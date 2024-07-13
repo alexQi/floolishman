@@ -15,6 +15,7 @@ import (
 
 type StrategySetting struct {
 	CheckMode            string
+	LossTimeDuration     int
 	FullSpaceRadio       float64
 	BaseLossRatio        float64
 	ProfitableScale      float64
@@ -26,6 +27,7 @@ type ServiceStrategy struct {
 	strategy             types.CompositesStrategy
 	dataframes           map[string]map[string]*model.Dataframe
 	samples              map[string]map[string]map[string]*model.Dataframe
+	lastUpdate           time.Time
 	realCandles          map[string]map[string]*model.Candle
 	pairPrices           map[string]float64
 	pairOptions          map[string]model.PairOption
@@ -34,6 +36,7 @@ type ServiceStrategy struct {
 	backtest             bool
 	checkMode            string
 	fullSpaceRadio       float64
+	lossTimeDuration     int
 	baseLossRatio        float64
 	profitableScale      float64
 	initProfitRatioLimit float64
@@ -71,6 +74,7 @@ func NewServiceStrategy(
 		backtest:             backtest,
 		checkMode:            strategySetting.CheckMode,
 		fullSpaceRadio:       strategySetting.FullSpaceRadio,
+		lossTimeDuration:     strategySetting.LossTimeDuration,
 		baseLossRatio:        strategySetting.BaseLossRatio,
 		profitableScale:      strategySetting.ProfitableScale,
 		initProfitRatioLimit: strategySetting.InitProfitRatioLimit,
@@ -157,9 +161,9 @@ func (s *ServiceStrategy) StartJudger(pair string) {
 		select {
 		case <-tickerCheck.C:
 			// 执行策略
-			s.Process(pair)
+			finalTendency := s.Process(pair)
 			// 获取多空比
-			longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(s.positionJudgers[pair].Matchers)
+			longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(finalTendency, s.positionJudgers[pair].Matchers)
 			utils.Log.Infof(
 				"[JUDGE] Pair: %s | LongShortRatio: %.2f | TendencyCount: %v | MatcherStrategy:【%s】",
 				pair,
@@ -167,6 +171,7 @@ func (s *ServiceStrategy) StartJudger(pair string) {
 				s.positionJudgers[pair].TendencyCount,
 				matcherStrategy,
 			)
+			// 加权因子计算复合策略的趋势判断待调研是否游泳 todo
 			// 多空比不满足开仓条件
 			if longShortRatio < 0 {
 				continue
@@ -205,7 +210,7 @@ func (s *ServiceStrategy) ResetJudger(pair string) {
 	}
 }
 
-func (s *ServiceStrategy) Process(pair string) {
+func (s *ServiceStrategy) Process(pair string) string {
 	// 如果 pair 在 positionJudgers 中不存在，则初始化
 	if _, ok := s.positionJudgers[pair]; !ok {
 		s.ResetJudger(pair)
@@ -220,6 +225,8 @@ func (s *ServiceStrategy) Process(pair string) {
 	s.positionJudgers[pair].Matchers = append(s.positionJudgers[pair].Matchers, currentMatchers...)
 	// 更新趋势计数
 	s.positionJudgers[pair].TendencyCount[finalTendency]++
+	// 返回当前趋势
+	return finalTendency
 }
 
 func (s *ServiceStrategy) checkPosition(option model.PairOption) (float64, float64, float64, map[string]int) {
@@ -228,9 +235,9 @@ func (s *ServiceStrategy) checkPosition(option model.PairOption) (float64, float
 	}
 	matchers := s.strategy.CallMatchers(s.samples[option.Pair])
 	finalTendency, currentMatchers := s.Sanitizer(matchers)
-	longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(currentMatchers)
+	longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(finalTendency, currentMatchers)
 	// 判断策略结果
-	if s.backtest == false {
+	if len(currentMatchers) > 0 {
 		utils.Log.Infof(
 			"[JUDGE] Tendency: %s | Pair: %s | LongShortRatio: %.2f | Matchers:【%s】",
 			finalTendency,
@@ -473,7 +480,7 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 	var stopLimitPrice float64
 
 	currentPirce := s.pairPrices[option.Pair]
-
+	loc, err := time.LoadLocation("Asia/Shanghai")
 	for orderFlag, existOrders := range existOrderMap {
 		positionOrders, ok := existOrders["position"]
 		if !ok {
@@ -483,7 +490,8 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			profitRatio := calc.ProfitRatio(positionOrder.Side, positionOrder.Price, currentPirce, float64(option.Leverage), positionOrder.Quantity)
 			if s.backtest == false {
 				utils.Log.Infof(
-					"[WATCH] Pair: %s | Price Order: %v, Current: %v | Quantity: %v | Profit Ratio: %s",
+					"[WATCH] %s Pair: %s | Price Order: %v, Current: %v | Quantity: %v | Profit Ratio: %s",
+					positionOrder.UpdatedAt.In(loc).Format("2006-01-02 15:04:05"),
 					option.Pair,
 					positionOrder.Price,
 					currentPirce,
@@ -491,13 +499,46 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 					fmt.Sprintf("%.2f%%", profitRatio*100),
 				)
 			}
-			// 判断是否盈利，盈利中则处理平仓及移动止损，反之则保持之前的止损单
-			if profitRatio <= 0 {
-				return
+			if positionOrder.Side == model.SideTypeBuy {
+				tempSideType = model.SideTypeSell
+			} else {
+				tempSideType = model.SideTypeBuy
 			}
 			// 如果利润比大于预设值，则使用计算出得利润比 - 指定步进的利润比 得到新的止损利润比
-			// 0.22
+			// 小于预设值，判断止损时间
 			if profitRatio < s.initProfitRatioLimit || profitRatio <= (s.profitRatioLimit[option.Pair]+s.profitableScale) {
+				// 此处处理时间止损
+				limitCloseTime := positionOrder.UpdatedAt.Add(time.Duration(s.lossTimeDuration) * time.Minute)
+				currentTime := time.Now()
+				if s.checkMode == "candle" {
+					currentTime = s.lastUpdate
+				}
+				if currentTime.Before(limitCloseTime) {
+					return
+				}
+				// 时间超过限制时间，执行时间止损 市价平单
+				_, err := s.broker.CreateOrderStopMarket(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, currentPirce, positionOrder.OrderFlag, positionOrder.LongShortRatio, positionOrder.MatchStrategy)
+				if err != nil {
+					// 如果重新挂限价止损失败则不在取消
+					utils.Log.Error(err)
+					continue
+				}
+				// 盈利利润由开仓时统一重置 不在处理
+				// 取消所有的市价止损单
+				lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
+				if !ok {
+					continue
+				}
+				for _, lossLimitOrder := range lossLimitOrders {
+					// 取消之前的止损单
+					err = s.broker.Cancel(*lossLimitOrder)
+					if err != nil {
+						utils.Log.Error(err)
+						return
+					}
+				}
+				// 重置jugder数据
+				s.ResetJudger(option.Pair)
 				return
 			}
 			// 递增利润比
@@ -522,12 +563,6 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 					stopLimitPrice,
 					fmt.Sprintf("%.2f%%", currentLossLimitProfit*100),
 				)
-			}
-
-			if positionOrder.Side == model.SideTypeBuy {
-				tempSideType = model.SideTypeSell
-			} else {
-				tempSideType = model.SideTypeBuy
 			}
 			// 设置新的止损单
 			// 使用滚动利润比保证该止损利润是递增的
@@ -617,12 +652,24 @@ func (s *ServiceStrategy) Sanitizer(matchers []types.StrategyPosition) (string, 
 	if len(matchers) == 0 {
 		return finalTendency, currentMatchers
 	}
+	totalScore := 0
+	matcherMapScore := make(map[string]int)
 	// 初始化本次趋势计数器
-	tendencyCounts := make(map[string]int)
+	// 初始化多空双方map
+	tendencyCounts := make(map[string]map[string]int)
 	// 更新计数器和得分
 	for _, pos := range matchers {
+		// 计算总得分
+		totalScore += pos.Score
+		// 统计当前所有得分
+		if _, ok := matcherMapScore[pos.StrategyName]; !ok {
+			matcherMapScore[pos.StrategyName] = pos.Score
+		}
 		// 趋势判断 不需要判断当前是否可用
-		tendencyCounts[pos.Tendency] += 1
+		if _, ok := tendencyCounts[pos.Tendency]; !ok {
+			tendencyCounts[pos.Tendency] = make(map[string]int)
+		}
+		tendencyCounts[pos.Tendency][pos.StrategyName]++
 		// 跳过不可用的策略
 		if pos.Useable == false {
 			continue
@@ -631,9 +678,16 @@ func (s *ServiceStrategy) Sanitizer(matchers []types.StrategyPosition) (string, 
 		currentMatchers = append(currentMatchers, pos)
 	}
 
+	currentTendency := map[string]float64{}
+	// 外层循环方向
+	for td, sm := range tendencyCounts {
+		for sn, count := range sm {
+			currentTendency[td] += float64(count) * float64(matcherMapScore[sn]) / float64(totalScore)
+		}
+	}
 	// 获取最终趋势
-	initTendency := 0
-	for tendency, tc := range tendencyCounts {
+	var initTendency float64
+	for tendency, tc := range currentTendency {
 		if tc > initTendency {
 			finalTendency = tendency
 			initTendency = tc
@@ -643,13 +697,13 @@ func (s *ServiceStrategy) Sanitizer(matchers []types.StrategyPosition) (string, 
 	return finalTendency, currentMatchers
 }
 
-func (s *ServiceStrategy) getStrategyLongShortRatio(currentMatchers []types.StrategyPosition) (float64, map[string]int) {
+func (s *ServiceStrategy) getStrategyLongShortRatio(finalTendency string, currentMatchers []types.StrategyPosition) (float64, map[string]int) {
 	longShortRatio := -1.0
 	totalScore := 0
 	matcherMapScore := make(map[string]int)
 	matcherStrategy := make(map[string]int)
 	// 无检查结果
-	if len(currentMatchers) == 0 {
+	if len(currentMatchers) == 0 || finalTendency == "ambiguity" {
 		return longShortRatio, matcherStrategy
 	}
 	// 计算总得分
@@ -782,6 +836,7 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle) {
 	}
 	s.realCandles[candle.Pair][timeframe] = &candle
 	s.pairPrices[candle.Pair] = candle.Close
+	s.lastUpdate = candle.UpdatedAt
 	// 采样数据转换指标
 	for _, str := range s.strategy.Strategies {
 		if len(s.dataframes[candle.Pair][timeframe].Close) < str.WarmupPeriod() {

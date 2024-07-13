@@ -4,6 +4,7 @@ import (
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/types"
+	"fmt"
 	"reflect"
 )
 
@@ -12,7 +13,7 @@ type Test15m struct {
 }
 
 func (s Test15m) SortScore() int {
-	return 80
+	return 60
 }
 
 func (s Test15m) Indicators(df *model.Dataframe) {
@@ -58,9 +59,11 @@ func (s *Test15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		Score:        s.SortScore(),
 	}
 
+	fmt.Print(df.Close.Last(0))
 	momentums := df.Metadata["momentum"].LastValues(2)
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
 	isUpperPinBar, isLowerPinBar, isRise := s.checkPinBar(
+		1.5,
 		df.Open.Last(0),
 		df.Close.Last(0),
 		df.High.Last(0),

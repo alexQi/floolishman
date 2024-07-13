@@ -11,6 +11,18 @@ type Momentum1h struct {
 	BaseStrategy
 }
 
+func (s Momentum1h) SortScore() int {
+	return 60
+}
+
+func (s Momentum1h) Timeframe() string {
+	return "1h"
+}
+
+func (s Momentum1h) WarmupPeriod() int {
+	return 24 // 预热期设定为24个数据点
+}
+
 func (s Momentum1h) Indicators(df *model.Dataframe) {
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
@@ -38,18 +50,6 @@ func (s Momentum1h) Indicators(df *model.Dataframe) {
 	df.Metadata["bb_change_rate"] = changeRates
 }
 
-func (s Momentum1h) SortScore() int {
-	return 100
-}
-
-func (s Momentum1h) Timeframe() string {
-	return "1h"
-}
-
-func (s Momentum1h) WarmupPeriod() int {
-	return 24 // 预热期设定为24个数据点
-}
-
 func (s *Momentum1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	strategyPosition := types.StrategyPosition{
 		Tendency:     s.checkMarketTendency(df),
@@ -62,6 +62,7 @@ func (s *Momentum1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
 	isUpperPinBar, isLowerPinBar, _ := s.checkPinBar(
+		1.2,
 		df.Open.Last(0),
 		df.Close.Last(0),
 		df.High.Last(0),

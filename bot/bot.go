@@ -211,10 +211,10 @@ func (n *Bot) Summary() {
 		returns = append(returns, summary.LosePercent()...)
 
 		fmt.Println("------ CALLED STRATEGY -------")
-		fmt.Printf("[ WinLong ] Pair: %s, %+v\n", summary.Pair, summary.WinLongStrateis)
-		fmt.Printf("[ WinShort ] Pair: %s %+v\n", summary.Pair, summary.WinShortStrateis)
-		fmt.Printf("[ LoseLong ] Pair: %s %+v\n", summary.Pair, summary.LoseLongStrateis)
-		fmt.Printf("[ LoseShort ] Pair: %s %+v\n", summary.Pair, summary.LoseShortStrateis)
+		fmt.Printf("[Pair: %s]   WinLong   : %+v\n", summary.Pair, summary.WinLongStrateis)
+		fmt.Printf("[Pair: %s]   WinShort  : %+v\n", summary.Pair, summary.WinShortStrateis)
+		fmt.Printf("[Pair: %s]   LoseLong  : %+v\n", summary.Pair, summary.LoseLongStrateis)
+		fmt.Printf("[Pair: %s]   LoseShort : %+v\n", summary.Pair, summary.LoseShortStrateis)
 	}
 	fmt.Println()
 

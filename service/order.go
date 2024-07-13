@@ -340,9 +340,6 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 			c.Results[o.Pair].WinLongPercent = append(c.Results[o.Pair].WinLongPercent, result.ProfitPercent)
 
 			for s, i := range result.MatchStrategy {
-				if _, ok := c.Results[o.Pair].WinLongStrateis[s]; !ok {
-					c.Results[o.Pair].WinLongStrateis = make(map[string]int)
-				}
 				c.Results[o.Pair].WinLongStrateis[s] += i
 			}
 		} else {
@@ -350,9 +347,6 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 			c.Results[o.Pair].WinShortPercent = append(c.Results[o.Pair].WinShortPercent, result.ProfitPercent)
 
 			for s, i := range result.MatchStrategy {
-				if _, ok := c.Results[o.Pair].WinShortStrateis[s]; !ok {
-					c.Results[o.Pair].WinShortStrateis = make(map[string]int)
-				}
 				c.Results[o.Pair].WinShortStrateis[s] += i
 			}
 		}
@@ -362,9 +356,6 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 			c.Results[o.Pair].LoseLongPercent = append(c.Results[o.Pair].LoseLongPercent, result.ProfitPercent)
 
 			for s, i := range result.MatchStrategy {
-				if _, ok := c.Results[o.Pair].LoseLongStrateis[s]; !ok {
-					c.Results[o.Pair].LoseLongStrateis = make(map[string]int)
-				}
 				c.Results[o.Pair].LoseLongStrateis[s] += i
 			}
 		} else {
@@ -372,9 +363,6 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 			c.Results[o.Pair].LoseShortPercent = append(c.Results[o.Pair].LoseShortPercent, result.ProfitPercent)
 
 			for s, i := range result.MatchStrategy {
-				if _, ok := c.Results[o.Pair].LoseShortStrateis[s]; !ok {
-					c.Results[o.Pair].LoseShortStrateis = make(map[string]int)
-				}
 				c.Results[o.Pair].LoseShortStrateis[s] += i
 			}
 		}
@@ -411,7 +399,13 @@ func (c *ServiceOrder) processTrade(order *model.Order) {
 
 	// initializer results map if needed
 	if _, ok := c.Results[order.Pair]; !ok {
-		c.Results[order.Pair] = &summary{Pair: order.Pair}
+		c.Results[order.Pair] = &summary{
+			Pair:              order.Pair,
+			WinLongStrateis:   make(map[string]int),
+			WinShortStrateis:  make(map[string]int),
+			LoseLongStrateis:  make(map[string]int),
+			LoseShortStrateis: make(map[string]int),
+		}
 	}
 
 	// register order volume

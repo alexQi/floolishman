@@ -24,7 +24,6 @@ var ConstStraties = map[string]types.Strategy{
 	"Emacross1h":  &strategies.Emacross1h{},
 	"Momentum1h":  &strategies.Momentum1h{},
 	"Rsi15m":      &strategies.Rsi15m{},
-	"Rsi1m":       &strategies.Rsi1m{},
 }
 
 func main() {
@@ -43,6 +42,7 @@ func main() {
 		tradingSetting = service.StrategySetting{
 			CheckMode:            viper.GetString("trading.checkMode"),
 			FullSpaceRadio:       viper.GetFloat64("trading.fullSpaceRadio"),
+			LossTimeDuration:     viper.GetInt("trading.lossTimeDuration"),
 			BaseLossRatio:        viper.GetFloat64("trading.baseLossRatio"),
 			ProfitableScale:      viper.GetFloat64("trading.profitableScale"),
 			InitProfitRatioLimit: viper.GetFloat64("trading.initProfitRatioLimit"),

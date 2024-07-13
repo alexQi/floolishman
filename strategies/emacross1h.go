@@ -12,7 +12,7 @@ type Emacross1h struct {
 }
 
 func (s Emacross1h) SortScore() int {
-	return 70
+	return 60
 }
 
 func (s Emacross1h) Timeframe() string {
@@ -63,6 +63,7 @@ func (s *Emacross1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	}
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
 	_, _, isRise := s.checkPinBar(
+		1.2,
 		df.Open.Last(0),
 		df.Close.Last(0),
 		df.High.Last(0),

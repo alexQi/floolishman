@@ -42,15 +42,15 @@ func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
 }
 
 // checkPinBar 是否上方插针，是否上方插针，最终方向 true-方向向下，false-方向上香
-func (bs *BaseStrategy) checkPinBar(open, close, hight, low float64) (bool, bool, bool) {
+func (bs *BaseStrategy) checkPinBar(weight, open, close, hight, low float64) (bool, bool, bool) {
 	upperShadow := hight - calc.Max(open, close)
 	lowerShadow := calc.Min(open, close) - low
 	bodyLength := calc.Abs(open - close)
 
 	// 上插针条件
-	isUpperPinBar := upperShadow >= 2*bodyLength && lowerShadow <= bodyLength/2
+	isUpperPinBar := upperShadow >= weight*bodyLength && lowerShadow <= bodyLength/weight
 	// 下插针条件
-	isLowerPinBar := lowerShadow >= 2*bodyLength && upperShadow <= bodyLength/2
+	isLowerPinBar := lowerShadow >= weight*bodyLength && upperShadow <= bodyLength/weight
 
 	return isUpperPinBar, isLowerPinBar, upperShadow < lowerShadow
 }

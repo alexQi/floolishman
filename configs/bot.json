@@ -2,7 +2,7 @@
     "mode": "online",
     "pairs": {
         "ETHUSDT": {
-            "leverage": 1,
+            "leverage": 100,
             "marginType": "CROSSED"
         }
     },
@@ -11,11 +11,11 @@
         "Momentum15m",
         "Rsi15m",
         "Emacross15m",
-        "Emacross1h",
         "Rsi1h"
     ],
     "trading": {
         "checkMode": "frequency",
+        "lossTimeDuration": 15,
         "fullSpaceRadio": 0.1,
         "baseLossRatio": 0.005,
         "profitableScale": 0.08,

@@ -25,7 +25,6 @@ var ConstStraties = map[string]types.Strategy{
 	"Momentum1h":  &strategies.Momentum1h{},
 	"Rsi15m":      &strategies.Rsi15m{},
 	"Test15m":     &strategies.Test15m{},
-	"Rsi1m":       &strategies.Rsi1m{},
 }
 
 func main() {
@@ -38,6 +37,7 @@ func main() {
 			CheckMode:            viper.GetString("trading.checkMode"),
 			FullSpaceRadio:       viper.GetFloat64("trading.fullSpaceRadio"),
 			BaseLossRatio:        viper.GetFloat64("trading.baseLossRatio"),
+			LossTimeDuration:     viper.GetInt("trading.lossTimeDuration"),
 			ProfitableScale:      viper.GetFloat64("trading.profitableScale"),
 			InitProfitRatioLimit: viper.GetFloat64("trading.initProfitRatioLimit"),
 		}
@@ -45,7 +45,8 @@ func main() {
 		strategiesSetting = viper.GetStringSlice("strategies")
 	)
 
-	utils.Log.SetLevel(5)
+	//utils.Log.SetLevel(5)
+	tradingSetting.CheckMode = "candle"
 
 	settings := model.Settings{
 		PairOptions: []model.PairOption{},
@@ -78,7 +79,6 @@ func main() {
 			MarginType: futures.MarginType(strings.ToUpper(marginType)), // 假设 futures.MarginType 是一个类型别名
 		})
 	}
-	tradingSetting.CheckMode = "candle"
 
 	compositesStrategy := types.CompositesStrategy{}
 	for _, strategyName := range strategiesSetting {

@@ -1,9 +1,9 @@
 package indicator
 
 import (
-	"floolishman/utils/calc"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestEma8(t *testing.T) {
@@ -54,13 +54,17 @@ func calculateWidthChangeRate(bbWidth []float64) (float64, error) {
 
 func TestA(t *testing.T) {
 	// 示例数据：布林带中轨价格序列
-	sequence := []float64{100, 105, 110, 108, 106, 104, 102, 103, 105, 107}
-	a := -12.3
-	b := -22.1
-	fmt.Println(a < b)
-	// 计算布林带中轨的角度
-	angle := calc.CalculateAngle(sequence)
+	// 定义一个特定的时间
+	time1 := time.Now().Add(-time.Duration(15) * time.Minute)
 
-	// 打印角度作为判断震荡行情的依据
-	fmt.Printf("Angle of the Bollinger Band's midline: %.2f degrees\n", angle)
+	// 获取当前时间
+	now := time.Now()
+	// 比较时间
+	if time1.Before(now) {
+		fmt.Println("time1 is before the current time")
+	} else if time1.After(now) {
+		fmt.Println("time1 is after the current time")
+	} else {
+		fmt.Println("time1 is equal to the current time")
+	}
 }
