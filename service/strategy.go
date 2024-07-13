@@ -49,7 +49,7 @@ type ServiceStrategy struct {
 
 var (
 	CheckOpenInterval     time.Duration = 10
-	CheckCloseInterval    time.Duration = 3
+	CheckCloseInterval    time.Duration = 2
 	CheckStrategyInterval time.Duration = 1
 	ResetStrategyInterval time.Duration = 120
 	StopLossDistanceRatio float64       = 0.9
@@ -522,7 +522,7 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			if s.checkMode == "candle" {
 				currentTime = s.lastUpdate
 			}
-			if profitRatio < s.initProfitRatioLimit || profitRatio <= (s.profitRatioLimit[option.Pair]+s.profitableScale) {
+			if profitRatio < s.initProfitRatioLimit || profitRatio <= (s.profitRatioLimit[option.Pair]+s.profitableScale+0.02) {
 				if currentTime.Before(s.lossLimitTimes[positionOrder.OrderFlag]) {
 					return
 				}

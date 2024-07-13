@@ -108,7 +108,7 @@ func main() {
 	wallet := exchange.NewPaperWallet(
 		ctx,
 		"USDT",
-		exchange.WithPaperAsset("USDT", 800),
+		exchange.WithPaperAsset("USDT", 10000),
 		exchange.WithDataFeed(csvFeed),
 	)
 
