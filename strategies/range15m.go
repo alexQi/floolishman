@@ -12,6 +12,18 @@ type Range15m struct {
 	BaseStrategy
 }
 
+func (s Range15m) SortScore() int {
+	return 85
+}
+
+func (s Range15m) Timeframe() string {
+	return "15m"
+}
+
+func (s Range15m) WarmupPeriod() int {
+	return 90
+}
+
 func (s Range15m) Indicators(df *model.Dataframe) {
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
@@ -44,18 +56,6 @@ func (s Range15m) Indicators(df *model.Dataframe) {
 	}
 	df.Metadata["bb_width"] = bbWidth
 	df.Metadata["bb_change_rate"] = changeRates
-}
-
-func (s Range15m) SortScore() int {
-	return 85
-}
-
-func (s Range15m) Timeframe() string {
-	return "15m"
-}
-
-func (s Range15m) WarmupPeriod() int {
-	return 30
 }
 
 func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {

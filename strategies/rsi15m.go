@@ -20,7 +20,7 @@ func (s Rsi15m) Timeframe() string {
 }
 
 func (s Rsi15m) WarmupPeriod() int {
-	return 24 // RSI的预热期设定为14个数据点
+	return 90 // RSI的预热期设定为14个数据点
 }
 
 func (s Rsi15m) Indicators(df *model.Dataframe) {
@@ -67,20 +67,14 @@ func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 
 	rsis := df.Metadata["rsi"].LastValues(2)
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
-	isUpperPinBar, isLowerPinBar, isRise := s.checkPinBar(
-		1.5,
-		df.Open.Last(0),
-		df.Close.Last(0),
-		df.High.Last(0),
-		df.Low.Last(0),
-	)
+	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 3, 1.2)
 	// 趋势判断
-	if rsis[0] >= 70 && rsis[1] > rsis[0] && isUpperPinBar && !isRise {
+	if rsis[0] >= 70 && rsis[1] > rsis[0] && isUpperPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
 	// RSI 小于30，买入信号
-	if rsis[1] < 30 && rsis[1] < rsis[0] && isLowerPinBar && isRise {
+	if rsis[0] < 30 && rsis[1] < rsis[0] && isLowerPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}

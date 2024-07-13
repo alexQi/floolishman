@@ -41,6 +41,7 @@ type ServiceStrategy struct {
 	profitableScale      float64
 	initProfitRatioLimit float64
 	profitRatioLimit     map[string]float64
+	lossLimitTimes       map[string]time.Time
 	mu                   sync.Mutex
 	// 仓位检查员
 	positionJudgers map[string]*types.PositionJudger
@@ -79,6 +80,7 @@ func NewServiceStrategy(
 		profitableScale:      strategySetting.ProfitableScale,
 		initProfitRatioLimit: strategySetting.InitProfitRatioLimit,
 		profitRatioLimit:     make(map[string]float64),
+		lossLimitTimes:       make(map[string]time.Time),
 		positionJudgers:      make(map[string]*types.PositionJudger),
 	}
 }
@@ -211,6 +213,8 @@ func (s *ServiceStrategy) ResetJudger(pair string) {
 }
 
 func (s *ServiceStrategy) Process(pair string) string {
+	s.mu.Lock()         // 加锁
+	defer s.mu.Unlock() // 解锁
 	// 如果 pair 在 positionJudgers 中不存在，则初始化
 	if _, ok := s.positionJudgers[pair]; !ok {
 		s.ResetJudger(pair)
@@ -368,7 +372,10 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 				_, err := s.broker.CreateOrderStopMarket(tempSideType, postionSide, option.Pair, positionOrder.Quantity, currentPirce, positionOrder.OrderFlag, positionOrder.LongShortRatio, positionOrder.MatchStrategy)
 				if err != nil {
 					utils.Log.Error(err)
+					continue
 				}
+				// 删除止损时间限制配置
+				delete(s.lossLimitTimes, positionOrder.OrderFlag)
 			}
 		}
 		if holdedOrder.ExchangeID == 0 {
@@ -398,7 +405,7 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 	if holdedOrder.ExchangeID > 0 {
 		if s.backtest == false {
 			utils.Log.Infof(
-				"[ODER EXIST - %s] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
+				"[ORDER EXIST - %s] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
 				holdedOrder.Status,
 				option.Pair,
 				holdedOrder.Price,
@@ -487,16 +494,20 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			continue
 		}
 		for _, positionOrder := range positionOrders {
+			if _, ok := s.lossLimitTimes[positionOrder.OrderFlag]; !ok {
+				s.lossLimitTimes[positionOrder.OrderFlag] = positionOrder.UpdatedAt.Add(time.Duration(s.lossTimeDuration) * time.Minute)
+			}
 			profitRatio := calc.ProfitRatio(positionOrder.Side, positionOrder.Price, currentPirce, float64(option.Leverage), positionOrder.Quantity)
 			if s.backtest == false {
 				utils.Log.Infof(
-					"[WATCH] %s Pair: %s | Price Order: %v, Current: %v | Quantity: %v | Profit Ratio: %s",
+					"[WATCH] %s Pair: %s | Price Order: %v, Current: %v | Quantity: %v | Profit Ratio: %s | Stop Loss Time: %s",
 					positionOrder.UpdatedAt.In(loc).Format("2006-01-02 15:04:05"),
 					option.Pair,
 					positionOrder.Price,
 					currentPirce,
 					positionOrder.Quantity,
 					fmt.Sprintf("%.2f%%", profitRatio*100),
+					s.lossLimitTimes[positionOrder.OrderFlag].In(loc).Format("2006-01-02 15:04:05"),
 				)
 			}
 			if positionOrder.Side == model.SideTypeBuy {
@@ -506,14 +517,13 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			}
 			// 如果利润比大于预设值，则使用计算出得利润比 - 指定步进的利润比 得到新的止损利润比
 			// 小于预设值，判断止损时间
+			// 此处处理时间止损
+			currentTime := time.Now()
+			if s.checkMode == "candle" {
+				currentTime = s.lastUpdate
+			}
 			if profitRatio < s.initProfitRatioLimit || profitRatio <= (s.profitRatioLimit[option.Pair]+s.profitableScale) {
-				// 此处处理时间止损
-				limitCloseTime := positionOrder.UpdatedAt.Add(time.Duration(s.lossTimeDuration) * time.Minute)
-				currentTime := time.Now()
-				if s.checkMode == "candle" {
-					currentTime = s.lastUpdate
-				}
-				if currentTime.Before(limitCloseTime) {
+				if currentTime.Before(s.lossLimitTimes[positionOrder.OrderFlag]) {
 					return
 				}
 				// 时间超过限制时间，执行时间止损 市价平单
@@ -523,6 +533,8 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 					utils.Log.Error(err)
 					continue
 				}
+				// 删除止损时间限制配置
+				delete(s.lossLimitTimes, positionOrder.OrderFlag)
 				// 盈利利润由开仓时统一重置 不在处理
 				// 取消所有的市价止损单
 				lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
@@ -541,6 +553,8 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 				s.ResetJudger(option.Pair)
 				return
 			}
+			// 盈利时更新止损终止时间
+			s.lossLimitTimes[positionOrder.OrderFlag] = currentTime.Add(time.Duration(s.lossTimeDuration) * time.Minute)
 			// 递增利润比
 			currentLossLimitProfit := profitRatio - s.profitableScale
 			// 使用新的止损利润比计算止损点数
@@ -553,7 +567,7 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			}
 			if s.backtest == false {
 				utils.Log.Infof(
-					"[PROFIT] Pair: %s | Side: %s | Order Price: %v, Current: %v | Quantity: %v | Profit Ratio: %s | Stop Loss: %v, %s",
+					"[PROFIT] Pair: %s | Side: %s | Order Price: %v, Current: %v | Quantity: %v | Profit Ratio: %s | New Stop Loss: %v, %s, Time: %s",
 					option.Pair,
 					positionOrder.Side,
 					positionOrder.Price,
@@ -562,6 +576,7 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 					fmt.Sprintf("%.2f%%", profitRatio*100),
 					stopLimitPrice,
 					fmt.Sprintf("%.2f%%", currentLossLimitProfit*100),
+					s.lossLimitTimes[positionOrder.OrderFlag].In(loc).Format("2006-01-02 15:04:05"),
 				)
 			}
 			// 设置新的止损单

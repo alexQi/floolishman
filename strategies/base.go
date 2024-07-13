@@ -41,6 +41,33 @@ func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
 	return "range"
 }
 
+func (bs *BaseStrategy) bactchCheckPinBar(df *model.Dataframe, count int, weight float64) (bool, bool) {
+	opens := df.Open.LastValues(count)
+	closes := df.Close.LastValues(count)
+	hights := df.High.LastValues(count)
+	lows := df.Low.LastValues(count)
+
+	var isUpperPinBar, isLowerPinBar bool
+	isUpperPinBars := []bool{}
+	isLowerPinBars := []bool{}
+	for i := 0; i < count; i++ {
+		isUpperPinBar, isLowerPinBar, _ = bs.checkPinBar(weight, opens[i], closes[i], hights[i], lows[i])
+		if isUpperPinBar {
+			isUpperPinBars = append(isUpperPinBars, isUpperPinBar)
+		}
+		if isLowerPinBar {
+			isLowerPinBars = append(isLowerPinBars, isLowerPinBar)
+		}
+	}
+	if len(isUpperPinBars) > 0 {
+		return true, false
+	}
+	if len(isLowerPinBars) > 0 {
+		return false, true
+	}
+	return false, false
+}
+
 // checkPinBar 是否上方插针，是否上方插针，最终方向 true-方向向下，false-方向上香
 func (bs *BaseStrategy) checkPinBar(weight, open, close, hight, low float64) (bool, bool, bool) {
 	upperShadow := hight - calc.Max(open, close)
