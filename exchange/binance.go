@@ -406,6 +406,11 @@ func (b *Binance) Positions(pair string) ([]model.Position, error) {
 	panic("not implemented")
 }
 
+func (p *Binance) ListenUpdateOrders() {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (b *Binance) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")

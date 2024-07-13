@@ -103,7 +103,7 @@ func (d *DataFeedSubscription) Connect() {
 	}
 }
 
-func (d *DataFeedSubscription) Start() {
+func (d *DataFeedSubscription) Start(loadSync bool) {
 	d.Connect()
 	wg := new(sync.WaitGroup)
 	for key, feed := range d.DataFeeds {
@@ -132,4 +132,7 @@ func (d *DataFeedSubscription) Start() {
 	}
 
 	utils.Log.Infof("Data feed connected.")
+	if loadSync {
+		wg.Wait()
+	}
 }

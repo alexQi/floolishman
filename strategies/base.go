@@ -29,9 +29,9 @@ func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
 	if len(bbMiddlesNotZero) < 10 {
 		return "ambiguity"
 	}
-	tendencyAngle := calc.CalculateAngle(bbMiddlesNotZero)
+	tendencyAngle := calc.CalculateAngle(bbMiddlesNotZero[len(bbMiddlesNotZero)-10:])
 
-	if calc.Abs(tendencyAngle) > 20 {
+	if calc.Abs(tendencyAngle) > 15 {
 		if tendencyAngle > 0 {
 			return "rise"
 		} else {

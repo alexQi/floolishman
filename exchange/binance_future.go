@@ -443,6 +443,11 @@ func (b *BinanceFuture) Order(pair string, id int64) (model.Order, error) {
 	return b.newFutureOrder(order), nil
 }
 
+func (p *BinanceFuture) ListenUpdateOrders() {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (b *BinanceFuture) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")

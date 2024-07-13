@@ -42,12 +42,14 @@ func CalculateAngle(sequence []float64) float64 {
 		sumX2 += x * x
 	}
 
+	denominator := (float64(n)*sumX2 - sumX*sumX)
+	if denominator == 0 {
+		return 0.0 // 避免除零
+	}
 	// 计算斜率 m = (n * Σ(xy) - Σx * Σy) / (n * Σ(x^2) - (Σx)^2)
-	m := (float64(n)*sumXY - sumX*sumY) / (float64(n)*sumX2 - sumX*sumX)
-
+	m := (float64(n)*sumXY - sumX*sumY) / denominator
 	// 计算角度 angle = atan(m)
 	angle := math.Atan(m)
-
 	// 将弧度转换为角度
 	angle = angle * 180.0 / math.Pi
 

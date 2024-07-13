@@ -47,6 +47,11 @@ type PaperWallet struct {
 	PairOptions   map[string]model.PairOption
 }
 
+func (p *PaperWallet) ListenUpdateOrders() {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (p *PaperWallet) AssetsInfo(pair string) model.AssetInfo {
 	asset, quote := SplitAssetQuote(pair)
 	return model.AssetInfo{
@@ -440,7 +445,7 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 
 		if order.Side == model.SideTypeBuy {
 			// 开多单
-			if order.PositionSide == model.PositionSideTypeLong && order.Price >= candle.Close {
+			if order.PositionSide == model.PositionSideTypeLong && order.Price >= candle.Low {
 				if _, ok := p.assets[quote]; !ok {
 					p.assets[quote] = &assetInfo{}
 				}
@@ -501,8 +506,6 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 			}
 		}
 
-		// originOrderPrice * Quantity / lev + (lossPrice-close)*Quantity/lev
-
 		if order.Side == model.SideTypeSell {
 			// 平多单
 			if order.PositionSide == model.PositionSideTypeLong {
@@ -535,7 +538,7 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 				p.assets[quote].Free += lockQuote + (orderPrice-positonOrder.Price)*order.Quantity
 			}
 			// 开空单
-			if order.PositionSide == model.PositionSideTypeShort && order.Price <= candle.Close {
+			if order.PositionSide == model.PositionSideTypeShort && order.Price <= candle.High {
 				if _, ok := p.assets[quote]; !ok {
 					p.assets[quote] = &assetInfo{}
 				}

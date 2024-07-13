@@ -5,8 +5,8 @@
 "Emacross1h",
 "Rsi1h"
 
-go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 1h --futures --days 1 --output ./testdata/eth-1h.csv
-go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 15m --futures --days 1 --output ./testdata/eth-15m.csv
+go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 1h --futures --days 7 --output ./testdata/eth-1h.csv
+go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 15m --futures --days 7 --output ./testdata/eth-15m.csv
 
 
 go run cmd/tools/cmd.go download --pair BTCUSDT --timeframe 1h --futures --days 7 --output ./testdata/btc-1h.csv

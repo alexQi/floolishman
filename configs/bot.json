@@ -7,12 +7,9 @@
         }
     },
     "strategies": [
-        "Range15m",
         "Momentum15m",
         "Rsi15m",
-        "Emacross15m",
-        "Emacross1h",
-        "Rsi1h"
+        "Emacross15m"
     ],
     "trading": {
         "checkMode": "frequency",

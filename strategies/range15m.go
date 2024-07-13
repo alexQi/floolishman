@@ -4,7 +4,6 @@ import (
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/types"
-	"floolishman/utils/calc"
 	"reflect"
 )
 
@@ -59,9 +58,9 @@ func (s Range15m) Indicators(df *model.Dataframe) {
 }
 
 func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	rsis := df.Metadata["rsi"].LastValues(2)
-	bbUpper := df.Metadata["bb_upper"].Last(0)
-	bbLower := df.Metadata["bb_lower"].Last(0)
+	//rsis := df.Metadata["rsi"].LastValues(2)
+	bbMiddle := df.Metadata["bb_middle"].Last(0)
+	bbWidth := df.Metadata["bb_width"].Last(0)
 
 	strategyPosition := types.StrategyPosition{
 		Tendency:     s.checkMarketTendency(df),
@@ -70,13 +69,26 @@ func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		Score:        s.SortScore(),
 	}
 
+	bbWaveDistance := bbWidth * 0.05
+	currentPrice := df.Close.Last(0)
+
 	if strategyPosition.Tendency == "range" {
-		if rsis[0] < rsis[1] && calc.Abs(bbLower-df.Close.Last(0))/bbLower < 0.005 {
+		//if rsis[1] > rsis[0] && currentPrice < (bbMiddle-bbWaveDistance*5.5) {
+		//	strategyPosition.Useable = true
+		//	strategyPosition.Side = model.SideTypeBuy
+		//}
+		//
+		//if rsis[1] < rsis[0] && currentPrice > (bbMiddle+bbWaveDistance*5.5) {
+		//	strategyPosition.Useable = true
+		//	strategyPosition.Side = model.SideTypeSell
+		//}
+
+		if currentPrice < (bbMiddle - bbWaveDistance*6) {
 			strategyPosition.Useable = true
 			strategyPosition.Side = model.SideTypeBuy
 		}
 
-		if rsis[0] > rsis[1] && calc.Abs(bbUpper-df.Close.Last(0))/bbUpper < 0.005 {
+		if currentPrice > (bbMiddle + bbWaveDistance*6) {
 			strategyPosition.Useable = true
 			strategyPosition.Side = model.SideTypeSell
 		}

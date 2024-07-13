@@ -1,9 +1,10 @@
 package indicator
 
 import (
+	"floolishman/utils/calc"
 	"fmt"
+	"math"
 	"testing"
-	"time"
 )
 
 func TestEma8(t *testing.T) {
@@ -52,19 +53,32 @@ func calculateWidthChangeRate(bbWidth []float64) (float64, error) {
 	return widthChangeRate, nil
 }
 
+// CalculateAngle 计算由第一对和最后一对点构成的线相对于水平线的角度（以度为单位）
+func CalculateAngle(sequence []float64) float64 {
+	if len(sequence) < 2 {
+		return 0.0 // 如果序列长度不足，返回默认角度
+	}
+
+	// 使用第一对和最后一对点来计算斜率
+	firstX, firstY := 0.0, sequence[0]
+	lastX, lastY := float64(len(sequence)-1), sequence[len(sequence)-1]
+
+	// 计算斜率
+	m := (lastY - firstY) / (lastX - firstX)
+
+	// 计算角度
+	angle := math.Atan(m)
+
+	// 将弧度转换为角度
+	angleDeg := angle * (180.0 / math.Pi)
+
+	return angleDeg
+}
+
 func TestA(t *testing.T) {
 	// 示例数据：布林带中轨价格序列
 	// 定义一个特定的时间
-	time1 := time.Now().Add(-time.Duration(15) * time.Minute)
-
-	// 获取当前时间
-	now := time.Now()
-	// 比较时间
-	if time1.Before(now) {
-		fmt.Println("time1 is before the current time")
-	} else if time1.After(now) {
-		fmt.Println("time1 is after the current time")
-	} else {
-		fmt.Println("time1 is equal to the current time")
-	}
+	a := []float64{3123.3075757575753, 3122.2842857142855, 3121.799567099567, 3121.5439826839824, 3122.3583116883115, 3123.0663203463196, 3123.530216416, 3124.471774891774, 3125.329826839826, 3126.086709956709}
+	b := calc.CalculateAngle(a)
+	fmt.Print(b)
 }

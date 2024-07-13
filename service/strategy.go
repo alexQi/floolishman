@@ -48,6 +48,7 @@ type ServiceStrategy struct {
 }
 
 var (
+	CancelLimitDuration   time.Duration = 60
 	CheckOpenInterval     time.Duration = 10
 	CheckCloseInterval    time.Duration = 2
 	CheckStrategyInterval time.Duration = 1
@@ -243,7 +244,7 @@ func (s *ServiceStrategy) checkPosition(option model.PairOption) (float64, float
 	// 判断策略结果
 	if len(currentMatchers) > 0 {
 		utils.Log.Infof(
-			"[JUDGE] Tendency: %s | Pair: %s | LongShortRatio: %.2f | Matchers:【%s】",
+			"[JUDGE] Tendency: %s | Pair: %s | LongShortRatio: %.2f | Matchers:【%v】",
 			finalTendency,
 			option.Pair,
 			longShortRatio,
@@ -494,6 +495,38 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			continue
 		}
 		for _, positionOrder := range positionOrders {
+			// 获取当前时间使用
+			currentTime := time.Now()
+			// 判断当前订单是未成交，未成交的订单取消
+			if positionOrder.Status == model.OrderStatusTypeNew {
+				// 获取挂单时间是否超长
+				cancelLimitTime := positionOrder.UpdatedAt.Add(CancelLimitDuration * time.Second)
+				// 判断当前时间是否在cancelLimitTime之前,在取消时间之前则不取消,防止挂单后被立马取消
+				if currentTime.Before(cancelLimitTime) {
+					continue
+				}
+				// 取消之前的未成交的限价单
+				err = s.broker.Cancel(*positionOrder)
+				if err != nil {
+					utils.Log.Error(err)
+					continue
+				}
+				// 取消之前的止损单
+				lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
+				if !ok {
+					continue
+				}
+				for _, lossLimitOrder := range lossLimitOrders {
+					// 取消之前的止损单
+					err = s.broker.Cancel(*lossLimitOrder)
+					if err != nil {
+						utils.Log.Error(err)
+						return
+					}
+				}
+				continue
+			}
+			// 监控已成交仓位，记录订单成交时间+指定时间作为时间止损
 			if _, ok := s.lossLimitTimes[positionOrder.OrderFlag]; !ok {
 				s.lossLimitTimes[positionOrder.OrderFlag] = positionOrder.UpdatedAt.Add(time.Duration(s.lossTimeDuration) * time.Minute)
 			}
@@ -518,13 +551,12 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			// 如果利润比大于预设值，则使用计算出得利润比 - 指定步进的利润比 得到新的止损利润比
 			// 小于预设值，判断止损时间
 			// 此处处理时间止损
-			currentTime := time.Now()
 			if s.checkMode == "candle" {
 				currentTime = s.lastUpdate
 			}
 			if profitRatio < s.initProfitRatioLimit || profitRatio <= (s.profitRatioLimit[option.Pair]+s.profitableScale+0.02) {
 				if currentTime.Before(s.lossLimitTimes[positionOrder.OrderFlag]) {
-					return
+					continue
 				}
 				// 时间超过限制时间，执行时间止损 市价平单
 				_, err := s.broker.CreateOrderStopMarket(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, currentPirce, positionOrder.OrderFlag, positionOrder.LongShortRatio, positionOrder.MatchStrategy)
@@ -551,7 +583,7 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 				}
 				// 重置jugder数据
 				s.ResetJudger(option.Pair)
-				return
+				continue
 			}
 			// 盈利时更新止损终止时间
 			s.lossLimitTimes[positionOrder.OrderFlag] = currentTime.Add(time.Duration(s.lossTimeDuration) * time.Minute)
@@ -641,7 +673,7 @@ func (s *ServiceStrategy) getExistOrders(option model.PairOption, broker referen
 			if _, ok := existOrders[order.OrderFlag]; !ok {
 				existOrders[order.OrderFlag] = make(map[string][]*model.Order)
 			}
-			if order.Type == model.OrderTypeLimit && order.Status == model.OrderStatusTypeFilled {
+			if order.Type == model.OrderTypeLimit {
 				if _, ok := existOrders[order.OrderFlag]["position"]; !ok {
 					existOrders[order.OrderFlag]["position"] = []*model.Order{}
 				}
@@ -879,5 +911,25 @@ func (s *ServiceStrategy) OnCandle(timeframe string, candle model.Candle) {
 	s.OnRealCandle(timeframe, candle)
 	if s.checkMode == "candle" {
 		s.CandleCall(candle.Pair)
+	}
+}
+
+func (s *ServiceStrategy) OnCandleForBacktest(timeframe string, candle model.Candle) {
+	if len(s.dataframes[candle.Pair][timeframe].Time) > 0 && candle.Time.Before(s.dataframes[candle.Pair][timeframe].Time[len(s.dataframes[candle.Pair][timeframe].Time)-1]) {
+		utils.Log.Errorf("late candle received: %#v", candle)
+		return
+	}
+	// 更新Dataframe
+	s.updateDataFrame(timeframe, candle)
+	s.OnRealCandle(timeframe, candle)
+	if s.started {
+		assetPosition, quotePosition, longShortRatio, matcherStrategy := s.checkPosition(s.pairOptions[candle.Pair])
+		if longShortRatio >= 0 {
+			// 监听exchange订单，更新订单控制器
+			s.broker.ListenUpdateOrders()
+			s.openPosition(s.pairOptions[candle.Pair], assetPosition, quotePosition, longShortRatio, matcherStrategy)
+		}
+		s.broker.ListenUpdateOrders()
+		s.closeOption(s.pairOptions[candle.Pair])
 	}
 }
