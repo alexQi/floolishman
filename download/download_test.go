@@ -2,13 +2,12 @@ package download
 
 import (
 	"context"
+	"floolishman/reference"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/rodrigo-brito/ninjabot/exchange"
-	"github.com/rodrigo-brito/ninjabot/service"
-
+	"floolishman/exchange"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +66,6 @@ func TestDownloader_download(t *testing.T) {
 	}
 
 	csvFeed, err := exchange.NewCSVFeed(
-		"1d",
 		exchange.PairFeed{
 			Pair:      "BTCUSDT",
 			File:      "../testdata/btc-1d.csv",
@@ -76,7 +74,7 @@ func TestDownloader_download(t *testing.T) {
 	require.NoError(t, err)
 
 	fakeExchange := struct {
-		service.Feeder
+		reference.Feeder
 	}{
 		Feeder: csvFeed,
 	}
@@ -88,7 +86,6 @@ func TestDownloader_download(t *testing.T) {
 		require.NoError(t, err)
 
 		csvFeed, err := exchange.NewCSVFeed(
-			"1d",
 			exchange.PairFeed{
 				Pair:      "BTCUSDT",
 				File:      "../testdata/btc-1d.csv",

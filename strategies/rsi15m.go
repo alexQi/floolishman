@@ -12,7 +12,7 @@ type Rsi15m struct {
 }
 
 func (s Rsi15m) SortScore() int {
-	return 50
+	return 90
 }
 
 func (s Rsi15m) Timeframe() string {
@@ -24,37 +24,15 @@ func (s Rsi15m) WarmupPeriod() int {
 }
 
 func (s Rsi15m) Indicators(df *model.Dataframe) {
-	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
-	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)
-	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
-	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
-	df.Metadata["volume"] = df.Volume
-
-	bbRsiZero := []float64{}
-	for _, val := range df.Close {
-		if val > 0 {
-			bbRsiZero = append(bbRsiZero, val)
-		}
-	}
-	df.Metadata["rsi"] = indicator.RSI(bbRsiZero, 6)
-
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
-
 	df.Metadata["bb_upper"] = bbUpper
 	df.Metadata["bb_middle"] = bbMiddle
 	df.Metadata["bb_lower"] = bbLower
 
-	// 计算布林带宽度
-	bbWidth := make([]float64, len(bbUpper))
-	for i := 0; i < len(bbUpper); i++ {
-		bbWidth[i] = bbUpper[i] - bbLower[i]
-	}
-	changeRates := make([]float64, len(bbWidth)-1)
-	for i := 1; i < len(bbWidth); i++ {
-		changeRates[i-1] = (bbWidth[i] - bbWidth[i-1]) / bbWidth[i-1]
-	}
-	df.Metadata["bb_width"] = bbWidth
-	df.Metadata["bb_change_rate"] = changeRates
+	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
+	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
+	df.Metadata["volume"] = df.Volume
+	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 }
 
 func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
@@ -63,18 +41,23 @@ func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
+		LastAtr:      df.Metadata["atr"].Last(1),
 	}
 
-	rsis := df.Metadata["rsi"].LastValues(2)
+	rsis := df.Metadata["rsi"].LastValues(3)
+	volume := df.Metadata["volume"].Last(1)
+	avgVolume := df.Metadata["avgVolume"].Last(1)
+
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
 	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 3, 1.2)
+
 	// 趋势判断
-	if rsis[0] >= 70 && rsis[1] > rsis[0] && isUpperPinBar {
+	if strategyPosition.Tendency != "range" && rsis[0] > rsis[1] && rsis[0] > 90 && isUpperPinBar && volume > avgVolume*2 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
 	// RSI 小于30，买入信号
-	if rsis[0] < 30 && rsis[1] < rsis[0] && isLowerPinBar {
+	if strategyPosition.Tendency != "range" && rsis[0] < 10 && rsis[1] > rsis[0] && isLowerPinBar && volume > avgVolume*2 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}

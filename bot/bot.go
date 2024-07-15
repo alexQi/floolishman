@@ -118,7 +118,7 @@ func WithPaperWallet(wallet *exchange.PaperWallet) Option {
 	}
 }
 
-// WithStorage sets the storage for the bot, by default it uses a local file called ninjabot.db
+// WithStorage sets the storage for the bot, by default it uses a local file called floolishman.db
 func WithStorage(storage storage.Storage) Option {
 	return func(bot *Bot) {
 		bot.storage = storage
@@ -309,6 +309,7 @@ func (n *Bot) backtestCandles(pair string, timeframe string) {
 		if n.paperWallet != nil {
 			n.paperWallet.OnCandle(candle)
 		}
+		n.serviceOrder.ListenUpdateOrders()
 		// 更新订单最新价格
 		n.serviceOrder.OnCandle(candle)
 		// 处理开仓策略相关
@@ -372,8 +373,10 @@ func (n *Bot) Run(ctx context.Context) {
 	// 输出策略详情
 	n.strategy.Stdout()
 	n.orderFeed.Start()
-	n.serviceOrder.Start()
-	defer n.serviceOrder.Stop()
+	if n.backtest == false {
+		n.serviceOrder.Start()
+		defer n.serviceOrder.Stop()
+	}
 
 	n.SettingPairs(ctx)
 

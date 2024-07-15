@@ -7,13 +7,11 @@
         }
     },
     "strategies": [
-        "Momentum15m",
-        "Rsi15m",
-        "Emacross15m"
+        "Range15m"
     ],
     "trading": {
         "checkMode": "frequency",
-        "lossTimeDuration": 15,
+        "lossTimeDuration": 30,
         "fullSpaceRadio": 0.1,
         "baseLossRatio": 0.005,
         "profitableScale": 0.08,

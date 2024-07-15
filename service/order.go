@@ -135,6 +135,23 @@ func (s summary) String() string {
 	return tableString.String()
 }
 
+func (s summary) StdoutString() string {
+	_, quote := exchange.SplitAssetQuote(s.Pair)
+	return fmt.Sprintf("Coin: %s |  Trades: %d | Win %d | Loss: %d | Win Percent: %.1f | Payoff: %.1f | Pr.Fact: %.1f | Profit: %.4f %s | Volume: %.4f %s",
+		s.Pair,
+		len(s.Lose())+len(s.Win()),
+		len(s.Win()),
+		len(s.Lose()),
+		s.WinPercentage(),
+		s.Payoff()*100,
+		s.ProfitFactor()*100,
+		s.Profit(),
+		quote,
+		s.Volume,
+		quote,
+	)
+}
+
 func (s summary) SaveReturns(filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -359,7 +376,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		}
 		_, quote := exchange.SplitAssetQuote(o.Pair)
 		c.notify(fmt.Sprintf(
-			"[PROFIT] %f %s (%f %%)\n`%s`",
+			"[SUMMARY] %f %s (%f %%) `%s`",
 			result.ProfitValue,
 			quote,
 			result.ProfitPercent*100,
@@ -413,6 +430,7 @@ func (c *ServiceOrder) updateOrders() {
 	orders, err := c.storage.Orders(
 		storage.WithStatusIn(
 			model.OrderStatusTypeNew,
+			model.OrderStatusTypeFilled,
 			model.OrderStatusTypePartiallyFilled,
 			model.OrderStatusTypePendingCancel,
 		),
@@ -429,6 +447,9 @@ func (c *ServiceOrder) updateOrders() {
 	var updatedOrders []model.Order
 	for _, order := range orders {
 		if _, ok := processedPositionOrders[order.ClientOrderId]; ok {
+			continue
+		}
+		if (order.Type == model.OrderTypeLimit || order.Type == model.OrderTypeMarket) && order.Status == model.OrderStatusTypeFilled {
 			continue
 		}
 		excOrder, err := c.exchange.Order(order.Pair, order.ExchangeID)
@@ -634,11 +655,11 @@ func (c *ServiceOrder) CreateOrderStopMarket(side model.SideType, positionSide m
 		c.notifyError(err)
 		return model.Order{}, err
 	}
-	utils.Log.Infof("[ORDER CREATED] %s", order)
 	if order.Status == model.OrderStatusTypeFilled {
 		c.processTrade(&order)
 		go c.orderFeed.Publish(order, true)
 	}
+	utils.Log.Infof("[ORDER CREATED] %s", order)
 	return order, nil
 }
 

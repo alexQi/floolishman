@@ -3,9 +3,9 @@ before:
     - go mod tidy
 
 builds:
-  - main: ./cmd/ninjabot
-    id: "ninjabot"
-    binary: ninjabot
+  - main: ./cmd/floolishman
+    id: "floolishman"
+    binary: floolishman
     env:
       - CGO_ENABLED=0
     goos:

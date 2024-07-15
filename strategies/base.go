@@ -10,10 +10,31 @@ type BaseStrategy struct {
 }
 
 func (bs *BaseStrategy) handleIndicatos(df *model.Dataframe) error {
+	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
+	// 计算布林带宽度
+	bbWidth := make([]float64, len(bbUpper))
+	for i := 0; i < len(bbUpper); i++ {
+		bbWidth[i] = bbUpper[i] - bbLower[i]
+	}
+	changeRates := make([]float64, len(bbWidth)-1)
+	for i := 1; i < len(bbWidth); i++ {
+		changeRates[i-1] = (bbWidth[i] - bbWidth[i-1]) / bbWidth[i-1]
+	}
+
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
-	df.Metadata["sma21"] = indicator.SMA(df.Close, 21)
-	df.Metadata["obv"] = indicator.OBV(df.Close, df.Volume)
+	df.Metadata["ema21"] = indicator.SMA(df.Close, 21)
+	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
+	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
+	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
+	df.Metadata["volume"] = df.Volume
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+
+	df.Metadata["bb_upper"] = bbUpper
+	df.Metadata["bb_middle"] = bbMiddle
+	df.Metadata["bb_lower"] = bbLower
+
+	df.Metadata["bb_width"] = bbWidth
+	df.Metadata["bb_change_rate"] = changeRates
 
 	return nil
 }
@@ -31,7 +52,7 @@ func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
 	}
 	tendencyAngle := calc.CalculateAngle(bbMiddlesNotZero[len(bbMiddlesNotZero)-10:])
 
-	if calc.Abs(tendencyAngle) > 15 {
+	if calc.Abs(tendencyAngle) > 8 {
 		if tendencyAngle > 0 {
 			return "rise"
 		} else {
@@ -75,9 +96,9 @@ func (bs *BaseStrategy) checkPinBar(weight, open, close, hight, low float64) (bo
 	bodyLength := calc.Abs(open - close)
 
 	// 上插针条件
-	isUpperPinBar := upperShadow >= weight*bodyLength && lowerShadow <= bodyLength/weight
+	isUpperPinBar := upperShadow >= weight*bodyLength && lowerShadow <= upperShadow/weight
 	// 下插针条件
-	isLowerPinBar := lowerShadow >= weight*bodyLength && upperShadow <= bodyLength/weight
+	isLowerPinBar := lowerShadow >= weight*bodyLength && upperShadow <= lowerShadow/weight
 
 	return isUpperPinBar, isLowerPinBar, upperShadow < lowerShadow
 }

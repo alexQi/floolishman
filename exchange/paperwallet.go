@@ -8,6 +8,7 @@ import (
 	"floolishman/utils/calc"
 	"floolishman/utils/strutil"
 	"fmt"
+	"github.com/adshao/go-binance/v2/common"
 	"math"
 	"strings"
 	"sync"
@@ -302,7 +303,7 @@ func (p *PaperWallet) updateAveragePrice(side model.SideType, pair string, amoun
 }
 
 // ERROR BUG 考虑是订单关联更新导致已无新订单
-func (p *PaperWallet) validateFunds(side model.SideType, positionSide model.PositionSideType, pair string, amount, value float64, fill bool, orderFlag string) error {
+func (p *PaperWallet) validateFunds(side model.SideType, positionSide model.PositionSideType, pair string, amount, value float64) error {
 	asset, quote := SplitAssetQuote(pair)
 	if _, ok := p.assets[asset]; !ok {
 		p.assets[asset] = &assetInfo{}
@@ -324,48 +325,7 @@ func (p *PaperWallet) validateFunds(side model.SideType, positionSide model.Posi
 					Quantity: amount,
 				}
 			}
-			if fill {
-				lockedQuote := amount * value / leverage
-
-				p.updateAveragePrice(side, pair, amount, value)
-				// 平掉多单资产
-				p.assets[asset].Free = 0
-				p.assets[asset].Lock -= amount
-				// 修改基本资产
-				p.assets[quote].Free -= lockedQuote
-				p.assets[quote].Lock += lockedQuote
-			}
 		}
-		// 平多单
-		if positionSide == model.PositionSideTypeLong {
-			if fill {
-				if p.assets[asset].Lock < amount {
-					return &OrderError{
-						Err:      ErrInvalidAsset,
-						Pair:     pair,
-						Quantity: amount,
-					}
-				}
-				p.updateAveragePrice(side, pair, amount, value)
-
-				// 查询对应的仓位
-				positonOrder, err := p.findPositonOrder(pair, orderFlag, model.OrderTypeLimit)
-				if err != nil {
-					utils.Log.Error(err)
-				}
-
-				// 开多单资产
-				p.assets[asset].Free = 0
-				p.assets[asset].Lock -= amount
-
-				lockQuote := positonOrder.Price * amount / leverage
-				// 修改基本资产
-				p.assets[quote].Lock -= lockQuote
-				p.assets[quote].Free += lockQuote + (value-positonOrder.Price)*amount
-			}
-		}
-
-		utils.Log.Debugf("%s -> LOCK = %f / FREE %f", asset, p.assets[asset].Lock, p.assets[asset].Free)
 	} else { // SideTypeBuy
 		// 开多单
 		if positionSide == model.PositionSideTypeLong {
@@ -376,44 +336,112 @@ func (p *PaperWallet) validateFunds(side model.SideType, positionSide model.Posi
 					Quantity: amount,
 				}
 			}
+		}
+	}
 
-			if fill {
-				lockedQuote := amount * value / leverage
+	return nil
+}
 
-				p.updateAveragePrice(side, pair, amount, value)
-				// 开多单资产
-				p.assets[asset].Free = 0
-				p.assets[asset].Lock += amount
-				// 修改基本资产
-				p.assets[quote].Free -= lockedQuote
-				p.assets[quote].Lock += lockedQuote
+func (p *PaperWallet) updateFunds(order *model.Order) error {
+	asset, quote := SplitAssetQuote(order.Pair)
+	if order.Status != model.OrderStatusTypeFilled {
+		return nil
+	}
+
+	leverage := float64(p.PairOptions[order.Pair].Leverage) // 获取合约杠杆倍数
+	funds := p.assets[quote].Free * leverage
+	if order.Side == model.SideTypeSell {
+		// 开空单
+		if order.PositionSide == model.PositionSideTypeShort {
+			if funds < order.Quantity*order.Price {
+				return &OrderError{
+					Err:      ErrInsufficientFunds,
+					Pair:     order.Pair,
+					Quantity: order.Quantity,
+				}
 			}
+			lockedQuote := order.Quantity * order.Price / leverage
+
+			p.updateAveragePrice(order.Side, order.Pair, order.Quantity, order.Price)
+			// 锁定资产
+			p.assets[asset].Free = 0
+			p.assets[asset].Lock -= order.Quantity
+			// 锁定保证金
+			p.assets[quote].Free -= lockedQuote
+			p.assets[quote].Lock += lockedQuote
+		}
+		// 平多单
+		if order.PositionSide == model.PositionSideTypeLong {
+			if p.assets[asset].Lock < order.Quantity {
+				return &OrderError{
+					Err:      ErrInvalidAsset,
+					Pair:     order.Pair,
+					Quantity: order.Quantity,
+				}
+			}
+
+			p.updateAveragePrice(order.Side, order.Pair, order.Quantity, order.Price)
+
+			// 查询对应的仓位
+			positonOrder, err := p.findPositonOrder(order.Pair, order.OrderFlag, model.OrderTypeLimit)
+			if err != nil {
+				utils.Log.Error(err)
+			}
+
+			// 开多单资产
+			p.assets[asset].Free = 0
+			p.assets[asset].Lock -= order.Quantity
+
+			lockQuote := positonOrder.Price * order.Quantity / leverage
+			// 修改基本资产
+			p.assets[quote].Lock -= lockQuote
+			p.assets[quote].Free += lockQuote + (order.Price-positonOrder.Price)*order.Quantity
+		}
+
+		utils.Log.Debugf("%s -> LOCK = %f / FREE %f", asset, p.assets[asset].Lock, p.assets[asset].Free)
+	} else { // SideTypeBuy
+		// 开多单
+		if order.PositionSide == model.PositionSideTypeLong {
+			if funds < order.Quantity*order.Price {
+				return &OrderError{
+					Err:      ErrInsufficientFunds,
+					Pair:     order.Pair,
+					Quantity: order.Quantity,
+				}
+			}
+			lockedQuote := order.Quantity * order.Price / leverage
+
+			p.updateAveragePrice(order.Side, order.Pair, order.Quantity, order.Price)
+			// 开多单资产
+			p.assets[asset].Free = 0
+			p.assets[asset].Lock += order.Quantity
+			// 修改基本资产
+			p.assets[quote].Free -= lockedQuote
+			p.assets[quote].Lock += lockedQuote
 		}
 		// 平空单
-		if positionSide == model.PositionSideTypeShort {
-			if fill {
-				if calc.Abs(p.assets[asset].Lock) < amount {
-					return &OrderError{
-						Err:      ErrInvalidAsset,
-						Pair:     pair,
-						Quantity: amount,
-					}
+		if order.PositionSide == model.PositionSideTypeShort {
+			if calc.Abs(p.assets[asset].Lock) < order.Quantity {
+				return &OrderError{
+					Err:      ErrInvalidAsset,
+					Pair:     order.Pair,
+					Quantity: order.Quantity,
 				}
-				p.updateAveragePrice(side, pair, amount, value)
-				// 查询对应的仓位
-				positonOrder, err := p.findPositonOrder(pair, orderFlag, model.OrderTypeLimit)
-				if err != nil {
-					utils.Log.Error(err)
-				}
-				// 开多单资产
-				p.assets[asset].Free = 0
-				p.assets[asset].Lock += amount
-
-				lockQuote := positonOrder.Price * amount / leverage
-				// 修改基本资产
-				p.assets[quote].Lock -= lockQuote
-				p.assets[quote].Free += lockQuote + (positonOrder.Price-value)*amount
 			}
+			p.updateAveragePrice(order.Side, order.Pair, order.Quantity, order.Price)
+			// 查询对应的仓位
+			positonOrder, err := p.findPositonOrder(order.Pair, order.OrderFlag, model.OrderTypeLimit)
+			if err != nil {
+				utils.Log.Error(err)
+			}
+			// 开多单资产
+			p.assets[asset].Free = 0
+			p.assets[asset].Lock += order.Quantity
+
+			lockQuote := positonOrder.Price * order.Quantity / leverage
+			// 修改基本资产
+			p.assets[quote].Lock -= lockQuote
+			p.assets[quote].Free += lockQuote + (positonOrder.Price-order.Price)*order.Quantity
 		}
 		utils.Log.Debugf("%s -> LOCK = %f / FREE %f", asset, p.assets[asset].Lock, p.assets[asset].Free)
 	}
@@ -432,6 +460,13 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 
 	leverage := float64(p.PairOptions[candle.Pair].Leverage) // 获取合约杠杆倍数
 
+	// 存储限价挂单
+	limitOrders := map[string]model.Order{}
+	for _, order := range p.orders {
+		if order.Type == model.OrderTypeLimit || order.Type == model.OrderTypeMarket {
+			limitOrders[order.OrderFlag] = order
+		}
+	}
 	for i, order := range p.orders {
 		if order.Pair != candle.Pair || order.Status != model.OrderStatusTypeNew {
 			continue
@@ -466,6 +501,7 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 				p.orders[i].UpdatedAt = candle.Time
 				p.orders[i].Status = model.OrderStatusTypeFilled
 
+				limitOrders[p.orders[i].OrderFlag] = p.orders[i]
 				// update assets size
 				p.updateAveragePrice(order.Side, order.Pair, order.Quantity, orderPrice)
 				p.assets[asset].Free = 0
@@ -476,6 +512,13 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 			}
 			// 平空单
 			if order.PositionSide == model.PositionSideTypeShort {
+				limitOrder, ok := limitOrders[order.OrderFlag]
+				if !ok {
+					continue
+				}
+				if limitOrder.Status != model.OrderStatusTypeFilled {
+					continue
+				}
 				if _, ok := p.assets[asset]; !ok {
 					p.assets[asset] = &assetInfo{}
 				}
@@ -509,6 +552,13 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 		if order.Side == model.SideTypeSell {
 			// 平多单
 			if order.PositionSide == model.PositionSideTypeLong {
+				limitOrder, ok := limitOrders[order.OrderFlag]
+				if !ok {
+					continue
+				}
+				if limitOrder.Status != model.OrderStatusTypeFilled {
+					continue
+				}
 				if _, ok := p.assets[asset]; !ok {
 					p.assets[asset] = &assetInfo{}
 				}
@@ -558,6 +608,8 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 				p.volume[candle.Pair] += orderPrice * order.Quantity
 				p.orders[i].UpdatedAt = candle.Time
 				p.orders[i].Status = model.OrderStatusTypeFilled
+
+				limitOrders[p.orders[i].OrderFlag] = p.orders[i]
 
 				// update assets size
 				p.updateAveragePrice(order.Side, order.Pair, order.Quantity, orderPrice)
@@ -638,7 +690,9 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 	}
 	orderFlag := strutil.RandomString(6)
 
-	err := p.validateFunds(side, positionSide, pair, quantity, limit, false, orderFlag)
+	currentQuantity := p.formatQuantity(pair, quantity)
+	currentPrice := p.formatPrice(pair, limit)
+	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
 		return model.Order{}, err
 	}
@@ -656,8 +710,8 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 		PositionSide:   positionSide,
 		Type:           model.OrderTypeLimit,
 		Status:         model.OrderStatusTypeNew,
-		Price:          limit,
-		Quantity:       quantity,
+		Price:          currentPrice,
+		Quantity:       currentQuantity,
 		LongShortRatio: longShortRatio,
 		MatchStrategy:  matchStrategy,
 	}
@@ -673,7 +727,10 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 	}
 
 	orderFlag := strutil.RandomString(6)
-	err := p.validateFunds(side, positionSide, pair, quantity, p.lastCandle[pair].Close, true, orderFlag)
+
+	currentQuantity := p.formatQuantity(pair, quantity)
+	currentPrice := p.formatPrice(pair, p.lastCandle[pair].Close)
+	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
 		return model.Order{}, err
 	}
@@ -682,7 +739,7 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 		p.volume[pair] = 0
 	}
 
-	p.volume[pair] += p.lastCandle[pair].Close * quantity
+	p.volume[pair] += currentPrice * currentQuantity
 
 	clientOrderId := strutil.RandomString(12)
 
@@ -697,10 +754,14 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 		PositionSide:   positionSide,
 		Type:           model.OrderTypeMarket,
 		Status:         model.OrderStatusTypeFilled,
-		Price:          p.lastCandle[pair].Close,
-		Quantity:       quantity,
+		Price:          currentPrice,
+		Quantity:       currentQuantity,
 		LongShortRatio: longShortRatio,
 		MatchStrategy:  matchStrategy,
+	}
+	err = p.updateFunds(&order)
+	if err != nil {
+		return model.Order{}, err
 	}
 
 	p.orders = append(p.orders, order)
@@ -717,7 +778,9 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 		return model.Order{}, ErrInvalidQuantity
 	}
 
-	err := p.validateFunds(side, positionSide, pair, quantity, limit, false, orderFlag)
+	currentQuantity := p.formatQuantity(pair, quantity)
+	currentPrice := p.formatPrice(pair, limit)
+	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
 		return model.Order{}, err
 	}
@@ -735,8 +798,8 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 		PositionSide:   positionSide,
 		Type:           model.OrderTypeStop,
 		Status:         model.OrderStatusTypeNew,
-		Price:          limit,
-		Quantity:       quantity,
+		Price:          currentPrice,
+		Quantity:       currentQuantity,
 		LongShortRatio: longShortRatio,
 		MatchStrategy:  matchStrategy,
 	}
@@ -753,28 +816,26 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 	if quantity == 0 {
 		return model.Order{}, ErrInvalidQuantity
 	}
-
 	status := model.OrderStatusTypeFilled
-	price := stopPrice
+
+	currentQuantity := p.formatQuantity(pair, quantity)
+	currentPrice := p.formatPrice(pair, stopPrice)
 	var err error
 	if positionSide == model.PositionSideTypeLong {
 		// 判断触发时机，当前价格小于触发价格时直接平掉
 		if stopPrice >= p.lastCandle[pair].Close {
-			price = p.lastCandle[pair].Close
-			err = p.validateFunds(side, positionSide, pair, quantity, p.lastCandle[pair].Close, true, orderFlag)
+			currentPrice = p.formatPrice(pair, p.lastCandle[pair].Close)
 		} else {
 			status = model.OrderStatusTypeNew
-			err = p.validateFunds(side, positionSide, pair, quantity, p.lastCandle[pair].Close, false, orderFlag)
 		}
 	} else {
 		if stopPrice <= p.lastCandle[pair].Close {
-			price = p.lastCandle[pair].Close
-			err = p.validateFunds(side, positionSide, pair, quantity, p.lastCandle[pair].Close, true, orderFlag)
+			currentPrice = p.formatPrice(pair, p.lastCandle[pair].Close)
 		} else {
 			status = model.OrderStatusTypeNew
-			err = p.validateFunds(side, positionSide, pair, quantity, p.lastCandle[pair].Close, false, orderFlag)
 		}
 	}
+	err = p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
 		return model.Order{}, err
 	}
@@ -791,10 +852,15 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 		PositionSide:   positionSide,
 		Type:           model.OrderTypeStopMarket,
 		Status:         status,
-		Price:          price,
-		Quantity:       quantity,
+		Price:          currentPrice,
+		Quantity:       currentQuantity,
 		LongShortRatio: longShortRatio,
 		MatchStrategy:  matchStrategy,
+	}
+
+	err = p.updateFunds(&order)
+	if err != nil {
+		return model.Order{}, err
 	}
 
 	p.orders = append(p.orders, order)
@@ -841,9 +907,19 @@ func (p *PaperWallet) findPositonOrder(pair string, orderFlag string, orderType 
 	return model.Order{}, errors.New("order not found")
 }
 
-func (b *PaperWallet) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
+func (p *PaperWallet) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+func (p *PaperWallet) formatPrice(pair string, value float64) float64 {
+	info := p.AssetsInfo(pair)
+	return common.AmountToLotSize(info.TickSize, info.QuotePrecision, value)
+}
+
+func (p *PaperWallet) formatQuantity(pair string, value float64) float64 {
+	info := p.AssetsInfo(pair)
+	return common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
 }
 
 func (p *PaperWallet) CandlesByPeriod(ctx context.Context, pair, period string,

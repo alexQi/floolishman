@@ -17,14 +17,14 @@ import (
 )
 
 var ConstStraties = map[string]types.Strategy{
-	"Range15m":    &strategies.Range15m{},
-	"Momentum15m": &strategies.Momentum15m{},
-	"Rsi1h":       &strategies.Rsi1h{},
-	"Emacross15m": &strategies.Emacross15m{},
-	"Emacross1h":  &strategies.Emacross1h{},
-	"Momentum1h":  &strategies.Momentum1h{},
-	"Rsi15m":      &strategies.Rsi15m{},
-	"Test15m":     &strategies.Test15m{},
+	"Range15m":          &strategies.Range15m{},
+	"Momentum15m":       &strategies.Momentum15m{},
+	"MomentumVolume15m": &strategies.MomentumVolume15m{},
+	"Rsi1h":             &strategies.Rsi1h{},
+	"Emacross15m":       &strategies.Emacross15m{},
+	"Emacross1h":        &strategies.Emacross1h{},
+	"Rsi15m":            &strategies.Rsi15m{},
+	"Test15m":           &strategies.Test15m{},
 }
 
 func main() {
@@ -91,6 +91,11 @@ func main() {
 			File:      "testdata/eth-15m.csv",
 			Timeframe: "15m",
 		},
+		//exchange.PairFeed{
+		//	Pair:      "ETHUSDT",
+		//	File:      "testdata/eth-1h.csv",
+		//	Timeframe: "1h",
+		//},
 	)
 
 	// initialize a database in memory

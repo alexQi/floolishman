@@ -16,6 +16,7 @@ type StrategyPosition struct {
 	StrategyName string
 	Score        int
 	Tendency     string
+	LastAtr      float64
 }
 
 type PositionJudger struct {
@@ -84,6 +85,10 @@ func (cs *CompositesStrategy) CallMatchers(dataframes map[string]map[string]*mod
 	matchers := []StrategyPosition{}
 	for _, strategy := range cs.Strategies {
 		strategyName = reflect.TypeOf(strategy).Elem().Name()
+		if dataframes[strategy.Timeframe()][strategyName].Close == nil ||
+			len(dataframes[strategy.Timeframe()][strategyName].Close) < strategy.WarmupPeriod() {
+			continue
+		}
 		strategyPosition := strategy.OnCandle(dataframes[strategy.Timeframe()][strategyName])
 		matchers = append(matchers, strategyPosition)
 	}

@@ -167,13 +167,15 @@ func (s *ServiceStrategy) StartJudger(pair string) {
 			finalTendency := s.Process(pair)
 			// 获取多空比
 			longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(finalTendency, s.positionJudgers[pair].Matchers)
-			utils.Log.Infof(
-				"[JUDGE] Pair: %s | LongShortRatio: %.2f | TendencyCount: %v | MatcherStrategy:【%v】",
-				pair,
-				longShortRatio,
-				s.positionJudgers[pair].TendencyCount,
-				matcherStrategy,
-			)
+			if s.backtest == false && len(s.positionJudgers[pair].Matchers) > 0 {
+				utils.Log.Infof(
+					"[JUDGE] Pair: %s | LongShortRatio: %.2f | TendencyCount: %v | MatcherStrategy:【%v】",
+					pair,
+					longShortRatio,
+					s.positionJudgers[pair].TendencyCount,
+					matcherStrategy,
+				)
+			}
 			// 加权因子计算复合策略的趋势判断待调研是否游泳 todo
 			// 多空比不满足开仓条件
 			if longShortRatio < 0 {
@@ -198,6 +200,7 @@ func (s *ServiceStrategy) StartJudger(pair string) {
 			// 执行移动止损平仓
 			s.closeOption(s.pairOptions[pair])
 		case <-tickerReset.C:
+			utils.Log.Infof("[JUDGE RESET] Pair: %s | TendencyCount: %v", pair, s.positionJudgers[pair].TendencyCount)
 			s.ResetJudger(pair)
 		}
 	}
@@ -242,7 +245,7 @@ func (s *ServiceStrategy) checkPosition(option model.PairOption) (float64, float
 	finalTendency, currentMatchers := s.Sanitizer(matchers)
 	longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(finalTendency, currentMatchers)
 	// 判断策略结果
-	if len(currentMatchers) > 0 {
+	if s.backtest == false && len(currentMatchers) > 0 {
 		utils.Log.Infof(
 			"[JUDGE] Tendency: %s | Pair: %s | LongShortRatio: %.2f | Matchers:【%v】",
 			finalTendency,
@@ -406,7 +409,7 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 	if holdedOrder.ExchangeID > 0 {
 		if s.backtest == false {
 			utils.Log.Infof(
-				"[ORDER EXIST - %s] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
+				"[HOLD ORDER - %s] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
 				holdedOrder.Status,
 				option.Pair,
 				holdedOrder.Price,
@@ -497,6 +500,9 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 		for _, positionOrder := range positionOrders {
 			// 获取当前时间使用
 			currentTime := time.Now()
+			if s.checkMode == "candle" {
+				currentTime = s.lastUpdate
+			}
 			// 判断当前订单是未成交，未成交的订单取消
 			if positionOrder.Status == model.OrderStatusTypeNew {
 				// 获取挂单时间是否超长
@@ -551,10 +557,7 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			// 如果利润比大于预设值，则使用计算出得利润比 - 指定步进的利润比 得到新的止损利润比
 			// 小于预设值，判断止损时间
 			// 此处处理时间止损
-			if s.checkMode == "candle" {
-				currentTime = s.lastUpdate
-			}
-			if profitRatio < s.initProfitRatioLimit || profitRatio <= (s.profitRatioLimit[option.Pair]+s.profitableScale+0.02) {
+			if profitRatio < s.initProfitRatioLimit || profitRatio <= (s.profitRatioLimit[option.Pair]+s.profitableScale+0.01) {
 				if currentTime.Before(s.lossLimitTimes[positionOrder.OrderFlag]) {
 					continue
 				}
@@ -567,6 +570,8 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 				}
 				// 删除止损时间限制配置
 				delete(s.lossLimitTimes, positionOrder.OrderFlag)
+				// 重置judger结果
+				s.ResetJudger(option.Pair)
 				// 盈利利润由开仓时统一重置 不在处理
 				// 取消所有的市价止损单
 				lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
@@ -923,13 +928,14 @@ func (s *ServiceStrategy) OnCandleForBacktest(timeframe string, candle model.Can
 	s.updateDataFrame(timeframe, candle)
 	s.OnRealCandle(timeframe, candle)
 	if s.started {
+		//s.broker.ListenUpdateOrders()
 		assetPosition, quotePosition, longShortRatio, matcherStrategy := s.checkPosition(s.pairOptions[candle.Pair])
 		if longShortRatio >= 0 {
 			// 监听exchange订单，更新订单控制器
-			s.broker.ListenUpdateOrders()
 			s.openPosition(s.pairOptions[candle.Pair], assetPosition, quotePosition, longShortRatio, matcherStrategy)
 		}
-		s.broker.ListenUpdateOrders()
+		//s.broker.ListenUpdateOrders()
 		s.closeOption(s.pairOptions[candle.Pair])
+		//s.broker.ListenUpdateOrders()
 	}
 }

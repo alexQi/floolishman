@@ -12,8 +12,8 @@ import (
 
 func main() {
 	app := &cli.App{
-		Name:     "ninjabot",
-		HelpName: "ninjabot",
+		Name:     "floolishman",
+		HelpName: "floolishman",
 		Usage:    "Utilities for bot creation",
 		Commands: []*cli.Command{
 			{
