@@ -1,12 +1,28 @@
 package storage
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"floolishman/model"
 	"github.com/stretchr/testify/require"
 )
+
+func TestQuery(t *testing.T) {
+	repo, err := FromFile("../runtime/data/floolishman.db")
+	if err != nil {
+		fmt.Print(err)
+	}
+	orders, _ := repo.Orders(
+		WithPair("ETHUSDT"),
+		WithStatusIn(
+			model.OrderStatusTypeNew,    // 未成交订单
+			model.OrderStatusTypeFilled, // 已成交订单
+		),
+	)
+	fmt.Print(orders)
+}
 
 func storageUseCase(repo Storage, t *testing.T) {
 	t.Helper()

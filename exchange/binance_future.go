@@ -193,9 +193,11 @@ func (b *BinanceFuture) formatPrice(pair string, value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
-func (b *BinanceFuture) formatQuantity(pair string, value float64) string {
-	if info, ok := b.assetsInfo[pair]; ok {
-		value = common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
+func (b *BinanceFuture) formatQuantity(pair string, value float64, toLot bool) string {
+	if toLot {
+		if info, ok := b.assetsInfo[pair]; ok {
+			value = common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
+		}
 	}
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
@@ -217,7 +219,7 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		TimeInForce(futures.TimeInForceTypeGTC).
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
-		Quantity(b.formatQuantity(pair, quantity)).
+		Quantity(b.formatQuantity(pair, quantity, true)).
 		Price(b.formatPrice(pair, limit)).
 		Do(b.ctx)
 	if err != nil {
@@ -265,7 +267,7 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 		Type(futures.OrderTypeMarket).
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
-		Quantity(b.formatQuantity(pair, quantity)).
+		Quantity(b.formatQuantity(pair, quantity, true)).
 		NewOrderResponseType(futures.NewOrderRespTypeRESULT).
 		Do(b.ctx)
 	if err != nil {
@@ -316,7 +318,7 @@ func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide m
 		TimeInForce(futures.TimeInForceTypeGTC).
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
-		Quantity(b.formatQuantity(pair, quantity)).
+		Quantity(b.formatQuantity(pair, quantity, false)).
 		WorkingType(futures.WorkingTypeMarkPrice).
 		StopPrice(b.formatPrice(pair, stopPrice)).
 		Price(b.formatPrice(pair, limit)).
@@ -369,7 +371,7 @@ func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide 
 		TimeInForce(futures.TimeInForceTypeGTC).
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
-		Quantity(b.formatQuantity(pair, quantity)).
+		Quantity(b.formatQuantity(pair, quantity, false)).
 		WorkingType(futures.WorkingTypeMarkPrice).
 		StopPrice(b.formatPrice(pair, stopPrice)).
 		Do(b.ctx)

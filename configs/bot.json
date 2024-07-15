@@ -7,6 +7,10 @@
         }
     },
     "strategies": [
+        "Range15m",
+        "Momentum15m",
+        "MomentumVolume15m",
+        "Rsi15m",
         "Emacross15m"
     ],
     "trading": {
@@ -23,7 +27,7 @@
     },
     "storage": {
         "driver": "buntdb",
-        "path": "runtime/data/floolishman.db"
+        "path": "runtime/data/floolishman.buntdb"
     },
     "log": {
         "level": "info",

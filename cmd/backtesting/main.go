@@ -88,7 +88,7 @@ func main() {
 	csvFeed, err := exchange.NewCSVFeed(
 		exchange.PairFeed{
 			Pair:      "ETHUSDT",
-			File:      "testdata/eth-15m-7d.csv",
+			File:      "testdata/eth-15m.csv",
 			Timeframe: "15m",
 		},
 		//exchange.PairFeed{
