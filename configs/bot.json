@@ -7,7 +7,7 @@
         }
     },
     "strategies": [
-        "Range15m"
+        "Momentum15m"
     ],
     "trading": {
         "checkMode": "frequency",

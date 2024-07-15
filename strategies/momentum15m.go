@@ -46,12 +46,12 @@ func (s *Momentum15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
 	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 3, 1.2)
 	// 趋势判断
-	if strategyPosition.Tendency == "rise" && (momentums[1]-momentums[0]) > 5 && momentums[0] < momentums[1] && !isUpperPinBar {
+	if strategyPosition.Tendency == "rise" && (momentums[1]-momentums[0]) > 8 && momentums[0] < momentums[1] && !isUpperPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 	// 动量递减向下 且未下方插针
-	if strategyPosition.Tendency == "down" && (momentums[0]-momentums[1]) > 5 && momentums[0] > momentums[1] && !isLowerPinBar {
+	if strategyPosition.Tendency == "down" && (momentums[0]-momentums[1]) > 8 && momentums[0] > momentums[1] && !isLowerPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
