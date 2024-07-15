@@ -7,7 +7,7 @@
         }
     },
     "strategies": [
-        "Momentum15m"
+        "Emacross15m"
     ],
     "trading": {
         "checkMode": "frequency",
