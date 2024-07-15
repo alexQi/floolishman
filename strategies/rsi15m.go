@@ -12,7 +12,7 @@ type Rsi15m struct {
 }
 
 func (s Rsi15m) SortScore() int {
-	return 90
+	return 80
 }
 
 func (s Rsi15m) Timeframe() string {

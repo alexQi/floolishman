@@ -4,7 +4,6 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -37,7 +36,7 @@ func setJsonConfig() error {
 	}
 	exsit, _ := pathExists(absPath)
 	if exsit == true {
-		fileInfoList, err := ioutil.ReadDir(absPath)
+		fileInfoList, err := os.ReadDir(absPath)
 		if err != nil {
 			return err
 		}
@@ -61,7 +60,7 @@ func setYamlConfig() error {
 	}
 	exsit, _ := pathExists(absPath)
 	if exsit == true {
-		fileInfoList, err := ioutil.ReadDir(absPath)
+		fileInfoList, err := os.ReadDir(absPath)
 		if err != nil {
 			return err
 		}
