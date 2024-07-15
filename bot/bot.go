@@ -309,9 +309,10 @@ func (n *Bot) backtestCandles(pair string, timeframe string) {
 		if n.paperWallet != nil {
 			n.paperWallet.OnCandle(candle)
 		}
-		n.serviceOrder.ListenUpdateOrders()
 		// 更新订单最新价格
 		n.serviceOrder.OnCandle(candle)
+		// 监控订单数据变化
+		n.serviceOrder.ListenUpdateOrders()
 		// 处理开仓策略相关
 		if candle.Complete {
 			n.serviceStrategy.OnCandleForBacktest(timeframe, candle)

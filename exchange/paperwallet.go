@@ -62,8 +62,8 @@ func (p *PaperWallet) AssetsInfo(pair string) model.AssetInfo {
 		MaxQuantity:        math.MaxFloat64,
 		StepSize:           0.00000001,
 		TickSize:           0.00000001,
-		QuotePrecision:     8,
-		BaseAssetPrecision: 8,
+		QuotePrecision:     4,
+		BaseAssetPrecision: 4,
 	}
 }
 
@@ -372,6 +372,14 @@ func (p *PaperWallet) updateFunds(order *model.Order) error {
 		}
 		// 平多单
 		if order.PositionSide == model.PositionSideTypeLong {
+			// 查询对应的仓位
+			positonOrder, err := p.findPositonOrder(order.Pair, order.OrderFlag, model.OrderTypeLimit)
+			if err != nil {
+				utils.Log.Error(err)
+			}
+			if positonOrder.ExchangeID == 0 {
+				return nil
+			}
 			if p.assets[asset].Lock < order.Quantity {
 				return &OrderError{
 					Err:      ErrInvalidAsset,
@@ -381,12 +389,6 @@ func (p *PaperWallet) updateFunds(order *model.Order) error {
 			}
 
 			p.updateAveragePrice(order.Side, order.Pair, order.Quantity, order.Price)
-
-			// 查询对应的仓位
-			positonOrder, err := p.findPositonOrder(order.Pair, order.OrderFlag, model.OrderTypeLimit)
-			if err != nil {
-				utils.Log.Error(err)
-			}
 
 			// 开多单资产
 			p.assets[asset].Free = 0
@@ -421,6 +423,13 @@ func (p *PaperWallet) updateFunds(order *model.Order) error {
 		}
 		// 平空单
 		if order.PositionSide == model.PositionSideTypeShort {
+			positonOrder, err := p.findPositonOrder(order.Pair, order.OrderFlag, model.OrderTypeLimit)
+			if err != nil {
+				utils.Log.Error(err)
+			}
+			if positonOrder.ExchangeID == 0 {
+				return nil
+			}
 			if calc.Abs(p.assets[asset].Lock) < order.Quantity {
 				return &OrderError{
 					Err:      ErrInvalidAsset,
@@ -430,10 +439,7 @@ func (p *PaperWallet) updateFunds(order *model.Order) error {
 			}
 			p.updateAveragePrice(order.Side, order.Pair, order.Quantity, order.Price)
 			// 查询对应的仓位
-			positonOrder, err := p.findPositonOrder(order.Pair, order.OrderFlag, model.OrderTypeLimit)
-			if err != nil {
-				utils.Log.Error(err)
-			}
+
 			// 开多单资产
 			p.assets[asset].Free = 0
 			p.assets[asset].Lock += order.Quantity
@@ -490,14 +496,15 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 				} else {
 					continue
 				}
+				volume := orderPrice * order.Quantity
 				// 锁定的资产
-				lockQuote := orderPrice * order.Quantity / leverage
+				lockQuote := volume / leverage
 				if p.assets[quote].Free < lockQuote {
 					utils.Log.Warn(ErrInsufficientFunds)
 					continue
 				}
 
-				p.volume[candle.Pair] += orderPrice * order.Quantity
+				p.volume[candle.Pair] += volume
 				p.orders[i].UpdatedAt = candle.Time
 				p.orders[i].Status = model.OrderStatusTypeFilled
 
@@ -533,6 +540,7 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 				if err != nil {
 					continue
 				}
+
 				p.volume[candle.Pair] += orderPrice * order.Quantity
 				p.orders[i].UpdatedAt = candle.Time
 				p.orders[i].Status = model.OrderStatusTypeFilled
@@ -598,14 +606,16 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 				} else {
 					continue
 				}
+				volume := orderPrice * order.Quantity
+
 				// 锁定的资产
-				lockQuote := orderPrice * order.Quantity / leverage
+				lockQuote := volume / leverage
 				if p.assets[quote].Free < lockQuote {
 					utils.Log.Warn(ErrInsufficientFunds)
 					continue
 				}
 
-				p.volume[candle.Pair] += orderPrice * order.Quantity
+				p.volume[candle.Pair] += volume
 				p.orders[i].UpdatedAt = candle.Time
 				p.orders[i].Status = model.OrderStatusTypeFilled
 
@@ -680,7 +690,7 @@ func (p *PaperWallet) Position(pair string) (asset, quote float64, err error) {
 }
 
 func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+	quantity float64, limit float64, extra model.OrderExtra) (model.Order, error) {
 
 	p.Lock()
 	defer p.Unlock()
@@ -690,7 +700,7 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 	}
 	orderFlag := strutil.RandomString(6)
 
-	currentQuantity := p.formatQuantity(pair, quantity)
+	currentQuantity := p.formatQuantity(pair, quantity, true)
 	currentPrice := p.formatPrice(pair, limit)
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
@@ -712,23 +722,26 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 		Status:         model.OrderStatusTypeNew,
 		Price:          currentPrice,
 		Quantity:       currentQuantity,
-		LongShortRatio: longShortRatio,
-		MatchStrategy:  matchStrategy,
+		LongShortRatio: extra.LongShortRatio,
+		MatchStrategy:  extra.MatchStrategy,
 	}
 	p.orders = append(p.orders, order)
 	return order, nil
 }
 
-func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, extra model.OrderExtra) (model.Order, error) {
 	p.Lock()
 	defer p.Unlock()
 	if quantity == 0 {
 		return model.Order{}, ErrInvalidQuantity
 	}
 
-	orderFlag := strutil.RandomString(6)
+	orderFlag := extra.OrderFlag
+	if orderFlag == "" {
+		orderFlag = strutil.RandomString(6)
+	}
 
-	currentQuantity := p.formatQuantity(pair, quantity)
+	currentQuantity := p.formatQuantity(pair, quantity, true)
 	currentPrice := p.formatPrice(pair, p.lastCandle[pair].Close)
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
@@ -756,8 +769,8 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 		Status:         model.OrderStatusTypeFilled,
 		Price:          currentPrice,
 		Quantity:       currentQuantity,
-		LongShortRatio: longShortRatio,
-		MatchStrategy:  matchStrategy,
+		LongShortRatio: extra.LongShortRatio,
+		MatchStrategy:  extra.MatchStrategy,
 	}
 	err = p.updateFunds(&order)
 	if err != nil {
@@ -770,7 +783,7 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 }
 
 func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, stopPrice float64, orderFlag string, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+	quantity float64, limit float64, stopPrice float64, extra model.OrderExtra) (model.Order, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -778,7 +791,7 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 		return model.Order{}, ErrInvalidQuantity
 	}
 
-	currentQuantity := p.formatQuantity(pair, quantity)
+	currentQuantity := p.formatQuantity(pair, quantity, false)
 	currentPrice := p.formatPrice(pair, limit)
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
@@ -790,7 +803,7 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 	order := model.Order{
 		ExchangeID:     p.ID(),
 		ClientOrderId:  clientOrderId,
-		OrderFlag:      orderFlag,
+		OrderFlag:      extra.OrderFlag,
 		CreatedAt:      p.lastCandle[pair].Time,
 		UpdatedAt:      p.lastCandle[pair].Time,
 		Pair:           pair,
@@ -800,8 +813,8 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 		Status:         model.OrderStatusTypeNew,
 		Price:          currentPrice,
 		Quantity:       currentQuantity,
-		LongShortRatio: longShortRatio,
-		MatchStrategy:  matchStrategy,
+		LongShortRatio: extra.LongShortRatio,
+		MatchStrategy:  extra.MatchStrategy,
 	}
 
 	p.orders = append(p.orders, order)
@@ -809,7 +822,7 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 }
 
 func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, stopPrice float64, orderFlag string, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+	quantity float64, stopPrice float64, extra model.OrderExtra) (model.Order, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -818,7 +831,7 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 	}
 	status := model.OrderStatusTypeFilled
 
-	currentQuantity := p.formatQuantity(pair, quantity)
+	currentQuantity := p.formatQuantity(pair, quantity, false)
 	currentPrice := p.formatPrice(pair, stopPrice)
 	var err error
 	if positionSide == model.PositionSideTypeLong {
@@ -844,7 +857,7 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 	order := model.Order{
 		ExchangeID:     p.ID(),
 		ClientOrderId:  clientOrderId,
-		OrderFlag:      orderFlag,
+		OrderFlag:      extra.OrderFlag,
 		CreatedAt:      p.lastCandle[pair].Time,
 		UpdatedAt:      p.lastCandle[pair].Time,
 		Pair:           pair,
@@ -854,8 +867,8 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 		Status:         status,
 		Price:          currentPrice,
 		Quantity:       currentQuantity,
-		LongShortRatio: longShortRatio,
-		MatchStrategy:  matchStrategy,
+		LongShortRatio: extra.LongShortRatio,
+		MatchStrategy:  extra.MatchStrategy,
 	}
 
 	err = p.updateFunds(&order)
@@ -917,9 +930,12 @@ func (p *PaperWallet) formatPrice(pair string, value float64) float64 {
 	return common.AmountToLotSize(info.TickSize, info.QuotePrecision, value)
 }
 
-func (p *PaperWallet) formatQuantity(pair string, value float64) float64 {
-	info := p.AssetsInfo(pair)
-	return common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
+func (p *PaperWallet) formatQuantity(pair string, value float64, toLot bool) float64 {
+	if toLot {
+		info := p.AssetsInfo(pair)
+		return common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
+	}
+	return value
 }
 
 func (p *PaperWallet) CandlesByPeriod(ctx context.Context, pair, period string,

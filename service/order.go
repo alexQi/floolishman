@@ -214,7 +214,7 @@ func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 				p.Quantity -= order.Quantity
 			}
 
-			quantity := math.Min(p.Quantity, order.Quantity)
+			quantity := order.Quantity
 			order.Profit = (price - p.AvgPrice) / p.AvgPrice
 			order.ProfitValue = (price - p.AvgPrice) * quantity
 
@@ -242,7 +242,7 @@ func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 				p.Quantity -= order.Quantity
 			}
 
-			quantity := math.Min(p.Quantity, order.Quantity)
+			quantity := order.Quantity
 			order.Profit = (p.AvgPrice - price) / p.AvgPrice
 			order.ProfitValue = (p.AvgPrice - price) * quantity
 
@@ -376,7 +376,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		}
 		_, quote := exchange.SplitAssetQuote(o.Pair)
 		c.notify(fmt.Sprintf(
-			"[SUMMARY] %f %s (%f %%) `%s`",
+			"[SUMMARY] %f %s (%f %%) \n`%s`",
 			result.ProfitValue,
 			quote,
 			result.ProfitPercent*100,
@@ -574,12 +574,12 @@ func (c *ServiceOrder) Order(pair string, id int64) (model.Order, error) {
 	return c.exchange.Order(pair, id)
 }
 
-func (c *ServiceOrder) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+func (c *ServiceOrder) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, extra model.OrderExtra) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating LIMIT %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderLimit(side, positionSide, pair, size, limit, longShortRatio, matchStrategy)
+	order, err := c.exchange.CreateOrderLimit(side, positionSide, pair, size, limit, extra)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -595,12 +595,12 @@ func (c *ServiceOrder) CreateOrderLimit(side model.SideType, positionSide model.
 	return order, nil
 }
 
-func (c *ServiceOrder) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, size float64, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+func (c *ServiceOrder) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, size float64, extra model.OrderExtra) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating MARKET %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderMarket(side, positionSide, pair, size, longShortRatio, matchStrategy)
+	order, err := c.exchange.CreateOrderMarket(side, positionSide, pair, size, extra)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -618,12 +618,12 @@ func (c *ServiceOrder) CreateOrderMarket(side model.SideType, positionSide model
 	return order, err
 }
 
-func (c *ServiceOrder) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, stopPrice float64, orderFlag string, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+func (c *ServiceOrder) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, stopPrice float64, extra model.OrderExtra) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating STOP LIMIT %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderStopLimit(side, positionSide, pair, size, limit, stopPrice, orderFlag, longShortRatio, matchStrategy)
+	order, err := c.exchange.CreateOrderStopLimit(side, positionSide, pair, size, limit, stopPrice, extra)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
@@ -639,12 +639,12 @@ func (c *ServiceOrder) CreateOrderStopLimit(side model.SideType, positionSide mo
 	return order, nil
 }
 
-func (c *ServiceOrder) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string, size, stopPrice float64, orderFlag string, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+func (c *ServiceOrder) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string, size, stopPrice float64, extra model.OrderExtra) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	utils.Log.Infof("[ORDER] Creating STOP MARKET %s order for %s", side, pair)
-	order, err := c.exchange.CreateOrderStopMarket(side, positionSide, pair, size, stopPrice, orderFlag, longShortRatio, matchStrategy)
+	order, err := c.exchange.CreateOrderStopMarket(side, positionSide, pair, size, stopPrice, extra)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err

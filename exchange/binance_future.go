@@ -203,7 +203,7 @@ func (b *BinanceFuture) formatQuantity(pair string, value float64, toLot bool) s
 }
 
 func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+	quantity float64, limit float64, extra model.OrderExtra) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -249,18 +249,17 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		Status:         model.OrderStatusType(order.Status),
 		Price:          price,
 		Quantity:       quantity,
-		LongShortRatio: longShortRatio,
-		MatchStrategy:  matchStrategy,
+		LongShortRatio: extra.LongShortRatio,
+		MatchStrategy:  extra.MatchStrategy,
 	}, nil
 }
 
-func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, extra model.OrderExtra) (model.Order, error) {
 	err := b.validate(pair, quantity)
 	if err != nil {
 		return model.Order{}, err
 	}
 	clientOrderId := strutil.RandomString(12)
-	orderFlag := strutil.RandomString(6)
 	order, err := b.client.NewCreateOrderService().
 		Symbol(pair).
 		NewClientOrderID(clientOrderId).
@@ -273,13 +272,17 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 	if err != nil {
 		return model.Order{}, err
 	}
+	orderFlag := extra.OrderFlag
+	if orderFlag == "" {
+		orderFlag = strutil.RandomString(6)
+	}
 
-	cost, err := strconv.ParseFloat(order.CumQuote, 64)
+	price, err := strconv.ParseFloat(order.Price, 64)
 	if err != nil {
 		return model.Order{}, err
 	}
 
-	quantity, err = strconv.ParseFloat(order.ExecutedQuantity, 64)
+	quantity, err = strconv.ParseFloat(order.OrigQuantity, 64)
 	if err != nil {
 		return model.Order{}, err
 	}
@@ -295,15 +298,15 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 		PositionSide:   model.PositionSideType(order.PositionSide),
 		Type:           model.OrderType(order.Type),
 		Status:         model.OrderStatusType(order.Status),
-		Price:          cost / quantity,
+		Price:          price,
 		Quantity:       quantity,
-		LongShortRatio: longShortRatio,
-		MatchStrategy:  matchStrategy,
+		LongShortRatio: extra.LongShortRatio,
+		MatchStrategy:  extra.MatchStrategy,
 	}, nil
 }
 
 func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, stopPrice float64, orderFlag string, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+	quantity float64, limit float64, stopPrice float64, extra model.OrderExtra) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -340,7 +343,7 @@ func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide m
 	return model.Order{
 		ExchangeID:     order.OrderID,
 		ClientOrderId:  clientOrderId,
-		OrderFlag:      orderFlag,
+		OrderFlag:      extra.OrderFlag,
 		CreatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		UpdatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		Pair:           pair,
@@ -350,13 +353,13 @@ func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide m
 		Status:         model.OrderStatusType(order.Status),
 		Price:          price,
 		Quantity:       quantity,
-		LongShortRatio: longShortRatio,
-		MatchStrategy:  matchStrategy,
+		LongShortRatio: extra.LongShortRatio,
+		MatchStrategy:  extra.MatchStrategy,
 	}, nil
 }
 
 func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, stopPrice float64, orderFlag string, longShortRatio float64, matchStrategy map[string]int) (model.Order, error) {
+	quantity float64, stopPrice float64, extra model.OrderExtra) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -392,7 +395,7 @@ func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide 
 	return model.Order{
 		ExchangeID:     order.OrderID,
 		ClientOrderId:  clientOrderId,
-		OrderFlag:      orderFlag,
+		OrderFlag:      extra.OrderFlag,
 		CreatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		UpdatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		Pair:           pair,
@@ -402,8 +405,8 @@ func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide 
 		Status:         model.OrderStatusType(order.Status),
 		Price:          price,
 		Quantity:       quantity,
-		LongShortRatio: longShortRatio,
-		MatchStrategy:  matchStrategy,
+		LongShortRatio: extra.LongShortRatio,
+		MatchStrategy:  extra.MatchStrategy,
 	}, nil
 }
 

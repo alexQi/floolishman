@@ -199,7 +199,7 @@ func (b *Binance) formatQuantity(pair string, value float64) string {
 }
 
 func (b *Binance) CreateOrderLimit(side model.SideType, pair string,
-	quantity float64, limit float64) (model.Order, error) {
+	quantity float64, limit float64, extra model.OrderExtra) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -242,7 +242,7 @@ func (b *Binance) CreateOrderLimit(side model.SideType, pair string,
 }
 
 func (b *Binance) CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string,
-	quantity float64, limit float64, stopPrice float64, orderFlag string, longShortRatio float64, strategyName string) (model.Order, error) {
+	quantity float64, limit float64, stopPrice float64, extra model.OrderExtra) (model.Order, error) {
 
 	err := b.validate(pair, quantity)
 	if err != nil {
@@ -284,7 +284,7 @@ func (b *Binance) CreateOrderStopLimit(side model.SideType, positionSide model.P
 	}, nil
 }
 
-func (b *Binance) CreateOrderMarket(side model.SideType, pair string, quantity float64) (model.Order, error) {
+func (b *Binance) CreateOrderMarket(side model.SideType, pair string, quantity float64, extra model.OrderExtra) (model.Order, error) {
 	err := b.validate(pair, quantity)
 	if err != nil {
 		return model.Order{}, err
@@ -324,7 +324,7 @@ func (b *Binance) CreateOrderMarket(side model.SideType, pair string, quantity f
 	}, nil
 }
 
-func (b *Binance) CreateOrderMarketQuote(side model.SideType, pair string, quantity float64) (model.Order, error) {
+func (b *Binance) CreateOrderMarketQuote(side model.SideType, pair string, quantity float64, extra model.OrderExtra) (model.Order, error) {
 	err := b.validate(pair, quantity)
 	if err != nil {
 		return model.Order{}, err

@@ -51,10 +51,10 @@ var (
 	CancelLimitDuration   time.Duration = 60
 	CheckOpenInterval     time.Duration = 10
 	CheckCloseInterval    time.Duration = 500
-	CheckStrategyInterval time.Duration = 1
+	CheckStrategyInterval time.Duration = 2
 	ResetStrategyInterval time.Duration = 120
 	StopLossDistanceRatio float64       = 0.9
-	OpenPassCountLimit                  = 20
+	OpenPassCountLimit                  = 10
 )
 
 func NewServiceStrategy(
@@ -293,127 +293,86 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 	}
 	var tempSideType model.SideType
 	var postionSide model.PositionSideType
+
 	// 策略通过，判断当前是否已有未成交的限价单
 	// 判断之前是否已有未成交的限价单
 	// 直接获取当前交易对订单
-
 	// 原始为空 止损为多  当前为多
 	// 判断当前是否已有限价止损单
 	// 有限价止损单时，判断止损方向和当前方向一致说明反向了
 	// 在判断新的多空比和开仓多空比的大小，新的多空比绝对值比旧的小，需要继续持仓
 	// 反之取消所有的限价止损单
-	existOrders, err := s.getPositionOrders(option, s.broker)
+	// ----------------
+	currentPirce := s.pairPrices[option.Pair]
+	holdedOrder := model.Order{}
+	existOrderMap, err := s.getExistOrders(option, s.broker)
 	if err != nil {
 		utils.Log.Error(err)
 		return
 	}
-	// 取消限价止损单
-	if _, ok := existOrders[model.OrderTypeStop]; ok {
-		stopLimitOrders, ok := existOrders[model.OrderTypeStop][model.OrderStatusTypeNew]
-		if ok && len(stopLimitOrders) > 0 {
-			for _, stopLimitOrder := range stopLimitOrders {
-				// 原始止损单方向和当前策略判断方向相同，则取消原始止损单
-				if stopLimitOrder.Side != finalPosition {
-					continue
-				}
-				// 计算相对分界线距离
-				if calc.Abs(0.5-longShortRatio) < calc.Abs(0.5-stopLimitOrder.LongShortRatio) {
-					continue
-				}
-				// 取消之前的止损单
-				err = s.broker.Cancel(*stopLimitOrder)
+	for orderFlag, existOrders := range existOrderMap {
+		positionOrders, ok := existOrders["position"]
+		if !ok {
+			continue
+		}
+		// 获取所有仓位，包含new 和filled
+		for _, positionOrder := range positionOrders {
+			// 原始单方向和当前策略判断方向相同，保留原始单
+			if positionOrder.Side == finalPosition {
+				holdedOrder = *positionOrder
+				continue
+			}
+			// 计算相对分界线距离，不够反手标准则继续持仓
+			if calc.Abs(0.5-longShortRatio) < calc.Abs(0.5-positionOrder.LongShortRatio) {
+				holdedOrder = *positionOrder
+				continue
+			}
+			// ******* 开始执行反手交易 ******
+			// 取消未成交的挂单
+			if positionOrder.Status == model.OrderStatusTypeNew {
+				err = s.broker.Cancel(*positionOrder)
 				if err != nil {
 					utils.Log.Error(err)
 					return
 				}
 			}
-		}
-	}
-	// 取消市价止损单
-	if _, ok := existOrders[model.OrderTypeStopMarket]; ok {
-		stopLimitMarketOrders, ok := existOrders[model.OrderTypeStopMarket][model.OrderStatusTypeNew]
-		if ok && len(stopLimitMarketOrders) > 0 {
-			for _, stopLimitMarketOrder := range stopLimitMarketOrders {
-				// 原始止损单方向和当前策略判断方向相同，则取消原始止损单
-				if stopLimitMarketOrder.Side != finalPosition {
-					continue
-				}
-				// 计算相对分界线距离
-				if calc.Abs(0.5-longShortRatio) < calc.Abs(0.5-stopLimitMarketOrder.LongShortRatio) {
-					continue
-				}
-				// 取消之前的止损单
-				err = s.broker.Cancel(*stopLimitMarketOrder)
-				if err != nil {
-					utils.Log.Error(err)
-					return
-				}
-			}
-		}
-	}
-
-	currentPirce := s.pairPrices[option.Pair]
-	// 判断当前是否已有仓位
-	// 仓位类型双向持仓 下单时根据类型可下对冲单。通过协程提升平仓在开仓的效率
-	// 有仓位时，判断当前持仓方向是否与策略相同
-	holdedOrder := model.Order{}
-	if _, ok := existOrders[model.OrderTypeLimit]; ok {
-		// 判断是否已有仓位已有仓位则平仓
-		positionOrders, ok := existOrders[model.OrderTypeLimit][model.OrderStatusTypeFilled]
-		if ok && len(positionOrders) > 0 {
-			for _, positionOrder := range positionOrders {
-				// 原始单方向和当前策略判断方向相同，保留原始单
-				if positionOrder.Side == finalPosition {
-					holdedOrder = *positionOrder
-					continue
-				}
-				// 计算相对分界线距离
-				if calc.Abs(0.5-longShortRatio) < calc.Abs(0.5-positionOrder.LongShortRatio) {
-					holdedOrder = *positionOrder
-					continue
-				}
+			// 平仓已成交的订单
+			if positionOrder.Status == model.OrderStatusTypeFilled {
 				if positionOrder.Side == model.SideTypeBuy {
 					tempSideType = model.SideTypeSell
-					postionSide = model.PositionSideTypeLong
 				} else {
 					tempSideType = model.SideTypeBuy
-					postionSide = model.PositionSideTypeShort
 				}
 				// 判断仓位方向为反方向，平掉现有仓位
-				_, err := s.broker.CreateOrderStopMarket(tempSideType, postionSide, option.Pair, positionOrder.Quantity, currentPirce, positionOrder.OrderFlag, positionOrder.LongShortRatio, positionOrder.MatchStrategy)
+				_, err := s.broker.CreateOrderMarket(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, model.OrderExtra{
+					OrderFlag:      positionOrder.OrderFlag,
+					LongShortRatio: positionOrder.LongShortRatio,
+					MatchStrategy:  positionOrder.MatchStrategy,
+				})
 				if err != nil {
 					utils.Log.Error(err)
-					continue
+					return
 				}
 				// 删除止损时间限制配置
 				delete(s.lossLimitTimes, positionOrder.OrderFlag)
 			}
-		}
-		// 判断是否有未成交的限价挂单，有的时候取消挂单
-		if holdedOrder.ExchangeID == 0 {
-			positionNewOrders, ok := existOrders[model.OrderTypeLimit][model.OrderStatusTypeNew]
-			if ok && len(positionNewOrders) > 0 {
-				for _, positionNewOrder := range positionNewOrders {
-					// 原始止损单方向和当前策略判断方向相同，则取消原始止损单
-					if positionNewOrder.Side == finalPosition {
-						holdedOrder = *positionNewOrder
-						continue
-					}
-					// 计算相对分界线距离
-					if calc.Abs(0.5-longShortRatio) < calc.Abs(0.5-positionNewOrder.LongShortRatio) {
-						holdedOrder = *positionNewOrder
-						continue
-					}
-					// 取消之前的限价单
-					err = s.broker.Cancel(*positionNewOrder)
-					if err != nil {
-						utils.Log.Error(err)
-						return
-					}
+			// 查询当前orderFlag所有的止损单，全部取消
+			lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
+			if !ok {
+				continue
+			}
+			// 循环取消
+			for _, lossLimitOrder := range lossLimitOrders {
+				// 取消之前的止损单
+				err = s.broker.Cancel(*lossLimitOrder)
+				if err != nil {
+					utils.Log.Error(err)
+					return
 				}
 			}
 		}
 	}
+	// 如果还有仓位则保留仓位不在开仓
 	if holdedOrder.ExchangeID > 0 {
 		if s.backtest == false {
 			utils.Log.Infof(
@@ -451,7 +410,10 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 		postionSide = model.PositionSideTypeShort
 	}
 	// 根据最新价格创建限价单
-	order, err := s.broker.CreateOrderLimit(finalPosition, postionSide, option.Pair, amount, currentPirce, longShortRatio, matcherStrategy)
+	order, err := s.broker.CreateOrderLimit(finalPosition, postionSide, option.Pair, amount, currentPirce, model.OrderExtra{
+		LongShortRatio: longShortRatio,
+		MatchStrategy:  matcherStrategy,
+	})
 	if err != nil {
 		utils.Log.Error(err)
 		return
@@ -477,7 +439,19 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 		stopLimitPrice = order.Price + stopLossDistance
 		stopTrigerPrice = order.Price + stopLossDistance*StopLossDistanceRatio
 	}
-	_, err = s.broker.CreateOrderStopLimit(tempSideType, postionSide, option.Pair, amount, stopLimitPrice, stopTrigerPrice, order.OrderFlag, longShortRatio, order.MatchStrategy)
+	_, err = s.broker.CreateOrderStopLimit(
+		tempSideType,
+		postionSide,
+		option.Pair,
+		order.Quantity,
+		stopLimitPrice,
+		stopTrigerPrice,
+		model.OrderExtra{
+			OrderFlag:      order.OrderFlag,
+			LongShortRatio: longShortRatio,
+			MatchStrategy:  order.MatchStrategy,
+		},
+	)
 	if err != nil {
 		utils.Log.Error(err)
 		return
@@ -570,7 +544,12 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 					continue
 				}
 				// 时间超过限制时间，执行时间止损 市价平单
-				_, err := s.broker.CreateOrderStopMarket(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, currentPirce, positionOrder.OrderFlag, positionOrder.LongShortRatio, positionOrder.MatchStrategy)
+				_, err := s.broker.CreateOrderMarket(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, model.OrderExtra{
+					OrderFlag:      positionOrder.OrderFlag,
+					LongShortRatio: positionOrder.LongShortRatio,
+					MatchStrategy:  positionOrder.MatchStrategy,
+				})
+
 				if err != nil {
 					// 如果重新挂限价止损失败则不在取消
 					utils.Log.Error(err)
@@ -627,7 +606,11 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			// 设置新的止损单
 			// 使用滚动利润比保证该止损利润是递增的
 			// 不再判断新的止损价格是否小于之前的止损价格
-			_, err := s.broker.CreateOrderStopMarket(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, stopLimitPrice, positionOrder.OrderFlag, positionOrder.LongShortRatio, positionOrder.MatchStrategy)
+			_, err := s.broker.CreateOrderStopMarket(tempSideType, positionOrder.PositionSide, option.Pair, positionOrder.Quantity, stopLimitPrice, model.OrderExtra{
+				OrderFlag:      positionOrder.OrderFlag,
+				LongShortRatio: positionOrder.LongShortRatio,
+				MatchStrategy:  positionOrder.MatchStrategy,
+			})
 			if err != nil {
 				// 如果重新挂限价止损失败则不在取消
 				utils.Log.Error(err)
@@ -648,29 +631,6 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 			}
 		}
 	}
-}
-
-func (s *ServiceStrategy) getPositionOrders(option model.PairOption, broker reference.Broker) (map[model.OrderType]map[model.OrderStatusType][]*model.Order, error) {
-	// 存储当前存在的仓位和限价单
-	existOrders := map[model.OrderType]map[model.OrderStatusType][]*model.Order{}
-	positionOrders, err := broker.GetCurrentPositionOrders(option.Pair)
-	if err != nil {
-		utils.Log.Error(err)
-		return existOrders, err
-	}
-	if len(positionOrders) > 0 {
-		for _, order := range positionOrders {
-			// 判断当前订单状态
-			if _, ok := existOrders[order.Type]; !ok {
-				existOrders[order.Type] = make(map[model.OrderStatusType][]*model.Order)
-			}
-			if _, ok := existOrders[order.Type][order.Status]; !ok {
-				existOrders[order.Type][order.Status] = []*model.Order{}
-			}
-			existOrders[order.Type][order.Status] = append(existOrders[order.Type][order.Status], order)
-		}
-	}
-	return existOrders, nil
 }
 
 func (s *ServiceStrategy) getExistOrders(option model.PairOption, broker reference.Broker) (map[string]map[string][]*model.Order, error) {

@@ -3,6 +3,7 @@ package calc
 import (
 	"floolishman/model"
 	"math"
+	"math/big"
 )
 
 func Max(a, b float64) float64 {
@@ -24,6 +25,18 @@ func Abs(a float64) float64 {
 		return -a
 	}
 	return a
+}
+
+func MulFloat64(a, b float64) float64 {
+	// 将 float64 转换为 *big.Float
+	priceBig := new(big.Float).SetFloat64(a)
+	quantityBig := new(big.Float).SetFloat64(b)
+	// 进行乘法运算
+	totalBig := new(big.Float).Mul(priceBig, quantityBig)
+
+	// 将 *big.Float 转换回 float64
+	total, _ := totalBig.Float64()
+	return total
 }
 
 // CalculateAngle 计算数字序列的方向角度（根据整体趋势）
@@ -100,24 +113,4 @@ func StopLossDistance(profitRatio float64, entryPrice float64, leverage float64,
 		return 0
 	}
 	return Abs(profit / quantity)
-}
-
-func IsRetracement(openPrice float64, currentPrice float64, side model.SideType, volatilityThreshold float64) bool {
-	// 判断是否盈利中
-	isWithoutVolatility := false
-	// 获取环比
-	priceChange := (currentPrice - openPrice) / openPrice
-	volatility := Abs(priceChange) > volatilityThreshold
-	if side == model.SideTypeBuy {
-		if volatility && priceChange < 0 {
-			isWithoutVolatility = true
-		}
-	}
-	if side == model.SideTypeSell {
-		if volatility && priceChange > 0 {
-			isWithoutVolatility = true
-		}
-	}
-	// 只有在盈利中且波动在合理范围内时，返回 true
-	return isWithoutVolatility
 }

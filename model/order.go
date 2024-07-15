@@ -34,6 +34,12 @@ var (
 	OrderStatusTypeExpired         OrderStatusType = "EXPIRED"
 )
 
+type OrderExtra struct {
+	OrderFlag      string
+	LongShortRatio float64
+	MatchStrategy  map[string]int
+}
+
 type Order struct {
 	ID            int64            `db:"id" json:"id" gorm:"primaryKey,autoIncrement"`
 	ExchangeID    int64            `db:"exchange_id" json:"exchange_id"`
