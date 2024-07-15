@@ -27,7 +27,7 @@
     },
     "storage": {
         "driver": "buntdb",
-        "path": "runtime/data/floolishman.buntdb"
+        "path": "runtime/data/floolishman.db"
     },
     "log": {
         "level": "info",

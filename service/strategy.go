@@ -50,11 +50,11 @@ type ServiceStrategy struct {
 var (
 	CancelLimitDuration   time.Duration = 60
 	CheckOpenInterval     time.Duration = 10
-	CheckCloseInterval    time.Duration = 2
+	CheckCloseInterval    time.Duration = 500
 	CheckStrategyInterval time.Duration = 1
 	ResetStrategyInterval time.Duration = 120
 	StopLossDistanceRatio float64       = 0.9
-	OpenPassCountLimit                  = 10
+	OpenPassCountLimit                  = 20
 )
 
 func NewServiceStrategy(
@@ -140,7 +140,7 @@ func (s *ServiceStrategy) TickerCheckForClose(options map[string]model.PairOptio
 	for {
 		select {
 		// 定时查询当前是否有仓位
-		case <-time.After(CheckCloseInterval * time.Second):
+		case <-time.After(CheckCloseInterval * time.Millisecond):
 			for _, option := range options {
 				s.closeOption(option)
 			}
@@ -158,7 +158,7 @@ func (s *ServiceStrategy) CheckForFrequency() {
 
 func (s *ServiceStrategy) StartJudger(pair string) {
 	tickerCheck := time.NewTicker(CheckStrategyInterval * time.Second)
-	tickerClose := time.NewTicker(CheckCloseInterval * time.Second)
+	tickerClose := time.NewTicker(CheckCloseInterval * time.Millisecond)
 	tickerReset := time.NewTicker(ResetStrategyInterval * time.Second)
 	for {
 		select {
@@ -296,18 +296,19 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 	// 策略通过，判断当前是否已有未成交的限价单
 	// 判断之前是否已有未成交的限价单
 	// 直接获取当前交易对订单
-	existOrders, err := s.getPositionOrders(option, s.broker)
-	if err != nil {
-		utils.Log.Error(err)
-		return
-	}
+
 	// 原始为空 止损为多  当前为多
 	// 判断当前是否已有限价止损单
 	// 有限价止损单时，判断止损方向和当前方向一致说明反向了
 	// 在判断新的多空比和开仓多空比的大小，新的多空比绝对值比旧的小，需要继续持仓
 	// 反之取消所有的限价止损单
+	existOrders, err := s.getPositionOrders(option, s.broker)
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	// 取消限价止损单
 	if _, ok := existOrders[model.OrderTypeStop]; ok {
-		// 取消限价止损单
 		stopLimitOrders, ok := existOrders[model.OrderTypeStop][model.OrderStatusTypeNew]
 		if ok && len(stopLimitOrders) > 0 {
 			for _, stopLimitOrder := range stopLimitOrders {
@@ -327,9 +328,11 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 				}
 			}
 		}
-		// 取消市价止损单
+	}
+	// 取消市价止损单
+	if _, ok := existOrders[model.OrderTypeStopMarket]; ok {
 		stopLimitMarketOrders, ok := existOrders[model.OrderTypeStopMarket][model.OrderStatusTypeNew]
-		if ok && len(stopLimitOrders) > 0 {
+		if ok && len(stopLimitMarketOrders) > 0 {
 			for _, stopLimitMarketOrder := range stopLimitMarketOrders {
 				// 原始止损单方向和当前策略判断方向相同，则取消原始止损单
 				if stopLimitMarketOrder.Side != finalPosition {
@@ -348,13 +351,14 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 			}
 		}
 	}
+
 	currentPirce := s.pairPrices[option.Pair]
 	// 判断当前是否已有仓位
 	// 仓位类型双向持仓 下单时根据类型可下对冲单。通过协程提升平仓在开仓的效率
 	// 有仓位时，判断当前持仓方向是否与策略相同
 	holdedOrder := model.Order{}
 	if _, ok := existOrders[model.OrderTypeLimit]; ok {
-		// 判断是否已有仓位
+		// 判断是否已有仓位已有仓位则平仓
 		positionOrders, ok := existOrders[model.OrderTypeLimit][model.OrderStatusTypeFilled]
 		if ok && len(positionOrders) > 0 {
 			for _, positionOrder := range positionOrders {
@@ -385,6 +389,7 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 				delete(s.lossLimitTimes, positionOrder.OrderFlag)
 			}
 		}
+		// 判断是否有未成交的限价挂单，有的时候取消挂单
 		if holdedOrder.ExchangeID == 0 {
 			positionNewOrders, ok := existOrders[model.OrderTypeLimit][model.OrderStatusTypeNew]
 			if ok && len(positionNewOrders) > 0 {
