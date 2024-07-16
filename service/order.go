@@ -4,6 +4,7 @@ import (
 	"context"
 	"floolishman/reference"
 	"floolishman/utils"
+	"floolishman/utils/calc"
 	"fmt"
 	"math"
 	"os"
@@ -123,7 +124,7 @@ func (s summary) String() string {
 		{"Trades", strconv.Itoa(len(s.Lose()) + len(s.Win()))},
 		{"Win", strconv.Itoa(len(s.Win()))},
 		{"Loss", strconv.Itoa(len(s.Lose()))},
-		{"% Win", fmt.Sprintf("%.1f", s.WinPercentage())},
+		{"Win.Percent", fmt.Sprintf("%.1f", s.WinPercentage())},
 		{"Payoff", fmt.Sprintf("%.1f", s.Payoff()*100)},
 		{"Pr.Fact", fmt.Sprintf("%.1f", s.ProfitFactor()*100)},
 		{"Profit", fmt.Sprintf("%.4f %s", s.Profit(), quote)},
@@ -205,8 +206,8 @@ type Position struct {
 func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 	price := order.Price
 	// 多单
+	// 平仓
 	if p.PositionSide == order.PositionSide && p.PositionSide == model.PositionSideTypeLong {
-		// 平仓
 		if p.Side != order.Side && p.Side == model.SideTypeBuy {
 			if p.Quantity == order.Quantity {
 				finished = true
@@ -214,7 +215,7 @@ func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 				p.Quantity -= order.Quantity
 			}
 
-			quantity := order.Quantity
+			quantity := calc.Abs(order.Quantity)
 			order.Profit = (price - p.AvgPrice) / p.AvgPrice
 			order.ProfitValue = (price - p.AvgPrice) * quantity
 
@@ -233,16 +234,15 @@ func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 	}
 	// 空单
 	if p.PositionSide == order.PositionSide && p.PositionSide == model.PositionSideTypeShort {
-		// 开仓
+		// 平仓
 		if p.Side != order.Side && p.Side == model.SideTypeSell {
-			// 平仓
 			if p.Quantity == order.Quantity {
 				finished = true
 			} else {
 				p.Quantity -= order.Quantity
 			}
 
-			quantity := order.Quantity
+			quantity := calc.Abs(order.Quantity)
 			order.Profit = (p.AvgPrice - price) / p.AvgPrice
 			order.ProfitValue = (p.AvgPrice - price) * quantity
 
@@ -533,7 +533,92 @@ func (c *ServiceOrder) Status() Status {
 }
 
 func (c *ServiceOrder) ListenUpdateOrders() {
-	c.updateOrders()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	//pending orders
+	orders, err := c.storage.Orders(
+		storage.WithStatusIn(
+			model.OrderStatusTypeNew,
+			model.OrderStatusTypeFilled,
+			model.OrderStatusTypePartiallyFilled,
+			model.OrderStatusTypePendingCancel,
+		),
+		storage.WithTradingStatus(0),
+	)
+	if err != nil {
+		c.notifyError(err)
+		c.mtx.Unlock()
+		return
+	}
+
+	processedPositionOrders := map[string]*model.Order{}
+	// For each pending order, check for updates
+	var updatedOrders []model.Order
+	for _, order := range orders {
+		if _, ok := processedPositionOrders[order.ClientOrderId]; ok {
+			continue
+		}
+		excOrder, err := c.exchange.Order(order.Pair, order.ExchangeID)
+		if err != nil {
+			utils.Log.WithField("id", order.ExchangeID).Error("orderControler/get: ", err)
+			continue
+		}
+
+		excOrder.ID = order.ID
+		excOrder.OrderFlag = order.OrderFlag
+		excOrder.Type = order.Type
+		excOrder.LongShortRatio = order.LongShortRatio
+		excOrder.MatchStrategy = order.MatchStrategy
+
+		// 判断交易状态,如果已完成，关闭仓位 及止盈止损仓位
+		if excOrder.Status == model.OrderStatusTypeFilled {
+			if excOrder.Type == model.OrderTypeStop || // 限价止损单
+				excOrder.Type == model.OrderTypeStopMarket || // 市价止损单
+				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) || // 市价平仓多单
+				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) { // 市价平仓空单
+				// 修改当前止损止盈单状态为已交易完成
+				excOrder.TradingStatus = 1
+				// 修改当前止损止盈单关联的仓位为已交易完成
+				positionOrders, err := c.storage.Orders(
+					storage.WithOrderTypeIn(model.OrderTypeLimit),
+					storage.WithStatusIn(model.OrderStatusTypeFilled),
+					storage.WithOrderFlag(excOrder.OrderFlag),
+					storage.WithTradingStatus(0),
+				)
+				if err != nil {
+					c.notifyError(err)
+					c.mtx.Unlock()
+					return
+				}
+				if len(positionOrders) > 0 {
+					for _, positionOrder := range positionOrders {
+						positionOrder.TradingStatus = 1
+						err = c.storage.UpdateOrder(positionOrder)
+						if err != nil {
+							c.notifyError(err)
+							continue
+						}
+						processedPositionOrders[positionOrder.ClientOrderId] = positionOrder
+					}
+				}
+			}
+		}
+
+		err = c.storage.UpdateOrder(&excOrder)
+		if err != nil {
+			c.notifyError(err)
+			continue
+		}
+
+		utils.Log.Infof("[ORDER %s] %s", excOrder.Status, excOrder)
+		updatedOrders = append(updatedOrders, excOrder)
+	}
+
+	for _, processOrder := range updatedOrders {
+		c.processTrade(&processOrder)
+		c.orderFeed.Publish(processOrder, false)
+	}
 }
 
 func (c *ServiceOrder) Start() {
@@ -614,7 +699,7 @@ func (c *ServiceOrder) CreateOrderMarket(side model.SideType, positionSide model
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	utils.Log.Infof("[ORDER] Creating MARKET %s order for %s", side, pair)
+	utils.Log.Infof("[ORDER] Creating MARKET %s order for: %s", side, pair, extra.OrderFlag)
 	order, err := c.exchange.CreateOrderMarket(side, positionSide, pair, size, extra)
 	if err != nil {
 		c.notifyError(err)
@@ -637,7 +722,7 @@ func (c *ServiceOrder) CreateOrderStopLimit(side model.SideType, positionSide mo
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	utils.Log.Infof("[ORDER] Creating STOP LIMIT %s order for %s", side, pair)
+	utils.Log.Infof("[ORDER] Creating STOP LIMIT %s order for %s: %s", side, pair, extra.OrderFlag)
 	order, err := c.exchange.CreateOrderStopLimit(side, positionSide, pair, size, limit, stopPrice, extra)
 	if err != nil {
 		c.notifyError(err)
@@ -658,7 +743,7 @@ func (c *ServiceOrder) CreateOrderStopMarket(side model.SideType, positionSide m
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	utils.Log.Infof("[ORDER] Creating STOP MARKET %s order for %s", side, pair)
+	utils.Log.Infof("[ORDER] Creating STOP MARKET %s order for %s: %s", side, pair, extra.OrderFlag)
 	order, err := c.exchange.CreateOrderStopMarket(side, positionSide, pair, size, stopPrice, extra)
 	if err != nil {
 		c.notifyError(err)

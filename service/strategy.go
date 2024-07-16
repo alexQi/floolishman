@@ -244,9 +244,6 @@ func (s *ServiceStrategy) checkPosition(option model.PairOption) (float64, float
 	matchers := s.strategy.CallMatchers(s.samples[option.Pair])
 	finalTendency, currentMatchers := s.Sanitizer(matchers)
 	longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(finalTendency, currentMatchers)
-	if len(currentMatchers) > 0 {
-		fmt.Print(currentMatchers)
-	}
 	// 判断策略结果
 	if s.backtest == false && len(currentMatchers) > 0 {
 		utils.Log.Infof(
@@ -915,13 +912,11 @@ func (s *ServiceStrategy) OnCandleForBacktest(timeframe string, candle model.Can
 	s.updateDataFrame(timeframe, candle)
 	s.OnRealCandle(timeframe, candle)
 	if s.started {
-		//s.broker.ListenUpdateOrders()
 		assetPosition, quotePosition, longShortRatio, matcherStrategy := s.checkPosition(s.pairOptions[candle.Pair])
 		if longShortRatio >= 0 {
 			// 监听exchange订单，更新订单控制器
 			s.openPosition(s.pairOptions[candle.Pair], assetPosition, quotePosition, longShortRatio, matcherStrategy)
 		}
-		//s.broker.ListenUpdateOrders()
 		s.closeOption(s.pairOptions[candle.Pair])
 		//s.broker.ListenUpdateOrders()
 	}
