@@ -215,7 +215,6 @@ func (s *ServiceStrategy) StartJudger(pair string) {
 			// 执行移动止损平仓
 			s.closeOption(s.pairOptions[pair])
 		case <-tickerReset.C:
-			// todo 本次周期结束时，判断开仓信号是否消失，信号消失，且有盈利就平仓
 			utils.Log.Infof("[JUDGE RESET] Pair: %s | TendencyCount: %v", pair, s.positionJudgers[pair].TendencyCount)
 			s.ResetJudger(pair)
 		}
@@ -392,7 +391,6 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 					return
 				}
 			}
-
 		}
 	}
 	// 如果还有仓位则保留仓位不在开仓
@@ -588,8 +586,6 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 				)
 				// 删除止损时间限制配置
 				delete(s.lossLimitTimes, positionOrder.OrderFlag)
-				// 重置judger结果
-				s.ResetJudger(option.Pair)
 				// 盈利利润由开仓时统一重置 不在处理
 				// 取消所有的市价止损单
 				lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
