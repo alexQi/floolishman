@@ -1,7 +1,7 @@
 {
     "mode": "online",
     "pairs": {
-        "ETHUSDT": {
+        "BTCUSDT": {
             "leverage": 100,
             "marginType": "CROSSED"
         }

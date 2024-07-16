@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"floolishman/reference"
+	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/calc"
 	"fmt"
@@ -507,6 +508,11 @@ func (c *ServiceOrder) updateOrders() {
 							continue
 						}
 						processedPositionOrders[positionOrder.ClientOrderId] = positionOrder
+						// 发送订单关闭信号
+						types.OrderCloseChan <- types.OrderCloseSignal{
+							Pair:      positionOrder.Pair,
+							OrderFlag: positionOrder.OrderFlag,
+						}
 					}
 				}
 			}

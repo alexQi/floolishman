@@ -101,6 +101,21 @@ func (s *ServiceStrategy) Start() {
 		s.PeriodCall()
 		utils.Log.Infof("Use default check mode: <interval>")
 	}
+	// 监听仓位关闭信号重置judger
+	go s.RegisterOrderSignal()
+}
+
+func (s *ServiceStrategy) RegisterOrderSignal() {
+	for {
+		select {
+		case orderClose := <-types.OrderCloseChan:
+			s.ResetJudger(orderClose.Pair)
+		case <-time.After(10 * time.Second):
+			time.Sleep(1 * time.Second)
+		default:
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
 
 func (s *ServiceStrategy) CandleCall(pair string) {
@@ -200,6 +215,7 @@ func (s *ServiceStrategy) StartJudger(pair string) {
 			// 执行移动止损平仓
 			s.closeOption(s.pairOptions[pair])
 		case <-tickerReset.C:
+			// todo 本次周期结束时，判断开仓信号是否消失，信号消失，且有盈利就平仓
 			utils.Log.Infof("[JUDGE RESET] Pair: %s | TendencyCount: %v", pair, s.positionJudgers[pair].TendencyCount)
 			s.ResetJudger(pair)
 		}
