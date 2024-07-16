@@ -45,7 +45,7 @@ func main() {
 		strategiesSetting = viper.GetStringSlice("strategies")
 	)
 
-	//utils.Log.SetLevel(5)
+	utils.Log.SetLevel(6)
 	tradingSetting.CheckMode = "candle"
 
 	settings := model.Settings{

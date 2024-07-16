@@ -355,6 +355,15 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 				}
 				// 删除止损时间限制配置
 				delete(s.lossLimitTimes, positionOrder.OrderFlag)
+				utils.Log.Infof(
+					"[REVERSE ORDER - %s ] Pair: %s | Price Open: %v, Close: %v | Quantity: %v |  OrderFlag: %s",
+					positionOrder.PositionSide,
+					option.Pair,
+					positionOrder.Price,
+					currentPirce,
+					positionOrder.Quantity,
+					positionOrder.OrderFlag,
+				)
 			}
 			// 查询当前orderFlag所有的止损单，全部取消
 			lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
@@ -370,6 +379,7 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 					return
 				}
 			}
+
 		}
 	}
 	// 如果还有仓位则保留仓位不在开仓
@@ -549,12 +559,20 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 					LongShortRatio: positionOrder.LongShortRatio,
 					MatchStrategy:  positionOrder.MatchStrategy,
 				})
-
 				if err != nil {
 					// 如果重新挂限价止损失败则不在取消
 					utils.Log.Error(err)
-					continue
+					return
 				}
+				utils.Log.Infof(
+					"[TIMEOUT ORDER - %s ] Pair: %s | Price Open: %v, Close: %v | Quantity: %v |  OrderFlag: %s",
+					positionOrder.PositionSide,
+					option.Pair,
+					positionOrder.Price,
+					currentPirce,
+					positionOrder.Quantity,
+					positionOrder.OrderFlag,
+				)
 				// 删除止损时间限制配置
 				delete(s.lossLimitTimes, positionOrder.OrderFlag)
 				// 重置judger结果
@@ -573,8 +591,6 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 						return
 					}
 				}
-				// 重置jugder数据
-				s.ResetJudger(option.Pair)
 				continue
 			}
 			// 盈利时更新止损终止时间
@@ -646,12 +662,15 @@ func (s *ServiceStrategy) getExistOrders(option model.PairOption, broker referen
 			if _, ok := existOrders[order.OrderFlag]; !ok {
 				existOrders[order.OrderFlag] = make(map[string][]*model.Order)
 			}
-			if order.Type == model.OrderTypeLimit {
+			// 获取所有开仓单子
+			if order.Type == model.OrderTypeLimit ||
+				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong) || (order.Type == model.OrderTypeMarket && order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort) {
 				if _, ok := existOrders[order.OrderFlag]["position"]; !ok {
 					existOrders[order.OrderFlag]["position"] = []*model.Order{}
 				}
 				existOrders[order.OrderFlag]["position"] = append(existOrders[order.OrderFlag]["position"], order)
 			}
+			// 获取所有止损单，此处可不用处理市价平仓单，默认已平仓
 			if (order.Type == model.OrderTypeStop || order.Type == model.OrderTypeStopMarket) && order.Status == model.OrderStatusTypeNew {
 				if _, ok := existOrders[order.OrderFlag]["lossLimit"]; !ok {
 					existOrders[order.OrderFlag]["lossLimit"] = []*model.Order{}

@@ -2,7 +2,7 @@
     "mode": "online",
     "pairs": {
         "ETHUSDT": {
-            "leverage": 100,
+            "leverage": 20,
             "marginType": "CROSSED"
         }
     },
@@ -15,7 +15,7 @@
     ],
     "trading": {
         "checkMode": "frequency",
-        "lossTimeDuration": 30,
+        "lossTimeDuration": 5,
         "fullSpaceRadio": 0.1,
         "baseLossRatio": 0.005,
         "profitableScale": 0.08,

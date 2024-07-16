@@ -386,7 +386,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 }
 
 func (c *ServiceOrder) notify(message string) {
-	utils.Log.Info(message)
+	utils.Log.Tracef(message)
 	if c.notifier != nil {
 		c.notifier.Notify(message)
 	}
@@ -449,9 +449,19 @@ func (c *ServiceOrder) updateOrders() {
 		if _, ok := processedPositionOrders[order.ClientOrderId]; ok {
 			continue
 		}
-		if (order.Type == model.OrderTypeLimit || order.Type == model.OrderTypeMarket) && order.Status == model.OrderStatusTypeFilled {
-			continue
+		// 跳过已开仓成交的单子
+		if order.Status == model.OrderStatusTypeFilled {
+			if order.Type == model.OrderTypeLimit {
+				continue
+			}
+			if order.Type == model.OrderTypeMarket && order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong {
+				continue
+			}
+			if order.Type == model.OrderTypeMarket && order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort {
+				continue
+			}
 		}
+
 		excOrder, err := c.exchange.Order(order.Pair, order.ExchangeID)
 		if err != nil {
 			utils.Log.WithField("id", order.ExchangeID).Error("orderControler/get: ", err)
@@ -469,30 +479,35 @@ func (c *ServiceOrder) updateOrders() {
 		excOrder.MatchStrategy = order.MatchStrategy
 
 		// 判断交易状态,如果已完成，关闭仓位 及止盈止损仓位
-		if excOrder.Status == model.OrderStatusTypeFilled && (excOrder.Type == model.OrderTypeStop || excOrder.Type == model.OrderTypeStopMarket) {
-			// 修改当前止损止盈单状态为已交易完成
-			excOrder.TradingStatus = 1
-			// 修改当前止损止盈单关联的仓位为已交易完成
-			positionOrders, err := c.storage.Orders(
-				storage.WithOrderTypeIn(model.OrderTypeLimit),
-				storage.WithStatusIn(model.OrderStatusTypeFilled),
-				storage.WithOrderFlag(excOrder.OrderFlag),
-				storage.WithTradingStatus(0),
-			)
-			if err != nil {
-				c.notifyError(err)
-				c.mtx.Unlock()
-				return
-			}
-			if len(positionOrders) > 0 {
-				for _, positionOrder := range positionOrders {
-					positionOrder.TradingStatus = 1
-					err = c.storage.UpdateOrder(positionOrder)
-					if err != nil {
-						c.notifyError(err)
-						continue
+		if excOrder.Status == model.OrderStatusTypeFilled {
+			if excOrder.Type == model.OrderTypeStop || // 限价止损单
+				excOrder.Type == model.OrderTypeStopMarket || // 市价止损单
+				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) || // 市价平仓多单
+				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) { // 市价平仓空单
+				// 修改当前止损止盈单状态为已交易完成
+				excOrder.TradingStatus = 1
+				// 修改当前止损止盈单关联的仓位为已交易完成
+				positionOrders, err := c.storage.Orders(
+					storage.WithOrderTypeIn(model.OrderTypeLimit),
+					storage.WithStatusIn(model.OrderStatusTypeFilled),
+					storage.WithOrderFlag(excOrder.OrderFlag),
+					storage.WithTradingStatus(0),
+				)
+				if err != nil {
+					c.notifyError(err)
+					c.mtx.Unlock()
+					return
+				}
+				if len(positionOrders) > 0 {
+					for _, positionOrder := range positionOrders {
+						positionOrder.TradingStatus = 1
+						err = c.storage.UpdateOrder(positionOrder)
+						if err != nil {
+							c.notifyError(err)
+							continue
+						}
+						processedPositionOrders[positionOrder.ClientOrderId] = positionOrder
 					}
-					processedPositionOrders[positionOrder.ClientOrderId] = positionOrder
 				}
 			}
 		}

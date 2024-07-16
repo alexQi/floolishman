@@ -260,6 +260,7 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 		return model.Order{}, err
 	}
 	clientOrderId := strutil.RandomString(12)
+
 	order, err := b.client.NewCreateOrderService().
 		Symbol(pair).
 		NewClientOrderID(clientOrderId).
@@ -267,8 +268,8 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
 		Quantity(b.formatQuantity(pair, quantity, true)).
-		NewOrderResponseType(futures.NewOrderRespTypeRESULT).
 		Do(b.ctx)
+
 	if err != nil {
 		return model.Order{}, err
 	}

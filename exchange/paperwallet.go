@@ -62,8 +62,8 @@ func (p *PaperWallet) AssetsInfo(pair string) model.AssetInfo {
 		MaxQuantity:        math.MaxFloat64,
 		StepSize:           0.00000001,
 		TickSize:           0.00000001,
-		QuotePrecision:     4,
-		BaseAssetPrecision: 4,
+		QuotePrecision:     8,
+		BaseAssetPrecision: 8,
 	}
 }
 

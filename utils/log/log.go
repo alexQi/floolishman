@@ -82,10 +82,10 @@ func writer(logPath string, level string, save uint) *rotatelogs.RotateLogs {
 
 	logier, err := rotatelogs.New(
 		logFullPath+"-%Y%m%d."+viper.GetString("log.suffix"),
-		rotatelogs.WithRotationTime(time.Second),    // 日志切割时间间隔
-		rotatelogs.WithMaxAge(-1),                   // 关闭过期清理
-		rotatelogs.WithLinkName(logFullPath+".out"), // 生成软链，指向最新日志文件
-		rotatelogs.WithRotationCount(int(save)),     // 文件最大保存份数
+		rotatelogs.WithRotationTime(time.Second), // 日志切割时间间隔
+		rotatelogs.WithMaxAge(-1),                // 关闭过期清理
+		rotatelogs.WithRotationCount(int(save)),  // 文件最大保存份数
+		//rotatelogs.WithLinkName(logFullPath+".out"), // 生成软链，指向最新日志文件
 	)
 
 	if err != nil {

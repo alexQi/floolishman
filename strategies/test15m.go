@@ -4,7 +4,6 @@ import (
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/types"
-	"fmt"
 	"reflect"
 )
 
@@ -59,23 +58,13 @@ func (s *Test15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		Score:        s.SortScore(),
 	}
 
-	fmt.Print(df.Close.Last(0))
-	momentums := df.Metadata["momentum"].LastValues(2)
-	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
-	isUpperPinBar, isLowerPinBar, isRise := s.checkPinBar(
-		1.5,
-		df.Open.Last(0),
-		df.Close.Last(0),
-		df.High.Last(0),
-		df.Low.Last(0),
-	)
 	// 趋势判断
-	if strategyPosition.Tendency == "rise" && momentums[0] > 0 && momentums[0] < momentums[1] && !isUpperPinBar {
+	if strategyPosition.Tendency == "rise" {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 	// 动量递减向下 且未下方插针
-	if strategyPosition.Tendency == "down" && momentums[0] < 0 && momentums[0] > momentums[1] && !isRise && !isLowerPinBar {
+	if strategyPosition.Tendency == "down" {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
