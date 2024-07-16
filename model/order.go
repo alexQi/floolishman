@@ -61,8 +61,8 @@ type Order struct {
 	LongShortRatio float64        `db:"long_short_ratio" json:"long_short_ratio"`
 	MatchStrategy  map[string]int `db:"match_strategy" json:"match_strategy"`
 
-	Profit      float64 `json:"profit" gorm:"-"`
-	ProfitValue float64 `json:"profit_value" gorm:"-"`
+	Profit      float64 `json:"profit" gorm:"profit"`
+	ProfitValue float64 `json:"profit_value" gorm:"profit_value"`
 	Candle      Candle  `json:"-" gorm:"-"`
 }
 
