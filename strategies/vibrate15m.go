@@ -65,13 +65,13 @@ func (s *Vibrate15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 
 	if isInBoxRange {
 		// 高点做空
-		if previousPrice > (bbMiddle-bbWaveDistance*8) && emaPriceRatio >= 0.005 {
+		if previousPrice > (bbMiddle+bbWaveDistance*6) && emaPriceRatio >= 0.005 {
 			strategyPosition.Useable = true
 			strategyPosition.Side = model.SideTypeSell
 		}
 
 		// 低点做多
-		if previousPrice < (bbMiddle-bbWaveDistance*8) && emaPriceRatio >= 0.005 {
+		if previousPrice < (bbMiddle-bbWaveDistance*6) && emaPriceRatio >= 0.005 {
 			strategyPosition.Useable = true
 			strategyPosition.Side = model.SideTypeBuy
 		}
