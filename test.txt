@@ -3,11 +3,11 @@
         "MomentumVolume15m",
         "Rsi15m",
         "Emacross15m",
-        "Emacross1h",
-        "Rsi1h"
+        "Vibrate15m",
+        "Kc15m"
 
 go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 1h --futures --days 2 --output ./testdata/eth-1h.csv
-go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 15m --futures --days 2 --output ./testdata/eth-15m.csv
+go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 15m --futures --output ./testdata/eth-15m.csv --days 2
 
 
 go run cmd/tools/cmd.go download --pair BTCUSDT --timeframe 1h --futures --days 7 --output ./testdata/btc-1h.csv

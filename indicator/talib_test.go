@@ -1,7 +1,6 @@
 package indicator
 
 import (
-	"floolishman/utils/calc"
 	"fmt"
 	"math"
 	"testing"
@@ -76,9 +75,18 @@ func CalculateAngle(sequence []float64) float64 {
 }
 
 func TestA(t *testing.T) {
-	// 示例数据：布林带中轨价格序列
-	// 定义一个特定的时间
-	a := []float64{3123.3075757575753, 3122.2842857142855, 3121.799567099567, 3121.5439826839824, 3122.3583116883115, 3123.0663203463196, 3123.530216416, 3124.471774891774, 3125.329826839826, 3126.086709956709}
-	b := calc.CalculateAngle(a)
-	fmt.Print(b)
+	volume := []float64{5, 4, 2}
+	isIncreasing := true
+	isDecreasing := true
+	for i := 1; i < len(volume); i++ {
+		if volume[i] > volume[i-1] {
+			isDecreasing = false
+		} else if volume[i] < volume[i-1] {
+			isIncreasing = false
+		}
+		if !isIncreasing && !isDecreasing {
+			break
+		}
+	}
+	fmt.Print(isIncreasing, isDecreasing)
 }

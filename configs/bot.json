@@ -1,7 +1,7 @@
 {
     "mode": "online",
     "pairs": {
-        "BTCUSDT": {
+        "ETHUSDT": {
             "leverage": 100,
             "marginType": "CROSSED"
         }
@@ -11,15 +11,17 @@
         "Momentum15m",
         "MomentumVolume15m",
         "Rsi15m",
-        "Emacross15m"
+        "Emacross15m",
+        "Vibrate15m",
+        "Kc15m"
     ],
     "trading": {
         "checkMode": "frequency",
-        "lossTimeDuration": 30,
-        "fullSpaceRadio": 0.1,
-        "baseLossRatio": 0.005,
+        "lossTimeDuration": 24,
+        "fullSpaceRadio": 0.15,
+        "baseLossRatio": 0.0047,
         "profitableScale": 0.08,
-        "initProfitRatioLimit": 0.21
+        "initProfitRatioLimit": 0.12
     },
     "proxy": {
         "status": true,

@@ -50,9 +50,9 @@ func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
 	if len(bbMiddlesNotZero) < 10 {
 		return "ambiguity"
 	}
-	tendencyAngle := calc.CalculateAngle(bbMiddlesNotZero[len(bbMiddlesNotZero)-10:])
+	tendencyAngle := calc.CalculateAngle(bbMiddlesNotZero[len(bbMiddlesNotZero)-5:])
 
-	if calc.Abs(tendencyAngle) > 8 {
+	if calc.Abs(tendencyAngle) > 10 {
 		if tendencyAngle > 0 {
 			return "rise"
 		} else {
@@ -62,45 +62,90 @@ func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
 	return "range"
 }
 
+func (bs *BaseStrategy) bactchCheckVolume(volume, avgVolume []float64, weight float64) (bool, string) {
+	isCross := false
+	for i := 0; i < len(volume); i++ {
+		if volume[i] > avgVolume[i]*weight {
+			isCross = true
+		}
+	}
+	isIncreasing := true
+	isDecreasing := true
+	for i := 1; i < len(volume); i++ {
+		if volume[i] > volume[i-1] {
+			isDecreasing = false
+		} else if volume[i] < volume[i-1] {
+			isIncreasing = false
+		}
+		if !isIncreasing && !isDecreasing {
+			break
+		}
+	}
+	direction := "range"
+	if isIncreasing {
+		direction = "rise"
+	} else if isDecreasing {
+		direction = "fall"
+	}
+	return isCross, direction
+}
+
 func (bs *BaseStrategy) bactchCheckPinBar(df *model.Dataframe, count int, weight float64) (bool, bool) {
 	opens := df.Open.LastValues(count)
 	closes := df.Close.LastValues(count)
 	hights := df.High.LastValues(count)
 	lows := df.Low.LastValues(count)
 
-	var isUpperPinBar, isLowerPinBar bool
-	isUpperPinBars := []bool{}
-	isLowerPinBars := []bool{}
+	upperPinBars := []float64{}
+	lowerPinBars := []float64{}
+	var prevBodyLength float64
 	for i := 0; i < count; i++ {
-		isUpperPinBar, isLowerPinBar, _ = bs.checkPinBar(weight, opens[i], closes[i], hights[i], lows[i])
+		if i > 0 {
+			prevBodyLength = calc.Abs(opens[i] - closes[i])
+		}
+		isUpperPinBar, isLowerPinBar, upperShadow, lowerShadow := bs.checkPinBar(weight, 4, prevBodyLength, opens[i], closes[i], hights[i], lows[i])
+		if isUpperPinBar && isLowerPinBar {
+			continue
+		}
 		if isUpperPinBar {
-			isUpperPinBars = append(isUpperPinBars, isUpperPinBar)
+			upperPinBars = append(upperPinBars, upperShadow)
 		}
 		if isLowerPinBar {
-			isLowerPinBars = append(isLowerPinBars, isLowerPinBar)
+			lowerPinBars = append(lowerPinBars, lowerShadow)
 		}
 	}
-	if len(isUpperPinBars) > 0 {
+	var upperLength float64
+	for _, bar := range upperPinBars {
+		upperLength += bar
+	}
+	var lowerLength float64
+	for _, bar := range lowerPinBars {
+		lowerLength += bar
+	}
+	if upperLength > lowerLength {
 		return true, false
-	}
-	if len(isLowerPinBars) > 0 {
+	} else if upperLength < lowerLength {
 		return false, true
+	} else {
+		return false, false
 	}
-	return false, false
 }
 
 // checkPinBar 是否上方插针，是否上方插针，最终方向 true-方向向下，false-方向上香
-func (bs *BaseStrategy) checkPinBar(weight, open, close, hight, low float64) (bool, bool, bool) {
+func (bs *BaseStrategy) checkPinBar(weight, n, prevBodyLength, open, close, hight, low float64) (bool, bool, float64, float64) {
 	upperShadow := hight - calc.Max(open, close)
 	lowerShadow := calc.Min(open, close) - low
 	bodyLength := calc.Abs(open - close)
 
+	if prevBodyLength != 0 && bodyLength/prevBodyLength > n {
+		weight = weight / n
+	}
 	// 上插针条件
 	isUpperPinBar := upperShadow >= weight*bodyLength && lowerShadow <= upperShadow/weight
 	// 下插针条件
 	isLowerPinBar := lowerShadow >= weight*bodyLength && upperShadow <= lowerShadow/weight
 
-	return isUpperPinBar, isLowerPinBar, upperShadow < lowerShadow
+	return isUpperPinBar, isLowerPinBar, upperShadow, lowerShadow
 }
 
 func (bs *BaseStrategy) getCandleColor(open, close float64) string {

@@ -210,11 +210,13 @@ func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 	// 平仓
 	if p.PositionSide == order.PositionSide && p.PositionSide == model.PositionSideTypeLong {
 		if p.Side != order.Side && p.Side == model.SideTypeBuy {
+
 			if p.Quantity == order.Quantity {
 				finished = true
 			} else {
 				p.Quantity -= order.Quantity
 			}
+			finished = true
 
 			quantity := calc.Abs(order.Quantity)
 			order.Profit = (price - p.AvgPrice) / p.AvgPrice
@@ -242,6 +244,8 @@ func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
 			} else {
 				p.Quantity -= order.Quantity
 			}
+
+			finished = true
 
 			quantity := calc.Abs(order.Quantity)
 			order.Profit = (p.AvgPrice - price) / p.AvgPrice
@@ -277,7 +281,7 @@ type ServiceOrder struct {
 	finish         chan bool
 	status         Status
 
-	position map[string]*Position
+	position map[string]map[string]*Position
 }
 
 func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage storage.Storage,
@@ -292,7 +296,7 @@ func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage s
 		Results:        make(map[string]*summary),
 		tickerInterval: time.Second,
 		finish:         make(chan bool),
-		position:       make(map[string]*Position),
+		position:       make(map[string]map[string]*Position),
 	}
 }
 
@@ -324,7 +328,10 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 	// get filled orders before the current order
 	position, ok := c.position[o.Pair]
 	if !ok {
-		c.position[o.Pair] = &Position{
+		c.position[o.Pair] = make(map[string]*Position)
+	}
+	if _, ok = c.position[o.Pair][o.OrderFlag]; !ok {
+		c.position[o.Pair][o.OrderFlag] = &Position{
 			AvgPrice:      o.Price,
 			Quantity:      o.Quantity,
 			CreatedAt:     o.CreatedAt,
@@ -335,7 +342,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		return
 	}
 
-	result, closed := position.Update(o)
+	result, closed := position[o.OrderFlag].Update(o)
 	if closed {
 		delete(c.position, o.Pair)
 	}

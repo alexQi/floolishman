@@ -258,9 +258,12 @@ func (s *ServiceStrategy) checkPosition(option model.PairOption) (float64, float
 	}
 	matchers := s.strategy.CallMatchers(s.samples[option.Pair])
 	finalTendency, currentMatchers := s.Sanitizer(matchers)
+	if len(currentMatchers) > 1 {
+		fmt.Printf("%s", len(currentMatchers))
+	}
 	longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(finalTendency, currentMatchers)
 	// 判断策略结果
-	if s.backtest == false && len(currentMatchers) > 0 {
+	if s.backtest == true && len(currentMatchers) > 0 {
 		utils.Log.Infof(
 			"[JUDGE] Tendency: %s | Pair: %s | LongShortRatio: %.2f | Matchers:【%v】",
 			finalTendency,
@@ -797,8 +800,9 @@ func (s *ServiceStrategy) getStrategyLongShortRatio(finalTendency string, curren
 		} else {
 			if buyDivisor > 0 {
 				longShortRatio = buyDivisor / (buyDivisor + sellDivisor)
+			} else {
+				longShortRatio = 0
 			}
-			longShortRatio = 0
 		}
 	}
 	if longShortRatio < 0 {

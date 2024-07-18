@@ -461,3 +461,58 @@ func Sub(input0, input1 []float64) []float64 {
 func Sum(input []float64, period int) []float64 {
 	return talib.Sum(input, period)
 }
+
+// Highest returns the highest value over the given period.
+func Highest(values []float64, period int) []float64 {
+	result := make([]float64, len(values))
+	for i := 0; i < len(values); i++ {
+		if i < period-1 {
+			result[i] = 0
+		} else {
+			high := values[i]
+			for j := i - period + 1; j <= i; j++ {
+				if values[j] > high {
+					high = values[j]
+				}
+			}
+			result[i] = high
+		}
+	}
+	return result
+}
+
+// Lowest returns the lowest value over the given period.
+func Lowest(values []float64, period int) []float64 {
+	result := make([]float64, len(values))
+	for i := 0; i < len(values); i++ {
+		if i < period-1 {
+			result[i] = 0
+		} else {
+			low := values[i]
+			for j := i - period + 1; j <= i; j++ {
+				if values[j] < low {
+					low = values[j]
+				}
+			}
+			result[i] = low
+		}
+	}
+	return result
+}
+
+// KeltnerChannel calculates the Keltner Channel for the given data
+func KeltnerChannel(close, high, low []float64, period int, multiplier float64) (upper, middle, lower []float64) {
+	middle = EMA(close, period) // 使用EMA作为中轨
+
+	tr := ATR(high, low, close, period) // 使用ATR计算真实波幅
+
+	upper = make([]float64, len(close))
+	lower = make([]float64, len(close))
+
+	for i := 0; i < len(close); i++ {
+		upper[i] = middle[i] + multiplier*tr[i]
+		lower[i] = middle[i] - multiplier*tr[i]
+	}
+
+	return upper, middle, lower
+}

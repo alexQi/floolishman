@@ -8,39 +8,34 @@ import (
 	"reflect"
 )
 
-type Momentum15m struct {
+type Test15m struct {
 	BaseStrategy
 }
 
-func (s Momentum15m) SortScore() int {
+func (s Test15m) SortScore() int {
 	return 80
 }
 
-func (s Momentum15m) Timeframe() string {
+func (s Test15m) Timeframe() string {
 	return "15m"
 }
 
-func (s Momentum15m) WarmupPeriod() int {
+func (s Test15m) WarmupPeriod() int {
 	return 30 // 预热期设定为24个数据点
 }
 
-func (s Momentum15m) Indicators(df *model.Dataframe) {
+func (s Test15m) Indicators(df *model.Dataframe) {
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
-	bbWidth := make([]float64, len(bbUpper))
-	for i := 0; i < len(bbUpper); i++ {
-		bbWidth[i] = bbUpper[i] - bbLower[i]
-	}
 	df.Metadata["bb_upper"] = bbUpper
 	df.Metadata["bb_middle"] = bbMiddle
 	df.Metadata["bb_lower"] = bbLower
-	df.Metadata["bb_width"] = bbWidth
-
-	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
+	df.Metadata["volume"] = df.Volume
 }
 
-func (s *Momentum15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
+func (s *Test15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	strategyPosition := types.StrategyPosition{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
@@ -49,19 +44,27 @@ func (s *Momentum15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		LastAtr:      df.Metadata["atr"].Last(1),
 	}
 
-	ema8 := df.Metadata["ema8"].Last(0)
 	momentums := df.Metadata["momentum"].LastValues(2)
+	volume := df.Metadata["volume"].LastValues(2)
+	avgVolume := df.Metadata["avgVolume"].LastValues(2)
 
-	currentPrice := df.Close.Last(0)
-	emaPriceRatio := calc.Abs(ema8-currentPrice) / ema8
+	isCross, direction := s.bactchCheckVolume(volume, avgVolume, 1.5)
 
+	momentumsDistance := momentums[1] - momentums[0]
 	// 动量向上
-	if (momentums[1]-momentums[0]) > 8 && momentums[0] < momentums[1] && currentPrice < ema8 && emaPriceRatio >= 0.005 {
+	if momentumsDistance > 8 &&
+		momentums[1] < 35 &&
+		isCross &&
+		direction == "rise" {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 	// 动量向下
-	if (momentums[0]-momentums[1]) > 8 && momentums[0] > momentums[1] && currentPrice > ema8 && emaPriceRatio >= 0.005 {
+	if calc.Abs(momentumsDistance) > 8 &&
+		momentumsDistance < 0 &&
+		calc.Abs(momentums[1]) < 18 &&
+		isCross &&
+		direction == "fall" {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}

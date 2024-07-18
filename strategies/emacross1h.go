@@ -49,21 +49,13 @@ func (s *Emacross1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	avgVolume := df.Metadata["avgVolume"].Last(1)
 	volume := df.Metadata["volume"].Last(0)
 
-	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
-	_, _, isRise := s.checkPinBar(
-		1.2,
-		df.Open.Last(0),
-		df.Close.Last(0),
-		df.High.Last(0),
-		df.Low.Last(0),
-	)
 	// 判断量价关系
-	if strategyPosition.Tendency == "rise" && ema8.Crossover(ema21) && volume > avgVolume*2 && isRise {
+	if strategyPosition.Tendency == "rise" && ema8.Crossover(ema21) && volume > avgVolume*2 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 
-	if strategyPosition.Tendency == "down" && ema8.Crossunder(ema21) && volume > avgVolume*2 && !isRise {
+	if strategyPosition.Tendency == "down" && ema8.Crossunder(ema21) && volume > avgVolume*2 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}

@@ -4,6 +4,7 @@ import (
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/types"
+	"floolishman/utils/calc"
 	"reflect"
 )
 
@@ -12,7 +13,7 @@ type MomentumVolume15m struct {
 }
 
 func (s MomentumVolume15m) SortScore() int {
-	return 80
+	return 90
 }
 
 func (s MomentumVolume15m) Timeframe() string {
@@ -30,7 +31,7 @@ func (s MomentumVolume15m) Indicators(df *model.Dataframe) {
 	df.Metadata["bb_lower"] = bbLower
 
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
-	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
+	df.Metadata["avgVolume"] = indicator.EMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
 
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
@@ -46,31 +47,39 @@ func (s *MomentumVolume15m) OnCandle(df *model.Dataframe) types.StrategyPosition
 	}
 
 	momentums := df.Metadata["momentum"].LastValues(2)
-	volume := df.Metadata["volume"].Last(0)
-	avgVolume := df.Metadata["avgVolume"].Last(1)
+	volume := df.Metadata["volume"].LastValues(3)
+	avgVolume := df.Metadata["avgVolume"].LastValues(3)
 
 	openPrice := df.Open.Last(0)
 	closePrice := df.Close.Last(0)
+	momentumsDistance := momentums[1] - momentums[0]
+
+	isCross, _ := s.bactchCheckVolume(volume, avgVolume, 2)
 
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
-	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 3, 1.2)
+	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 1.2)
 	// 趋势判断
-	if (momentums[1]-momentums[0]) > 5 &&
-		momentums[0] < momentums[1] &&
-		volume > (avgVolume*2) &&
+	// 动量正向增长
+	// 7 35
+	if momentumsDistance > 7 &&
+		momentums[1] < 35 &&
+		isCross &&
 		closePrice > openPrice &&
 		!isUpperPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
-	// 动量递减向下 且未下方插针
-	if (momentums[0]-momentums[1]) > 5 &&
-		momentums[0] > momentums[1] &&
-		volume > (avgVolume*2) &&
+	// 动量负向增长
+	// 7 18
+	if momentumsDistance < 0 &&
+		calc.Abs(momentumsDistance) > 7 &&
+		calc.Abs(momentums[1]) < 18 &&
+		isCross &&
 		openPrice > closePrice &&
 		!isLowerPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
+
 	return strategyPosition
 }

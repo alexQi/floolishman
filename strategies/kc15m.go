@@ -7,23 +7,23 @@ import (
 	"reflect"
 )
 
-type Test15m struct {
+type Kc15m struct {
 	BaseStrategy
 }
 
-func (s Test15m) SortScore() int {
+func (s Kc15m) SortScore() int {
 	return 90
 }
 
-func (s Test15m) Timeframe() string {
+func (s Kc15m) Timeframe() string {
 	return "15m"
 }
 
-func (s Test15m) WarmupPeriod() int {
+func (s Kc15m) WarmupPeriod() int {
 	return 50 // 预热期设定为50个数据点
 }
 
-func (s Test15m) Indicators(df *model.Dataframe) {
+func (s Kc15m) Indicators(df *model.Dataframe) {
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
 	df.Metadata["bb_upper"] = bbUpper
 	df.Metadata["bb_middle"] = bbMiddle
@@ -38,7 +38,7 @@ func (s Test15m) Indicators(df *model.Dataframe) {
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 }
 
-func (s *Test15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
+func (s *Kc15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	strategyPosition := types.StrategyPosition{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
@@ -63,7 +63,7 @@ func (s *Test15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	}
 
 	// 求稳的空单进场逻辑
-	if previousPrice > kcUpper && currentPrice < kcUpper && rsi > 70 && (bbUpper-bbLower)/bbMiddle < 0.1 {
+	if previousPrice > kcUpper && currentPrice < kcUpper && rsi > 85 && (bbUpper-bbLower)/bbMiddle < 0.1 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}

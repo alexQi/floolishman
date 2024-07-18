@@ -13,7 +13,7 @@ type Range15m struct {
 }
 
 func (s Range15m) SortScore() int {
-	return 85
+	return 65
 }
 
 func (s Range15m) Timeframe() string {
@@ -65,12 +65,12 @@ func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	momentumsAvg := calc.Abs(momentums[1]+momentums[0]) / 2
 
 	if strategyPosition.Tendency == "range" && calc.Abs(momentumsDistance) < 10 && momentumsAvg < 10 {
-		if rsi > 30 && currentPrice < (bbMiddle-bbWaveDistance*6) && volume < avgVolume*2 {
+		if rsi > 35 && currentPrice < (bbMiddle-bbWaveDistance*6) && volume < avgVolume*2 {
 			strategyPosition.Useable = true
 			strategyPosition.Side = model.SideTypeBuy
 		}
 
-		if rsi < 70 && currentPrice > (bbMiddle+bbWaveDistance*6) && volume < avgVolume*2 {
+		if rsi < 65 && currentPrice > (bbMiddle+bbWaveDistance*6) && volume < avgVolume*2 {
 			strategyPosition.Useable = true
 			strategyPosition.Side = model.SideTypeSell
 		}
