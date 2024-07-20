@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"context"
+	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/strutil"
 	"fmt"
@@ -18,11 +19,6 @@ import (
 
 var ErrNoNeedChangeMarginType int64 = -4046
 
-type ProxyOption struct {
-	Status bool
-	Url    string
-}
-
 type BinanceFuture struct {
 	ctx        context.Context
 	client     *futures.Client
@@ -35,7 +31,7 @@ type BinanceFuture struct {
 	APIKey     string
 	APISecret  string
 
-	ProxyOption ProxyOption
+	ProxyOption types.ProxyOption
 
 	MetadataFetchers []MetadataFetchers
 	PairOptions      []model.PairOption
@@ -74,7 +70,7 @@ func WithBinanceFutureCredentials(key, secret string, keyType string) BinanceFut
 // WithBinanceFutureCredentials will set the credentials for Binance Futures
 func WithBinanceFutureProxy(proxyUrl string) BinanceFutureOption {
 	return func(b *BinanceFuture) {
-		b.ProxyOption = ProxyOption{
+		b.ProxyOption = types.ProxyOption{
 			Status: true,
 			Url:    proxyUrl,
 		}
@@ -240,6 +236,7 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		ExchangeID:     order.OrderID,
 		ClientOrderId:  clientOrderId,
 		OrderFlag:      orderFlag,
+		OpenType:       "binance_futures",
 		CreatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		UpdatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		Pair:           pair,
@@ -249,6 +246,8 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		Status:         model.OrderStatusType(order.Status),
 		Price:          price,
 		Quantity:       quantity,
+		Leverage:       extra.Leverage,
+		GuiderOriginId: extra.GuiderOriginId,
 		LongShortRatio: extra.LongShortRatio,
 		MatchStrategy:  extra.MatchStrategy,
 	}, nil
@@ -292,6 +291,7 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 		ExchangeID:     order.OrderID,
 		ClientOrderId:  clientOrderId,
 		OrderFlag:      orderFlag,
+		OpenType:       "binance_futures",
 		CreatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		UpdatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		Pair:           order.Symbol,
@@ -301,8 +301,13 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 		Status:         model.OrderStatusType(order.Status),
 		Price:          price,
 		Quantity:       quantity,
+		Leverage:       extra.Leverage,
+		GuiderOriginId: extra.GuiderOriginId,
 		LongShortRatio: extra.LongShortRatio,
 		MatchStrategy:  extra.MatchStrategy,
+		GuiderPrice:    extra.GuiderPrice,
+		GuiderQuantity: extra.GuiderQuantity,
+		GuiderAmount:   extra.GuiderAmount,
 	}, nil
 }
 
@@ -345,6 +350,7 @@ func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide m
 		ExchangeID:     order.OrderID,
 		ClientOrderId:  clientOrderId,
 		OrderFlag:      extra.OrderFlag,
+		OpenType:       "binance_futures",
 		CreatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		UpdatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		Pair:           pair,
@@ -354,6 +360,8 @@ func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide m
 		Status:         model.OrderStatusType(order.Status),
 		Price:          price,
 		Quantity:       quantity,
+		Leverage:       extra.Leverage,
+		GuiderOriginId: extra.GuiderOriginId,
 		LongShortRatio: extra.LongShortRatio,
 		MatchStrategy:  extra.MatchStrategy,
 	}, nil
@@ -397,6 +405,7 @@ func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide 
 		ExchangeID:     order.OrderID,
 		ClientOrderId:  clientOrderId,
 		OrderFlag:      extra.OrderFlag,
+		OpenType:       "binance_futures",
 		CreatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		UpdatedAt:      time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		Pair:           pair,
@@ -406,6 +415,8 @@ func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide 
 		Status:         model.OrderStatusType(order.Status),
 		Price:          price,
 		Quantity:       quantity,
+		Leverage:       extra.Leverage,
+		GuiderOriginId: extra.GuiderOriginId,
 		LongShortRatio: extra.LongShortRatio,
 		MatchStrategy:  extra.MatchStrategy,
 	}, nil
@@ -454,7 +465,17 @@ func (p *BinanceFuture) ListenUpdateOrders() {
 	panic("implement me")
 }
 
-func (b *BinanceFuture) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
+func (b *BinanceFuture) GetOrdersForPairOpened(pair string) ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *BinanceFuture) GetOrdersForOpened() ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *BinanceFuture) GetOrdersForUnfilled() ([]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -466,6 +487,8 @@ func (b *BinanceFuture) newFutureOrder(order *futures.Order) model.Order {
 	)
 	cost, _ := strconv.ParseFloat(order.CumQuote, 64)
 	quantity, _ := strconv.ParseFloat(order.ExecutedQuantity, 64)
+	amount, _ := strconv.ParseFloat(order.CumQuote, 64)
+
 	if cost > 0 && quantity > 0 {
 		price = cost / quantity
 	} else {
@@ -483,6 +506,7 @@ func (b *BinanceFuture) newFutureOrder(order *futures.Order) model.Order {
 		ExchangeID:    order.OrderID,
 		ClientOrderId: order.ClientOrderID,
 		Pair:          order.Symbol,
+		Amount:        amount,
 		CreatedAt:     time.Unix(0, order.Time*int64(time.Millisecond)),
 		UpdatedAt:     time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
 		Side:          model.SideType(order.Side),

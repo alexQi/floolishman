@@ -1,0 +1,28 @@
+{
+    "listen": {
+        "http": "0.0.0.0:8080"
+    },
+    "log": {
+        "level": "info",
+        "flag": "floolishman",
+        "path": "runtime/logs",
+        "suffix": "log",
+        "stdout": true
+    },
+    "ses": {
+        "path": "storage/"
+    },
+    "http": {
+        "Timeout": 0,
+        "Transport": {
+            "IdleConnTimeout": 90,
+            "ResponseHeaderTimeout": 90,
+            "ExpectContinueTimeout": 1,
+            "TLSHandshakeTimeout": 5,
+            "DialContext": {
+                "Timeout": 30,
+                "KeepAlive": 30
+            }
+        }
+    }
+}

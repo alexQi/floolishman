@@ -4,6 +4,10 @@
         "ETHUSDT": {
             "leverage": 100,
             "marginType": "CROSSED"
+        },
+        "BTCUSDT": {
+            "leverage": 100,
+            "marginType": "CROSSED"
         }
     },
     "strategies": [
@@ -16,8 +20,9 @@
         "Kc15m"
     ],
     "trading": {
-        "checkMode": "frequency",
-        "lossTimeDuration": 24,
+        "checkMode": "watchdog",
+        "followSymbol": true,
+        "lossTimeDuration": 40,
         "fullSpaceRadio": 0.15,
         "baseLossRatio": 0.0047,
         "profitableScale": 0.08,
@@ -28,15 +33,8 @@
         "url": "http://127.0.0.1:7890"
     },
     "storage": {
-        "driver": "buntdb",
+        "driver": "sqlite",
         "path": "runtime/data/floolishman.db"
-    },
-    "log": {
-        "level": "info",
-        "flag": "floolishman",
-        "path": "runtime/logs",
-        "suffix": "log",
-        "stdout": true
     },
     "api": {
         "encrypt": "ED25519",

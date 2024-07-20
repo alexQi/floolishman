@@ -11,8 +11,12 @@ import (
 	"floolishman/types"
 	"floolishman/utils"
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/glebarez/sqlite"
 	"github.com/spf13/viper"
+	"gorm.io/gorm"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -94,18 +98,34 @@ func main() {
 			Timeframe: "15m",
 		},
 		//exchange.PairFeed{
-		//	Pair:      "ETHUSDT",
-		//	File:      "testdata/eth-1h.csv",
-		//	Timeframe: "1h",
+		//	Pair:      "BTCUSDT",
+		//	File:      "testdata/btc-15m.csv",
+		//	Timeframe: "15m",
 		//},
 	)
 
 	// initialize a database in memory
 	//memory, err := storage.FromFile("runtime/data/backtest.db")
-	memory, err := storage.FromMemory()
+	//memory, err := storage.FromMemory()
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+
+	storagePath := viper.GetString("storage.path")
+	dir := filepath.Dir(storagePath)
+	// 判断文件目录是否存在
+	_, err = os.Stat(dir)
+	if err != nil {
+		err = os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			utils.Log.Panicf("mkdir error : %s", err.Error())
+		}
+	}
+	st, err := storage.FromSQL(sqlite.Open(storagePath), &gorm.Config{})
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	// create a paper wallet for simulation, initializing with 10.000 USDT
 	wallet := exchange.NewPaperWallet(
 		ctx,
@@ -121,7 +141,7 @@ func main() {
 		tradingSetting,
 		compositesStrategy,
 		bot.WithBacktest(wallet),
-		bot.WithStorage(memory),
+		bot.WithStorage(st),
 	)
 	if err != nil {
 		utils.Log.Fatalln(err)

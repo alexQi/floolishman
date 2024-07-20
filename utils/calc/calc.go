@@ -75,7 +75,7 @@ func PositionSize(balance, leverage, currentPrice float64) float64 {
 
 func OpenPositionSize(balance, leverage, currentPrice float64, scoreRadio float64, fullSpaceRadio float64) float64 {
 	var amount float64
-	fullPositionSize := (balance * leverage) / currentPrice
+	fullPositionSize := PositionSize(balance, leverage, currentPrice)
 	if scoreRadio >= 0.5 {
 		amount = fullPositionSize * fullSpaceRadio
 	} else {

@@ -36,34 +36,43 @@ var (
 
 type OrderExtra struct {
 	OrderFlag      string
+	GuiderOriginId string
 	LongShortRatio float64
+	Leverage       int
+	GuiderPrice    float64
+	GuiderQuantity float64
+	GuiderAmount   float64
 	MatchStrategy  map[string]int
 }
 
 type Order struct {
-	ID            int64            `db:"id" json:"id" gorm:"primaryKey,autoIncrement"`
-	ExchangeID    int64            `db:"exchange_id" json:"exchange_id"`
-	ClientOrderId string           `db:"client_order_id" json:"client_order_id"`
-	OrderFlag     string           `db:"order_flag" json:"order_flag"`
-	Pair          string           `db:"pair" json:"pair"`
-	Side          SideType         `db:"side" json:"side"`
-	Type          OrderType        `db:"type" json:"type"`
-	Status        OrderStatusType  `db:"status" json:"status"`
-	Price         float64          `db:"price" json:"price"`
-	Quantity      float64          `db:"quantity" json:"quantity"`
-	PositionSide  PositionSideType `db:"position_side" json:"position_side"`
-	TradingStatus int64            `db:"trading_status" json:"trading_status"`
+	ID             int64            `db:"id" json:"id" gorm:"primaryKey,autoIncrement"`
+	OpenType       string           `db:"open_type" json:"open_type"`
+	ExchangeID     int64            `db:"exchange_id" json:"exchange_id"`
+	ClientOrderId  string           `db:"client_order_id" json:"client_order_id"`
+	OrderFlag      string           `db:"order_flag" json:"order_flag"`
+	Pair           string           `db:"pair" json:"pair"`
+	Side           SideType         `db:"side" json:"side"`
+	Type           OrderType        `db:"type" json:"type"`
+	Status         OrderStatusType  `db:"status" json:"status"`
+	Price          float64          `db:"price" json:"price"`
+	Quantity       float64          `db:"quantity" json:"quantity"`
+	Amount         float64          `db:"amount" json:"amount"`
+	PositionSide   PositionSideType `db:"position_side" json:"position_side"`
+	TradingStatus  int              `db:"trading_status" json:"trading_status"`
+	Leverage       int              `db:"leverage" json:"leverage"`
+	LongShortRatio float64          `db:"long_short_ratio" json:"long_short_ratio"`
+	GuiderOriginId string           `db:"guider_origin_id" json:"guider_origin_id"`
+	GuiderPrice    float64          `db:"guider_price" json:"guider_price"`
+	GuiderQuantity float64          `db:"guider_quantity" json:"guider_quantity"`
+	GuiderAmount   float64          `db:"guider_amount" json:"guider_amount"`
+	CreatedAt      time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time        `db:"updated_at" json:"updated_at"`
+	Profit         float64          `json:"profit" gorm:"profit"`
+	ProfitValue    float64          `json:"profit_value" gorm:"profit_value"`
 
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
-
-	// strategy score
-	LongShortRatio float64        `db:"long_short_ratio" json:"long_short_ratio"`
-	MatchStrategy  map[string]int `db:"match_strategy" json:"match_strategy"`
-
-	Profit      float64 `json:"profit" gorm:"profit"`
-	ProfitValue float64 `json:"profit_value" gorm:"profit_value"`
-	Candle      Candle  `json:"-" gorm:"-"`
+	Candle        Candle         `json:"-" gorm:"-"`
+	MatchStrategy map[string]int `json:"-" gorm:"-"`
 }
 
 func (o Order) String() string {

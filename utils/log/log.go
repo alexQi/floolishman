@@ -24,7 +24,8 @@ func InitLogger() *logrus.Logger {
 
 	err := loglevel.UnmarshalText([]byte(logLevel))
 	if err != nil {
-		Log.Panicf("未知的日志级别：%v", err)
+		loglevel = 4
+		Log.Infof("Use default log Level: INFO")
 	}
 	Log.SetLevel(loglevel)
 

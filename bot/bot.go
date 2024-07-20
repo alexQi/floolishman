@@ -7,6 +7,7 @@ import (
 	"floolishman/model"
 	"floolishman/notification"
 	"floolishman/reference"
+	"floolishman/serv"
 	"floolishman/service"
 	"floolishman/storage"
 	"floolishman/types"
@@ -15,9 +16,7 @@ import (
 	"fmt"
 	"github.com/aybabtme/uniplot/histogram"
 	"github.com/olekukonko/tablewriter"
-	"github.com/spf13/viper"
 	"os"
-	"path/filepath"
 	"strconv"
 	"sync"
 )
@@ -34,6 +33,7 @@ type Bot struct {
 	backtest        bool
 	storage         storage.Storage
 	settings        model.Settings
+	proxyOption     types.ProxyOption
 	strategySetting service.StrategySetting
 	exchange        reference.Exchange
 	notifier        reference.Notifier
@@ -41,6 +41,7 @@ type Bot struct {
 	strategy        types.CompositesStrategy
 	paperWallet     *exchange.PaperWallet
 
+	serviceGuider        *service.ServiceGuider
 	serviceOrder         *service.ServiceOrder
 	serviceStrategy      *service.ServiceStrategy
 	priorityQueueCandles map[string]map[string]*model.PriorityQueue // [pair] [] queue
@@ -60,36 +61,22 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 		strategy:             strategy,
 		orderFeed:            model.NewOrderFeed(),
 		dataFeed:             exchange.NewDataFeed(exch),
+		strategySetting:      strategySetting,
 		priorityQueueCandles: map[string]map[string]*model.PriorityQueue{},
 	}
 	// 加载用户配置
 	for _, option := range options {
 		option(bot)
 	}
-	// 加载storage
-	var err error
-	if bot.storage == nil {
-		storagePath := viper.GetString("storage.path")
-		dir := filepath.Dir(storagePath)
-		// 判断文件目录是否存在
-		_, err := os.Stat(dir)
-		if err != nil {
-			err = os.MkdirAll(dir, os.ModePerm)
-			if err != nil {
-				utils.Log.Panicf("mkdir error : %s", err.Error())
-			}
-		}
-		bot.storage, err = storage.FromFile(storagePath)
-		if err != nil {
-			return nil, err
-		}
-	}
 	// 加载订单服务
 	bot.serviceOrder = service.NewServiceOrder(ctx, exch, bot.storage, bot.orderFeed)
+	// 家在领航员服务
+	bot.serviceGuider = service.NewServiceGuider(ctx, bot.storage, bot.proxyOption, bot.settings.PairOptions)
 	// 加载策略服务
-	bot.serviceStrategy = service.NewServiceStrategy(ctx, strategySetting, strategy, bot.serviceOrder, bot.backtest)
+	bot.serviceStrategy = service.NewServiceStrategy(ctx, strategySetting, strategy, bot.serviceOrder, bot.exchange, bot.serviceGuider, bot.backtest)
 	// 加载通知服务
 	if settings.Telegram.Enabled {
+		var err error
 		bot.telegram, err = notification.NewTelegram(bot.serviceOrder, settings)
 		if err != nil {
 			return nil, err
@@ -108,6 +95,11 @@ func WithBacktest(wallet *exchange.PaperWallet) Option {
 		bot.backtest = true
 		opt := WithPaperWallet(wallet)
 		opt(bot)
+	}
+}
+func WithProxy(option types.ProxyOption) Option {
+	return func(bot *Bot) {
+		bot.proxyOption = option
 	}
 }
 
@@ -340,13 +332,17 @@ func (n *Bot) preload(ctx context.Context, pair string, timeframe string, period
 }
 
 func (n *Bot) SettingPairs(ctx context.Context) {
+	var err error
 	for _, option := range n.settings.PairOptions {
 		utils.Log.Info(option.String())
-		err := n.exchange.SetPairOption(ctx, option)
-		if err != nil {
-			utils.Log.Error(err)
-			return
+		if n.strategySetting.FollowSymbol == false {
+			err = n.exchange.SetPairOption(ctx, option)
+			if err != nil {
+				utils.Log.Error(err)
+				return
+			}
 		}
+
 		n.serviceStrategy.SetPairDataframe(option)
 
 		if n.priorityQueueCandles[option.Pair] == nil {
@@ -372,11 +368,18 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 // Run will initialize the strategy controller, order controller, preload data and start the bot
 func (n *Bot) Run(ctx context.Context) {
 	// 输出策略详情
-	n.strategy.Stdout()
+	if n.strategySetting.FollowSymbol == false {
+		n.strategy.Stdout()
+	}
 	n.orderFeed.Start()
+
+	// 启动订单服务
 	if n.backtest == false {
 		n.serviceOrder.Start()
 		defer n.serviceOrder.Stop()
+	}
+	if n.strategySetting.CheckMode == "watchdog" {
+		n.serviceGuider.Start()
 	}
 
 	n.SettingPairs(ctx)
@@ -404,5 +407,5 @@ func (n *Bot) Run(ctx context.Context) {
 	if n.backtest {
 		n.Summary()
 	}
-	select {}
+	serv.StartHttpServer()
 }

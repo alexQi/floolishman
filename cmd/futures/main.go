@@ -6,13 +6,17 @@ import (
 	"floolishman/exchange"
 	"floolishman/model"
 	"floolishman/service"
+	"floolishman/storage"
 	"floolishman/strategies"
 	"floolishman/types"
 	"floolishman/utils"
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/glebarez/sqlite"
 	"github.com/spf13/viper"
+	"gorm.io/gorm"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -43,6 +47,7 @@ func main() {
 		proxyUrl       = viper.GetString("proxy.url")
 		tradingSetting = service.StrategySetting{
 			CheckMode:            viper.GetString("trading.checkMode"),
+			FollowSymbol:         viper.GetBool("trading.followSymbol"),
 			FullSpaceRadio:       viper.GetFloat64("trading.fullSpaceRadio"),
 			LossTimeDuration:     viper.GetInt("trading.lossTimeDuration"),
 			BaseLossRatio:        viper.GetFloat64("trading.baseLossRatio"),
@@ -119,7 +124,32 @@ func main() {
 	for _, strategyName := range strategiesSetting {
 		compositesStrategy.Strategies = append(compositesStrategy.Strategies, ConstStraties[strategyName])
 	}
-	b, err := bot.NewBot(ctx, settings, binance, tradingSetting, compositesStrategy)
+	storagePath := viper.GetString("storage.path")
+	dir := filepath.Dir(storagePath)
+	// 判断文件目录是否存在
+	_, err = os.Stat(dir)
+	if err != nil {
+		err = os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			utils.Log.Panicf("mkdir error : %s", err.Error())
+		}
+	}
+	st, err := storage.FromSQL(sqlite.Open(storagePath), &gorm.Config{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	b, err := bot.NewBot(
+		ctx,
+		settings,
+		binance,
+		tradingSetting,
+		compositesStrategy,
+		bot.WithStorage(st),
+		bot.WithProxy(types.ProxyOption{
+			Status: proxyStatus,
+			Url:    proxyUrl,
+		}),
+	)
 	if err != nil {
 		utils.Log.Fatalln(err)
 	}

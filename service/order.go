@@ -187,6 +187,7 @@ const (
 
 type Result struct {
 	Pair          string
+	OrderFlag     string // 当前方向仓位标识
 	ProfitPercent float64
 	ProfitValue   float64
 	MatchStrategy map[string]int
@@ -196,76 +197,13 @@ type Result struct {
 }
 
 type Position struct {
+	OrderFlag     string
 	Side          model.SideType
 	PositionSide  model.PositionSideType
 	MatchStrategy map[string]int
 	AvgPrice      float64
 	Quantity      float64
 	CreatedAt     time.Time
-}
-
-func (p *Position) Update(order *model.Order) (result *Result, finished bool) {
-	price := order.Price
-	// 多单
-	// 平仓
-	if p.PositionSide == order.PositionSide && p.PositionSide == model.PositionSideTypeLong {
-		if p.Side != order.Side && p.Side == model.SideTypeBuy {
-
-			if p.Quantity == order.Quantity {
-				finished = true
-			} else {
-				p.Quantity -= order.Quantity
-			}
-			finished = true
-
-			quantity := calc.Abs(order.Quantity)
-			order.Profit = (price - p.AvgPrice) / p.AvgPrice
-			order.ProfitValue = (price - p.AvgPrice) * quantity
-
-			result = &Result{
-				CreatedAt:     order.CreatedAt,
-				Pair:          order.Pair,
-				Duration:      order.CreatedAt.Sub(p.CreatedAt),
-				ProfitPercent: order.Profit,
-				ProfitValue:   order.ProfitValue,
-				Side:          p.Side,
-				MatchStrategy: order.MatchStrategy,
-			}
-
-			return result, finished
-		}
-	}
-	// 空单
-	if p.PositionSide == order.PositionSide && p.PositionSide == model.PositionSideTypeShort {
-		// 平仓
-		if p.Side != order.Side && p.Side == model.SideTypeSell {
-			if p.Quantity == order.Quantity {
-				finished = true
-			} else {
-				p.Quantity -= order.Quantity
-			}
-
-			finished = true
-
-			quantity := calc.Abs(order.Quantity)
-			order.Profit = (p.AvgPrice - price) / p.AvgPrice
-			order.ProfitValue = (p.AvgPrice - price) * quantity
-
-			result = &Result{
-				CreatedAt:     order.CreatedAt,
-				Pair:          order.Pair,
-				Duration:      order.CreatedAt.Sub(p.CreatedAt),
-				ProfitPercent: order.Profit,
-				ProfitValue:   order.ProfitValue,
-				Side:          p.Side,
-				MatchStrategy: order.MatchStrategy,
-			}
-
-			return result, finished
-		}
-	}
-
-	return nil, false
 }
 
 type ServiceOrder struct {
@@ -281,7 +219,7 @@ type ServiceOrder struct {
 	finish         chan bool
 	status         Status
 
-	position map[string]map[string]*Position
+	position map[string]map[string]*model.Position
 }
 
 func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage storage.Storage,
@@ -296,7 +234,7 @@ func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage s
 		Results:        make(map[string]*summary),
 		tickerInterval: time.Second,
 		finish:         make(chan bool),
-		position:       make(map[string]map[string]*Position),
+		position:       make(map[string]map[string]*model.Position),
 	}
 }
 
@@ -308,15 +246,17 @@ func (c *ServiceOrder) OnCandle(candle model.Candle) {
 	c.lastPrice[candle.Pair] = candle.Close
 }
 
-func (c *ServiceOrder) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
+func (c *ServiceOrder) GetOrdersForPairOpened(pair string) ([]*model.Order, error) {
 	orders := []*model.Order{}
 	orders, err := c.storage.Orders(
-		storage.WithPair(pair),
-		storage.WithTradingStatus(0), // 交易状态未完成
-		storage.WithStatusIn(
-			model.OrderStatusTypeNew,    // 未成交订单
-			model.OrderStatusTypeFilled, // 已成交订单
-		),
+		storage.OrderFilterParams{
+			Pair:          pair,
+			TradingStatus: 0,
+			Statuses: []model.OrderStatusType{
+				model.OrderStatusTypeNew,    // 未成交订单
+				model.OrderStatusTypeFilled, // 已成交订单
+			},
+		},
 	)
 	if err != nil {
 		return orders, err
@@ -324,31 +264,148 @@ func (c *ServiceOrder) GetCurrentPositionOrders(pair string) ([]*model.Order, er
 	return orders, nil
 }
 
-func (c *ServiceOrder) updatePosition(o *model.Order) {
-	// get filled orders before the current order
-	position, ok := c.position[o.Pair]
-	if !ok {
-		c.position[o.Pair] = make(map[string]*Position)
+func (c *ServiceOrder) GetOrdersForOpened() ([]*model.Order, error) {
+	orders := []*model.Order{}
+	orders, err := c.storage.Orders(
+		storage.OrderFilterParams{
+			TradingStatus: 0,
+			Statuses: []model.OrderStatusType{
+				model.OrderStatusTypeFilled,          // 未成交订单
+				model.OrderStatusTypePartiallyFilled, // 已成交订单
+			},
+		},
+	)
+	if err != nil {
+		return orders, err
 	}
-	if _, ok = c.position[o.Pair][o.OrderFlag]; !ok {
-		c.position[o.Pair][o.OrderFlag] = &Position{
-			AvgPrice:      o.Price,
-			Quantity:      o.Quantity,
-			CreatedAt:     o.CreatedAt,
-			Side:          o.Side,
-			PositionSide:  o.PositionSide,
-			MatchStrategy: o.MatchStrategy,
+	return orders, nil
+}
+
+func (c *ServiceOrder) GetOrdersForUnfilled() ([]*model.Order, error) {
+	orders := []*model.Order{}
+	orders, err := c.storage.Orders(
+		storage.OrderFilterParams{
+			TradingStatus: 0,
+			Statuses: []model.OrderStatusType{
+				model.OrderStatusTypeNew, // 未成交订单
+			},
+		},
+	)
+	if err != nil {
+		return orders, err
+	}
+	return orders, nil
+}
+
+func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Result) {
+	if p.PositionSide != string(order.PositionSide) {
+		return nil
+	}
+	price := order.Price
+	if p.Side == string(order.Side) {
+		p.AvgPrice = (p.AvgPrice*p.Quantity + price*order.Quantity) / (p.Quantity + order.Quantity)
+		p.Quantity += order.Quantity
+	} else {
+		if p.PositionSide == string(model.PositionSideTypeLong) {
+			// 平多单
+			if p.Quantity == order.Quantity {
+				p.Status = 1
+			} else {
+				p.Quantity -= order.Quantity
+			}
+			quantity := calc.Abs(order.Quantity)
+			order.Profit = (price - p.AvgPrice) / p.AvgPrice
+			order.ProfitValue = (price - p.AvgPrice) * quantity
+
+			result = &Result{
+				CreatedAt:     order.CreatedAt,
+				Pair:          order.Pair,
+				Duration:      order.CreatedAt.Sub(p.CreatedAt),
+				ProfitPercent: order.Profit,
+				ProfitValue:   order.ProfitValue,
+				Side:          model.SideType(p.Side),
+				MatchStrategy: order.MatchStrategy,
+			}
+		} else {
+			// 平空单
+			if p.Quantity == order.Quantity {
+				p.Status = 1
+			} else {
+				p.Quantity -= order.Quantity
+			}
+			quantity := calc.Abs(order.Quantity)
+			order.Profit = (p.AvgPrice - price) / p.AvgPrice
+			order.ProfitValue = (p.AvgPrice - price) * quantity
+
+			result = &Result{
+				CreatedAt:     order.CreatedAt,
+				Pair:          order.Pair,
+				Duration:      order.CreatedAt.Sub(p.CreatedAt),
+				ProfitPercent: order.Profit,
+				ProfitValue:   order.ProfitValue,
+				Side:          model.SideType(p.Side),
+				MatchStrategy: order.MatchStrategy,
+			}
 		}
-		return
+		return result
 	}
 
-	result, closed := position[o.OrderFlag].Update(o)
-	if closed {
-		delete(c.position, o.Pair)
+	return nil
+}
+
+func (c *ServiceOrder) updatePosition(o *model.Order) {
+	_, ok := c.position[o.Pair]
+	if !ok {
+		c.position[o.Pair] = make(map[string]*model.Position)
+	}
+	position, ok := c.position[o.Pair][o.OrderFlag]
+	// 查询当前内存缓存是否存在仓位，不存在则创建仓位
+	if !ok {
+		// 判断当前订单在数据库中是否有仓位
+		position, err := c.storage.GetPosition(storage.PositionFilterParams{
+			Pair:      o.Pair,
+			OrderFlag: o.OrderFlag,
+			Status:    0,
+		})
+		if err != nil {
+			utils.Log.Error(err)
+			return
+		}
+		// 不存在则创建仓位
+		if position.ID == 0 {
+			position = &model.Position{
+				OrderFlag:     o.OrderFlag,
+				AvgPrice:      o.Price,
+				Quantity:      o.Quantity,
+				CreatedAt:     o.CreatedAt,
+				Side:          string(o.Side),
+				PositionSide:  string(o.PositionSide),
+				MatchStrategy: o.MatchStrategy,
+			}
+			err := c.storage.CreatePosition(position)
+			if err != nil {
+				utils.Log.Error(err)
+				return
+			}
+			c.position[o.Pair][o.OrderFlag] = position
+			return
+		} else {
+			c.position[o.Pair][o.OrderFlag] = position
+		}
+	}
+
+	result := c.Update(position, o)
+	if position.Status > 0 {
+		// 更新数据库仓位记录
+		err := c.storage.UpdatePosition(position)
+		if err != nil {
+			return
+		}
+		// 删除内存缓存
+		delete(c.position[o.Pair], o.OrderFlag)
 	}
 
 	if result != nil {
-		// TODO: replace by a slice of Result
 		if result.ProfitPercent >= 0 {
 			if result.Side == model.SideTypeBuy {
 				c.Results[o.Pair].WinLong = append(c.Results[o.Pair].WinLong, result.ProfitValue)
@@ -436,13 +493,15 @@ func (c *ServiceOrder) updateOrders() {
 
 	//pending orders
 	orders, err := c.storage.Orders(
-		storage.WithStatusIn(
-			model.OrderStatusTypeNew,
-			model.OrderStatusTypeFilled,
-			model.OrderStatusTypePartiallyFilled,
-			model.OrderStatusTypePendingCancel,
-		),
-		storage.WithTradingStatus(0),
+		storage.OrderFilterParams{
+			TradingStatus: 0,
+			Statuses: []model.OrderStatusType{
+				model.OrderStatusTypeNew,
+				model.OrderStatusTypeFilled,
+				model.OrderStatusTypePartiallyFilled,
+				model.OrderStatusTypePendingCancel,
+			},
+		},
 	)
 	if err != nil {
 		c.notifyError(err)
@@ -459,13 +518,7 @@ func (c *ServiceOrder) updateOrders() {
 		}
 		// 跳过已开仓成交的单子
 		if order.Status == model.OrderStatusTypeFilled {
-			if order.Type == model.OrderTypeLimit {
-				continue
-			}
-			if order.Type == model.OrderTypeMarket && order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong {
-				continue
-			}
-			if order.Type == model.OrderTypeMarket && order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort {
+			if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort) {
 				continue
 			}
 		}
@@ -483,6 +536,7 @@ func (c *ServiceOrder) updateOrders() {
 		excOrder.ID = order.ID
 		excOrder.OrderFlag = order.OrderFlag
 		excOrder.Type = order.Type
+		excOrder.Amount = order.Amount
 		excOrder.LongShortRatio = order.LongShortRatio
 		excOrder.MatchStrategy = order.MatchStrategy
 
@@ -492,14 +546,17 @@ func (c *ServiceOrder) updateOrders() {
 				excOrder.Type == model.OrderTypeStopMarket || // 市价止损单
 				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) || // 市价平仓多单
 				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) { // 市价平仓空单
-				// 修改当前止损止盈单状态为已交易完成
-				excOrder.TradingStatus = 1
-				// 修改当前止损止盈单关联的仓位为已交易完成
 				positionOrders, err := c.storage.Orders(
-					storage.WithOrderTypeIn(model.OrderTypeLimit),
-					storage.WithStatusIn(model.OrderStatusTypeFilled),
-					storage.WithOrderFlag(excOrder.OrderFlag),
-					storage.WithTradingStatus(0),
+					storage.OrderFilterParams{
+						TradingStatus: 0,
+						OrderFlag:     excOrder.OrderFlag,
+						OrderTypes: []model.OrderType{
+							model.OrderTypeLimit,
+						},
+						Statuses: []model.OrderStatusType{
+							model.OrderStatusTypeFilled,
+						},
+					},
 				)
 				if err != nil {
 					c.notifyError(err)
@@ -508,7 +565,12 @@ func (c *ServiceOrder) updateOrders() {
 				}
 				if len(positionOrders) > 0 {
 					for _, positionOrder := range positionOrders {
-						positionOrder.TradingStatus = 1
+						// 修改当前止损止盈单状态为已交易完成
+						// 修改当前止损止盈单关联的仓位为已交易完成
+						if positionOrder.Quantity == excOrder.Quantity {
+							positionOrder.TradingStatus = 1
+							excOrder.TradingStatus = 1
+						}
 						err = c.storage.UpdateOrder(positionOrder)
 						if err != nil {
 							c.notifyError(err)
@@ -551,13 +613,15 @@ func (c *ServiceOrder) ListenUpdateOrders() {
 
 	//pending orders
 	orders, err := c.storage.Orders(
-		storage.WithStatusIn(
-			model.OrderStatusTypeNew,
-			model.OrderStatusTypeFilled,
-			model.OrderStatusTypePartiallyFilled,
-			model.OrderStatusTypePendingCancel,
-		),
-		storage.WithTradingStatus(0),
+		storage.OrderFilterParams{
+			TradingStatus: 0,
+			Statuses: []model.OrderStatusType{
+				model.OrderStatusTypeNew,
+				model.OrderStatusTypeFilled,
+				model.OrderStatusTypePartiallyFilled,
+				model.OrderStatusTypePendingCancel,
+			},
+		},
 	)
 	if err != nil {
 		c.notifyError(err)
@@ -582,6 +646,11 @@ func (c *ServiceOrder) ListenUpdateOrders() {
 		excOrder.OrderFlag = order.OrderFlag
 		excOrder.Type = order.Type
 		excOrder.LongShortRatio = order.LongShortRatio
+		excOrder.Leverage = order.Leverage
+		excOrder.GuiderOriginId = order.GuiderOriginId
+		excOrder.GuiderPrice = order.GuiderPrice
+		excOrder.GuiderQuantity = order.GuiderQuantity
+		excOrder.GuiderAmount = order.GuiderAmount
 		excOrder.MatchStrategy = order.MatchStrategy
 
 		// 判断交易状态,如果已完成，关闭仓位 及止盈止损仓位
@@ -594,10 +663,16 @@ func (c *ServiceOrder) ListenUpdateOrders() {
 				excOrder.TradingStatus = 1
 				// 修改当前止损止盈单关联的仓位为已交易完成
 				positionOrders, err := c.storage.Orders(
-					storage.WithOrderTypeIn(model.OrderTypeLimit),
-					storage.WithStatusIn(model.OrderStatusTypeFilled),
-					storage.WithOrderFlag(excOrder.OrderFlag),
-					storage.WithTradingStatus(0),
+					storage.OrderFilterParams{
+						TradingStatus: 0,
+						OrderFlag:     excOrder.OrderFlag,
+						OrderTypes: []model.OrderType{
+							model.OrderTypeLimit,
+						},
+						Statuses: []model.OrderStatusType{
+							model.OrderStatusTypeFilled,
+						},
+					},
 				)
 				if err != nil {
 					c.notifyError(err)
@@ -606,6 +681,9 @@ func (c *ServiceOrder) ListenUpdateOrders() {
 				}
 				if len(positionOrders) > 0 {
 					for _, positionOrder := range positionOrders {
+						if excOrder.Quantity != positionOrder.Quantity {
+							continue
+						}
 						positionOrder.TradingStatus = 1
 						err = c.storage.UpdateOrder(positionOrder)
 						if err != nil {
@@ -767,10 +845,6 @@ func (c *ServiceOrder) CreateOrderStopMarket(side model.SideType, positionSide m
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
-	}
-	if order.Status == model.OrderStatusTypeFilled {
-		c.processTrade(&order)
-		go c.orderFeed.Publish(order, true)
 	}
 	utils.Log.Infof("[ORDER CREATED] %s", order)
 	return order, nil

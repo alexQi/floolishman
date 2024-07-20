@@ -447,16 +447,7 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 	// 存储限价挂单
 	limitOrders := map[string]model.Order{}
 	for _, order := range p.orders {
-		if order.Type != model.OrderTypeLimit {
-			continue
-		}
-		if order.Type == model.OrderTypeMarket {
-			continue
-		}
-		if order.Type == model.OrderTypeMarket && order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong {
-			continue
-		}
-		if order.Type == model.OrderTypeMarket && order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort {
+		if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort) {
 			continue
 		}
 		limitOrders[order.OrderFlag] = order
@@ -719,6 +710,7 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 		ExchangeID:     p.ID(),
 		ClientOrderId:  clientOrderId,
 		OrderFlag:      orderFlag,
+		OpenType:       "paperwallet",
 		CreatedAt:      p.lastCandle[pair].Time,
 		UpdatedAt:      p.lastCandle[pair].Time,
 		Pair:           pair,
@@ -766,6 +758,7 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 		ExchangeID:     p.ID(),
 		ClientOrderId:  clientOrderId,
 		OrderFlag:      orderFlag,
+		OpenType:       "paperwallet",
 		CreatedAt:      p.lastCandle[pair].Time,
 		UpdatedAt:      p.lastCandle[pair].Time,
 		Pair:           pair,
@@ -816,6 +809,7 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 		ExchangeID:     p.ID(),
 		ClientOrderId:  clientOrderId,
 		OrderFlag:      extra.OrderFlag,
+		OpenType:       "paperwallet",
 		CreatedAt:      p.lastCandle[pair].Time,
 		UpdatedAt:      p.lastCandle[pair].Time,
 		Pair:           pair,
@@ -841,7 +835,6 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 	if quantity == 0 {
 		return model.Order{}, ErrInvalidQuantity
 	}
-	status := model.OrderStatusTypeFilled
 
 	currentQuantity := p.formatQuantity(pair, quantity, false)
 	currentPrice := p.formatPrice(pair, stopPrice)
@@ -849,14 +842,10 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 		// 判断触发时机，当前价格小于触发价格时直接平掉
 		if stopPrice >= p.lastCandle[pair].Close {
 			currentPrice = p.formatPrice(pair, p.lastCandle[pair].Close)
-		} else {
-			status = model.OrderStatusTypeNew
 		}
 	} else {
 		if stopPrice <= p.lastCandle[pair].Close {
 			currentPrice = p.formatPrice(pair, p.lastCandle[pair].Close)
-		} else {
-			status = model.OrderStatusTypeNew
 		}
 	}
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
@@ -869,25 +858,18 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 		ExchangeID:     p.ID(),
 		ClientOrderId:  clientOrderId,
 		OrderFlag:      extra.OrderFlag,
+		OpenType:       "paperwallet",
 		CreatedAt:      p.lastCandle[pair].Time,
 		UpdatedAt:      p.lastCandle[pair].Time,
 		Pair:           pair,
 		Side:           side,
 		PositionSide:   positionSide,
 		Type:           model.OrderTypeStopMarket,
-		Status:         status,
+		Status:         model.OrderStatusTypeNew,
 		Price:          currentPrice,
 		Quantity:       currentQuantity,
 		LongShortRatio: extra.LongShortRatio,
 		MatchStrategy:  extra.MatchStrategy,
-	}
-	if status == model.OrderStatusTypeFilled {
-		order.TradingStatus = 1
-	}
-
-	err = p.updateFunds(&order)
-	if err != nil {
-		return model.Order{}, err
 	}
 
 	p.orders = append(p.orders, order)
@@ -934,7 +916,17 @@ func (p *PaperWallet) findPositonOrder(pair string, orderFlag string, orderType 
 	return model.Order{}, errors.New("order not found")
 }
 
-func (p *PaperWallet) GetCurrentPositionOrders(pair string) ([]*model.Order, error) {
+func (p *PaperWallet) GetOrdersForPairOpened(pair string) ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *PaperWallet) GetOrdersForOpened() ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *PaperWallet) GetOrdersForUnfilled() ([]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }

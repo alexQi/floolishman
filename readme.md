@@ -16,6 +16,7 @@
 ## 安装运行
 
 #### API申请
+
 币安网页版申请api，需要打开允许合约交易，加密方式选择ED25519；具体申请方式请点击[币安文档中心](https://www.binance.com/zh-CN/support/faq/%E5%A6%82%E4%BD%95%E5%9C%A8%E5%B8%81%E5%AE%89%E5%88%9B%E5%BB%BAapi%E5%AF%86%E9%92%A5-360002502072)
 
 #### 修改配置文件
@@ -37,7 +38,7 @@
         "url": "http://127.0.0.1:7890"
     },
     "storage": {
-        "driver": "buntdb",
+        "driver": "sqlite",
         "path": "runtime/data/floolishman.db"
     },
     "log": {
