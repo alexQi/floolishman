@@ -151,6 +151,7 @@ func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 			}
 			if len(userPositions) == 0 {
 				utils.Log.Infof("[Watchdog] guider has not open any postion")
+				break
 			}
 			// 跟随模式下，开仓平仓都跟随看门口
 			if s.followSymbol {
