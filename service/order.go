@@ -419,6 +419,10 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		}
 		// 不存在则创建仓位
 		if position.ID == 0 {
+			// 不是开仓订单。跳过
+			if (o.Side == model.SideTypeBuy && o.PositionSide == model.PositionSideTypeShort) || (o.Side == model.SideTypeSell && o.PositionSide == model.PositionSideTypeLong) {
+				return
+			}
 			position = &model.Position{
 				OrderFlag:      o.OrderFlag,
 				AvgPrice:       o.Price,
@@ -583,8 +587,8 @@ func (c *ServiceOrder) ListenOrders() {
 			c.notifyError(err)
 			continue
 		}
-		// 重新放入策略统计数据
-		excOrder.MatchStrategy = order.MatchStrategy
+		// 重新放入策略统计数据 todo 记录每次订单开仓的策略
+		//excOrder.MatchStrategy = order.MatchStrategy
 		// 放入更新数组
 		utils.Log.Infof("[ORDER %s] %s", excOrder.Status, excOrder)
 		updatedOrders = append(updatedOrders, excOrder)
