@@ -292,8 +292,6 @@ func (n *Bot) processCandles(pair string, timeframe string) {
 }
 
 func (n *Bot) backtestCandles(pair string, timeframe string) {
-	utils.Log.Info("[SETUP] Starting backtesting")
-
 	for n.priorityQueueCandles[pair][timeframe].Len() > 0 {
 		item := n.priorityQueueCandles[pair][timeframe].Pop()
 
@@ -305,7 +303,7 @@ func (n *Bot) backtestCandles(pair string, timeframe string) {
 		// 更新订单最新价格
 		n.serviceOrder.OnCandle(candle)
 		// 监控订单数据变化
-		n.serviceOrder.ListenUpdateOrders()
+		n.serviceOrder.ListenOrders()
 		// 处理开仓策略相关
 		if candle.Complete {
 			n.serviceStrategy.OnCandleForBacktest(timeframe, candle)
@@ -378,6 +376,8 @@ func (n *Bot) Run(ctx context.Context) {
 	if n.backtest == false {
 		n.serviceOrder.Start()
 		defer n.serviceOrder.Stop()
+	} else {
+		utils.Log.Info("Starting backtesting")
 	}
 	if n.strategySetting.CheckMode == "watchdog" {
 		n.serviceGuider.Start()

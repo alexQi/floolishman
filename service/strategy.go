@@ -416,7 +416,7 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 		}
 	}
 	// 当前方向已存在仓位，不在开仓
-	if existPosition.ID > 0 {
+	if existPosition != nil {
 		if s.backtest == false {
 			utils.Log.Infof(
 				"[WATCHDOG HOLD ORDER - %s] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
@@ -611,7 +611,7 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 		}
 	}
 	// 当前方向已存在仓位，不在开仓
-	if existPosition.ID > 0 {
+	if existPosition != nil {
 		if s.backtest == false {
 			utils.Log.Infof(
 				"[WATCHDOG HOLD ORDER - %s] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
@@ -636,7 +636,7 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 	// ----------------
 
 	// 与当前方向相反有仓位,计算相对分界线距离，多空比达到反手标准平仓
-	if reversePosition.ID > 0 && calc.Abs(0.5-longShortRatio) >= calc.Abs(0.5-reversePosition.LongShortRatio) {
+	if reversePosition != nil && calc.Abs(0.5-longShortRatio) >= calc.Abs(0.5-reversePosition.LongShortRatio) {
 		// 判断仓位方向为反方向，平掉现有仓位
 		_, err := s.broker.CreateOrderMarket(
 			tempSideType,
@@ -899,8 +899,10 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 		// 使用滚动利润比保证该止损利润是递增的
 		// 不再判断新的止损价格是否小于之前的止损价格
 		_, err := s.broker.CreateOrderStopMarket(tempSideType, model.PositionSideType(openedPosition.PositionSide), option.Pair, openedPosition.Quantity, stopLimitPrice, model.OrderExtra{
-			Leverage:  option.Leverage,
-			OrderFlag: openedPosition.OrderFlag,
+			Leverage:       option.Leverage,
+			OrderFlag:      openedPosition.OrderFlag,
+			LongShortRatio: openedPosition.LongShortRatio,
+			MatchStrategy:  openedPosition.MatchStrategy,
 		})
 		if err != nil {
 			// 如果重新挂限价止损失败则不在取消

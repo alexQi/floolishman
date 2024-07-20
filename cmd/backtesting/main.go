@@ -125,7 +125,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	// 重置表数据
+	err = st.ResetTables()
+	if err != nil {
+		return
+	}
 	// create a paper wallet for simulation, initializing with 10.000 USDT
 	wallet := exchange.NewPaperWallet(
 		ctx,

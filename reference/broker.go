@@ -19,5 +19,5 @@ type Broker interface {
 	CreateOrderStopLimit(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, limit float64, stopPrice float64, extra model.OrderExtra) (model.Order, error)
 	CreateOrderStopMarket(side model.SideType, positionSide model.PositionSideType, pair string, quantity float64, stopPrice float64, extra model.OrderExtra) (model.Order, error)
 	Cancel(model.Order) error
-	ListenUpdateOrders()
+	ListenOrders()
 }

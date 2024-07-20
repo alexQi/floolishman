@@ -457,7 +457,7 @@ func (b *BinanceFuture) Order(pair string, id int64) (model.Order, error) {
 	return b.newFutureOrder(order), nil
 }
 
-func (p *BinanceFuture) ListenUpdateOrders() {
+func (p *BinanceFuture) ListenOrders() {
 	//TODO implement me
 	panic("implement me")
 }

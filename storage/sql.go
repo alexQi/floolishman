@@ -55,6 +55,32 @@ func FromSQL(dialect gorm.Dialector, opts ...gorm.Option) (Storage, error) {
 	}, nil
 }
 
+func (s *SQL) ResetTables() error {
+	tables := []interface{}{
+		&model.Order{},
+		&model.Position{},
+		&model.GuiderItem{},
+		&model.GuiderSymbolConfig{},
+	}
+
+	// 删除所有表
+	for _, table := range tables {
+		err := s.db.Migrator().DropTable(table)
+		if err != nil {
+			return err
+		}
+	}
+
+	// 重新创建所有表
+	for _, table := range tables {
+		err := s.db.AutoMigrate(table)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *SQL) CreateGuiderItems(guiderItems []model.GuiderItem) error {
 	var og model.GuiderItem
 	liveCopyPortfolioIds := []string{}

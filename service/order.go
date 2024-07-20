@@ -208,7 +208,7 @@ type ServiceOrder struct {
 	finish         chan bool
 	status         Status
 
-	position map[string]map[string]*model.Position
+	postionMap map[string]map[string]*model.Position
 }
 
 func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage storage.Storage,
@@ -223,7 +223,7 @@ func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage s
 		Results:        make(map[string]*summary),
 		tickerInterval: time.Second,
 		finish:         make(chan bool),
-		position:       make(map[string]map[string]*model.Position),
+		postionMap:     make(map[string]map[string]*model.Position),
 	}
 }
 
@@ -237,28 +237,71 @@ func (c *ServiceOrder) OnCandle(candle model.Candle) {
 
 func (c *ServiceOrder) GetPositionsForPair(pair string) ([]*model.Position, error) {
 	positions := []*model.Position{}
-	positions, err := c.storage.Positions(
-		storage.PositionFilterParams{
-			Pair:   pair,
-			Status: 0,
-		},
-	)
-	if err != nil {
-		return positions, err
+	if _, ok := c.postionMap[pair]; ok {
+		for _, position := range c.postionMap[pair] {
+			positions = append(positions, position)
+		}
 	}
+	// 内存缓存中没有查询到，去数据库查询
+	if len(positions) == 0 {
+		positions, err := c.storage.Positions(
+			storage.PositionFilterParams{
+				Pair:   pair,
+				Status: 0,
+			},
+		)
+		if err != nil {
+			return positions, err
+		}
+		// 重新缓存到内存
+		if len(positions) > 0 {
+			go func() {
+				// 交易对已知，提前初始化
+				if _, ok := c.postionMap[pair]; !ok {
+					c.postionMap[pair] = make(map[string]*model.Position)
+				}
+				for _, position := range positions {
+					c.postionMap[position.Pair][position.PositionSide] = position
+				}
+			}()
+		}
+	}
+
 	return positions, nil
 }
 
 func (c *ServiceOrder) GetPositionsForOpened() ([]*model.Position, error) {
 	positions := []*model.Position{}
-	positions, err := c.storage.Positions(
-		storage.PositionFilterParams{
-			Status: 0,
-		},
-	)
-	if err != nil {
-		return positions, err
+	if len(c.postionMap) > 0 {
+		for _, pairPositions := range c.postionMap {
+			for _, position := range pairPositions {
+				positions = append(positions, position)
+			}
+		}
 	}
+	// 内存缓存中没有查询到，去数据库查询
+	if len(positions) == 0 {
+		positions, err := c.storage.Positions(
+			storage.PositionFilterParams{
+				Status: 0,
+			},
+		)
+		if err != nil {
+			return positions, err
+		}
+		// 重新缓存到内存
+		if len(positions) > 0 {
+			go func() {
+				for _, position := range positions {
+					if _, ok := c.postionMap[position.Pair]; !ok {
+						c.postionMap[position.Pair] = make(map[string]*model.Position)
+					}
+					c.postionMap[position.Pair][position.PositionSide] = position
+				}
+			}()
+		}
+	}
+
 	return positions, nil
 }
 
@@ -327,7 +370,7 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 				ProfitPercent: order.Profit,
 				ProfitValue:   order.ProfitValue,
 				Side:          model.SideType(p.Side),
-				MatchStrategy: order.MatchStrategy,
+				MatchStrategy: p.MatchStrategy,
 			}
 		} else {
 			// 平空单
@@ -347,7 +390,7 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 				ProfitPercent: order.Profit,
 				ProfitValue:   order.ProfitValue,
 				Side:          model.SideType(p.Side),
-				MatchStrategy: order.MatchStrategy,
+				MatchStrategy: p.MatchStrategy,
 			}
 		}
 		return result
@@ -357,11 +400,11 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 }
 
 func (c *ServiceOrder) updatePosition(o *model.Order) {
-	_, ok := c.position[o.Pair]
+	_, ok := c.postionMap[o.Pair]
 	if !ok {
-		c.position[o.Pair] = make(map[string]*model.Position)
+		c.postionMap[o.Pair] = make(map[string]*model.Position)
 	}
-	position, ok := c.position[o.Pair][o.OrderFlag]
+	position, ok := c.postionMap[o.Pair][o.OrderFlag]
 	// 查询当前内存缓存是否存在仓位，不存在则创建仓位
 	if !ok {
 		// 判断当前订单在数据库中是否有仓位
@@ -387,15 +430,15 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 				PositionSide:   string(o.PositionSide),
 				MatchStrategy:  o.MatchStrategy,
 			}
+			c.postionMap[o.Pair][o.OrderFlag] = position
+			// 插入数据
 			err := c.storage.CreatePosition(position)
 			if err != nil {
 				utils.Log.Error(err)
-				return
 			}
-			c.position[o.Pair][o.OrderFlag] = position
 			return
 		} else {
-			c.position[o.Pair][o.OrderFlag] = position
+			c.postionMap[o.Pair][o.OrderFlag] = position
 		}
 	}
 
@@ -407,7 +450,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 			return
 		}
 		// 删除内存缓存
-		delete(c.position[o.Pair], o.OrderFlag)
+		delete(c.postionMap[o.Pair], o.OrderFlag)
 	}
 
 	if result != nil {
@@ -491,8 +534,11 @@ func (c *ServiceOrder) processTrade(order *model.Order) {
 	// update position size / avg price
 	c.updatePosition(order)
 }
+func (c *ServiceOrder) Status() Status {
+	return c.status
+}
 
-func (c *ServiceOrder) updateOrders() {
+func (c *ServiceOrder) ListenOrders() {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -511,14 +557,9 @@ func (c *ServiceOrder) updateOrders() {
 		c.mtx.Unlock()
 		return
 	}
-
-	processedPositionOrders := map[string]*model.Order{}
 	// For each pending order, check for updates
 	var updatedOrders []model.Order
 	for _, order := range orders {
-		if _, ok := processedPositionOrders[order.ClientOrderId]; ok {
-			continue
-		}
 		excOrder, err := c.exchange.Order(order.Pair, order.ExchangeID)
 		if err != nil {
 			utils.Log.WithField("id", order.ExchangeID).Error("orderControler/get: ", err)
@@ -536,77 +577,15 @@ func (c *ServiceOrder) updateOrders() {
 		excOrder.LongShortRatio = order.LongShortRatio
 		excOrder.Leverage = order.Leverage
 		excOrder.GuiderPositionRate = order.GuiderPositionRate
-		excOrder.MatchStrategy = order.MatchStrategy
 
 		err = c.storage.UpdateOrder(&excOrder)
 		if err != nil {
 			c.notifyError(err)
 			continue
 		}
-
-		utils.Log.Infof("[ORDER %s] %s", excOrder.Status, excOrder)
-		updatedOrders = append(updatedOrders, excOrder)
-	}
-
-	for _, processOrder := range updatedOrders {
-		c.processTrade(&processOrder)
-		c.orderFeed.Publish(processOrder, false)
-	}
-}
-
-func (c *ServiceOrder) Status() Status {
-	return c.status
-}
-
-func (c *ServiceOrder) ListenUpdateOrders() {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	//pending orders
-	orders, err := c.storage.Orders(
-		storage.OrderFilterParams{
-			Statuses: []model.OrderStatusType{
-				model.OrderStatusTypeNew,
-				model.OrderStatusTypeFilled,
-				model.OrderStatusTypePartiallyFilled,
-				model.OrderStatusTypePendingCancel,
-			},
-		},
-	)
-	if err != nil {
-		c.notifyError(err)
-		c.mtx.Unlock()
-		return
-	}
-
-	processedPositionOrders := map[string]*model.Order{}
-	// For each pending order, check for updates
-	var updatedOrders []model.Order
-	for _, order := range orders {
-		if _, ok := processedPositionOrders[order.ClientOrderId]; ok {
-			continue
-		}
-		excOrder, err := c.exchange.Order(order.Pair, order.ExchangeID)
-		if err != nil {
-			utils.Log.WithField("id", order.ExchangeID).Error("orderControler/get: ", err)
-			continue
-		}
-
-		excOrder.ID = order.ID
-		excOrder.OrderFlag = order.OrderFlag
-		excOrder.Type = order.Type
-		excOrder.Amount = order.Amount
-		excOrder.LongShortRatio = order.LongShortRatio
-		excOrder.Leverage = order.Leverage
-		excOrder.GuiderPositionRate = order.GuiderPositionRate
+		// 重新放入策略统计数据
 		excOrder.MatchStrategy = order.MatchStrategy
-
-		err = c.storage.UpdateOrder(&excOrder)
-		if err != nil {
-			c.notifyError(err)
-			continue
-		}
-
+		// 放入更新数组
 		utils.Log.Infof("[ORDER %s] %s", excOrder.Status, excOrder)
 		updatedOrders = append(updatedOrders, excOrder)
 	}
@@ -626,7 +605,7 @@ func (c *ServiceOrder) Start() {
 			for {
 				select {
 				case <-ticker.C:
-					c.updateOrders()
+					c.ListenOrders()
 				case <-c.finish:
 					ticker.Stop()
 					return
@@ -640,7 +619,7 @@ func (c *ServiceOrder) Start() {
 func (c *ServiceOrder) Stop() {
 	if c.status == StatusRunning {
 		c.status = StatusStopped
-		c.updateOrders()
+		c.ListenOrders()
 		c.finish <- true
 		utils.Log.Info("Bot stopped.")
 	}

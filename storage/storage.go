@@ -20,6 +20,7 @@ type PositionFilterParams struct {
 }
 
 type Storage interface {
+	ResetTables() error
 	CreateOrder(order *model.Order) error
 	UpdateOrder(order *model.Order) error
 	Orders(filterParams OrderFilterParams) ([]*model.Order, error)

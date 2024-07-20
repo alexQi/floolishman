@@ -49,7 +49,7 @@ type PaperWallet struct {
 	PairOptions   map[string]model.PairOption
 }
 
-func (p *PaperWallet) ListenUpdateOrders() {
+func (p *PaperWallet) ListenOrders() {
 	//TODO implement me
 	panic("implement me")
 }
@@ -490,7 +490,7 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 				if !ok {
 					continue
 				}
-				if limitOrder.Status != model.OrderStatusTypeFilled {
+				if limitOrder.Status == model.OrderStatusTypeFilled {
 					continue
 				}
 				if _, ok := p.assets[asset]; !ok {
@@ -533,7 +533,7 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 				if !ok {
 					continue
 				}
-				if limitOrder.Status != model.OrderStatusTypeFilled {
+				if limitOrder.Status == model.OrderStatusTypeFilled {
 					continue
 				}
 				if _, ok := p.assets[asset]; !ok {
@@ -694,6 +694,7 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 		Status:         model.OrderStatusTypeNew,
 		Price:          currentPrice,
 		Quantity:       currentQuantity,
+		Leverage:       extra.Leverage,
 		LongShortRatio: extra.LongShortRatio,
 		MatchStrategy:  extra.MatchStrategy,
 	}
@@ -742,6 +743,7 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 		Status:         model.OrderStatusTypeFilled,
 		Price:          currentPrice,
 		Quantity:       currentQuantity,
+		Leverage:       extra.Leverage,
 		LongShortRatio: extra.LongShortRatio,
 		MatchStrategy:  extra.MatchStrategy,
 	}
@@ -787,6 +789,7 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 		Status:         model.OrderStatusTypeNew,
 		Price:          currentPrice,
 		Quantity:       currentQuantity,
+		Leverage:       extra.Leverage,
 		LongShortRatio: extra.LongShortRatio,
 		MatchStrategy:  extra.MatchStrategy,
 	}
@@ -836,6 +839,7 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 		Status:         model.OrderStatusTypeNew,
 		Price:          currentPrice,
 		Quantity:       currentQuantity,
+		Leverage:       extra.Leverage,
 		LongShortRatio: extra.LongShortRatio,
 		MatchStrategy:  extra.MatchStrategy,
 	}

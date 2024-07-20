@@ -406,7 +406,7 @@ func (b *Binance) Positions(pair string) ([]model.Position, error) {
 	panic("not implemented")
 }
 
-func (p *Binance) ListenUpdateOrders() {
+func (p *Binance) ListenOrders() {
 	//TODO implement me
 	panic("implement me")
 }
