@@ -1917,3 +1917,20 @@ func SetStructFromOther(inStruct interface{}, outStruct interface{}) {
 		}
 	}
 }
+
+func ConvertToNestedStringMap(data map[string]interface{}) map[string]map[string]string {
+	result := make(map[string]map[string]string)
+	for key, value := range data {
+		switch v := value.(type) {
+		case map[string]interface{}:
+			nestedMap := make(map[string]string)
+			for nestedKey, nestedValue := range v {
+				nestedMap[nestedKey] = fmt.Sprintf("%v", nestedValue)
+			}
+			result[key] = nestedMap
+		default:
+			utils.Log.Printf("Skipping key %s as it's not a map[string]interface{}", key)
+		}
+	}
+	return result
+}

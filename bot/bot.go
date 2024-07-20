@@ -34,6 +34,7 @@ type Bot struct {
 	storage         storage.Storage
 	settings        model.Settings
 	proxyOption     types.ProxyOption
+	guiderSetting   map[string]map[string]string
 	strategySetting service.StrategySetting
 	exchange        reference.Exchange
 	notifier        reference.Notifier
@@ -52,7 +53,7 @@ type Bot struct {
 
 type Option func(*Bot)
 
-func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, strategySetting service.StrategySetting, strategy types.CompositesStrategy,
+func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, guiderSetting map[string]map[string]string, strategySetting service.StrategySetting, strategy types.CompositesStrategy,
 	options ...Option) (*Bot, error) {
 	// 初始化bot参数
 	bot := &Bot{
@@ -71,7 +72,7 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 	// 加载订单服务
 	bot.serviceOrder = service.NewServiceOrder(ctx, exch, bot.storage, bot.orderFeed)
 	// 家在领航员服务
-	bot.serviceGuider = service.NewServiceGuider(ctx, bot.storage, bot.proxyOption, bot.settings.PairOptions)
+	bot.serviceGuider = service.NewServiceGuider(ctx, guiderSetting, bot.storage, bot.proxyOption, bot.settings.PairOptions)
 	// 加载策略服务
 	bot.serviceStrategy = service.NewServiceStrategy(ctx, strategySetting, strategy, bot.serviceOrder, bot.exchange, bot.serviceGuider, bot.backtest)
 	// 加载通知服务

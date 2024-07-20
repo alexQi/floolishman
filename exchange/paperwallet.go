@@ -362,12 +362,6 @@ func (p *PaperWallet) updateFunds(order *model.Order) error {
 		if positonOrder.ExchangeID == 0 {
 			return nil
 		}
-		for i, o := range p.orders {
-			if positonOrder.ClientOrderId == o.ClientOrderId {
-				p.orders[i].TradingStatus = 1
-				break
-			}
-		}
 		if p.assets[asset].Lock < order.Quantity {
 			return &OrderError{
 				Err:      ErrInvalidAsset,
@@ -400,12 +394,6 @@ func (p *PaperWallet) updateFunds(order *model.Order) error {
 		}
 		if positonOrder.ExchangeID == 0 {
 			return nil
-		}
-		for i, o := range p.orders {
-			if positonOrder.ClientOrderId == o.ClientOrderId {
-				p.orders[i].TradingStatus = 1
-				break
-			}
 		}
 		if calc.Abs(p.assets[asset].Lock) < order.Quantity {
 			return &OrderError{
@@ -521,17 +509,10 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 				if err != nil {
 					continue
 				}
-				for i, o := range p.orders {
-					if positonOrder.ClientOrderId == o.ClientOrderId {
-						p.orders[i].TradingStatus = 1
-						break
-					}
-				}
 
 				p.volume[candle.Pair] += orderPrice * order.Quantity
 				p.orders[i].UpdatedAt = candle.Time
 				p.orders[i].Status = model.OrderStatusTypeFilled
-				p.orders[i].TradingStatus = 1
 
 				// update assets size
 				p.updateAveragePrice(order.Side, order.Pair, order.Quantity, orderPrice)
@@ -571,16 +552,9 @@ func (p *PaperWallet) OnCandle(candle model.Candle) {
 				if err != nil {
 					continue
 				}
-				for i, o := range p.orders {
-					if positonOrder.ClientOrderId == o.ClientOrderId {
-						p.orders[i].TradingStatus = 1
-						break
-					}
-				}
 				p.volume[candle.Pair] += orderPrice * order.Quantity
 				p.orders[i].UpdatedAt = candle.Time
 				p.orders[i].Status = model.OrderStatusTypeFilled
-				p.orders[i].TradingStatus = 1
 
 				// update assets size
 				p.updateAveragePrice(order.Side, order.Pair, order.Quantity, orderPrice)
@@ -771,12 +745,6 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 		LongShortRatio: extra.LongShortRatio,
 		MatchStrategy:  extra.MatchStrategy,
 	}
-	if order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort {
-		order.TradingStatus = 1
-	}
-	if order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong {
-		order.TradingStatus = 1
-	}
 	err = p.updateFunds(&order)
 	if err != nil {
 		return model.Order{}, err
@@ -916,17 +884,20 @@ func (p *PaperWallet) findPositonOrder(pair string, orderFlag string, orderType 
 	return model.Order{}, errors.New("order not found")
 }
 
-func (p *PaperWallet) GetOrdersForPairOpened(pair string) ([]*model.Order, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (b *PaperWallet) GetOrdersForOpened() ([]*model.Order, error) {
+func (p *PaperWallet) GetOrdersForPostionLossUnfilled(_ string) ([]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
 func (b *PaperWallet) GetOrdersForUnfilled() ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+func (b *PaperWallet) GetPositionsForPair(pair string) ([]*model.Position, error) {
+	//TODO implement me
+	panic("implement me")
+}
+func (b *PaperWallet) GetPositionsForOpened() ([]*model.Position, error) {
 	//TODO implement me
 	panic("implement me")
 }

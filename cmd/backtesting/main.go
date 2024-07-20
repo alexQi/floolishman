@@ -133,11 +133,13 @@ func main() {
 		exchange.WithPaperAsset("USDT", 10000),
 		exchange.WithDataFeed(csvFeed),
 	)
+	guiderConfigs := map[string]map[string]string{}
 
 	b, err := bot.NewBot(
 		ctx,
 		settings,
 		wallet,
+		guiderConfigs,
 		tradingSetting,
 		compositesStrategy,
 		bot.WithBacktest(wallet),

@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"floolishman/reference"
-	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/calc"
 	"fmt"
+	"github.com/samber/lo"
 	"math"
 	"os"
 	"strconv"
@@ -195,17 +195,6 @@ type Result struct {
 	Duration      time.Duration
 	CreatedAt     time.Time
 }
-
-type Position struct {
-	OrderFlag     string
-	Side          model.SideType
-	PositionSide  model.PositionSideType
-	MatchStrategy map[string]int
-	AvgPrice      float64
-	Quantity      float64
-	CreatedAt     time.Time
-}
-
 type ServiceOrder struct {
 	mtx            sync.Mutex
 	ctx            context.Context
@@ -246,46 +235,60 @@ func (c *ServiceOrder) OnCandle(candle model.Candle) {
 	c.lastPrice[candle.Pair] = candle.Close
 }
 
-func (c *ServiceOrder) GetOrdersForPairOpened(pair string) ([]*model.Order, error) {
-	orders := []*model.Order{}
-	orders, err := c.storage.Orders(
-		storage.OrderFilterParams{
-			Pair:          pair,
-			TradingStatus: 0,
-			Statuses: []model.OrderStatusType{
-				model.OrderStatusTypeNew,    // 未成交订单
-				model.OrderStatusTypeFilled, // 已成交订单
-			},
+func (c *ServiceOrder) GetPositionsForPair(pair string) ([]*model.Position, error) {
+	positions := []*model.Position{}
+	positions, err := c.storage.Positions(
+		storage.PositionFilterParams{
+			Pair:   pair,
+			Status: 0,
 		},
 	)
 	if err != nil {
-		return orders, err
+		return positions, err
 	}
-	return orders, nil
+	return positions, nil
 }
 
-func (c *ServiceOrder) GetOrdersForOpened() ([]*model.Order, error) {
+func (c *ServiceOrder) GetPositionsForOpened() ([]*model.Position, error) {
+	positions := []*model.Position{}
+	positions, err := c.storage.Positions(
+		storage.PositionFilterParams{
+			Status: 0,
+		},
+	)
+	if err != nil {
+		return positions, err
+	}
+	return positions, nil
+}
+
+func (c *ServiceOrder) GetOrdersForPostionLossUnfilled(orderFlag string) ([]*model.Order, error) {
 	orders := []*model.Order{}
+	// todo 改为单独查询指定开仓还是平仓单
 	orders, err := c.storage.Orders(
 		storage.OrderFilterParams{
-			TradingStatus: 0,
+			OrderFlag: orderFlag,
 			Statuses: []model.OrderStatusType{
-				model.OrderStatusTypeFilled,          // 未成交订单
-				model.OrderStatusTypePartiallyFilled, // 已成交订单
+				model.OrderStatusTypeNew, // 未成交订单
 			},
 		},
 	)
 	if err != nil {
 		return orders, err
 	}
-	return orders, nil
+	return lo.Filter(orders, func(order *model.Order, _ int) bool {
+		if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) ||
+			(order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) {
+			return false
+		}
+		return true
+	}), nil
 }
 
 func (c *ServiceOrder) GetOrdersForUnfilled() ([]*model.Order, error) {
 	orders := []*model.Order{}
 	orders, err := c.storage.Orders(
 		storage.OrderFilterParams{
-			TradingStatus: 0,
 			Statuses: []model.OrderStatusType{
 				model.OrderStatusTypeNew, // 未成交订单
 			},
@@ -374,13 +377,15 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		// 不存在则创建仓位
 		if position.ID == 0 {
 			position = &model.Position{
-				OrderFlag:     o.OrderFlag,
-				AvgPrice:      o.Price,
-				Quantity:      o.Quantity,
-				CreatedAt:     o.CreatedAt,
-				Side:          string(o.Side),
-				PositionSide:  string(o.PositionSide),
-				MatchStrategy: o.MatchStrategy,
+				OrderFlag:      o.OrderFlag,
+				AvgPrice:       o.Price,
+				Quantity:       o.Quantity,
+				Leverage:       o.Leverage,
+				LongShortRatio: o.LongShortRatio,
+				CreatedAt:      o.CreatedAt,
+				Side:           string(o.Side),
+				PositionSide:   string(o.PositionSide),
+				MatchStrategy:  o.MatchStrategy,
 			}
 			err := c.storage.CreatePosition(position)
 			if err != nil {
@@ -494,10 +499,8 @@ func (c *ServiceOrder) updateOrders() {
 	//pending orders
 	orders, err := c.storage.Orders(
 		storage.OrderFilterParams{
-			TradingStatus: 0,
 			Statuses: []model.OrderStatusType{
 				model.OrderStatusTypeNew,
-				model.OrderStatusTypeFilled,
 				model.OrderStatusTypePartiallyFilled,
 				model.OrderStatusTypePendingCancel,
 			},
@@ -516,13 +519,6 @@ func (c *ServiceOrder) updateOrders() {
 		if _, ok := processedPositionOrders[order.ClientOrderId]; ok {
 			continue
 		}
-		// 跳过已开仓成交的单子
-		if order.Status == model.OrderStatusTypeFilled {
-			if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort) {
-				continue
-			}
-		}
-
 		excOrder, err := c.exchange.Order(order.Pair, order.ExchangeID)
 		if err != nil {
 			utils.Log.WithField("id", order.ExchangeID).Error("orderControler/get: ", err)
@@ -538,54 +534,9 @@ func (c *ServiceOrder) updateOrders() {
 		excOrder.Type = order.Type
 		excOrder.Amount = order.Amount
 		excOrder.LongShortRatio = order.LongShortRatio
+		excOrder.Leverage = order.Leverage
+		excOrder.GuiderPositionRate = order.GuiderPositionRate
 		excOrder.MatchStrategy = order.MatchStrategy
-
-		// 判断交易状态,如果已完成，关闭仓位 及止盈止损仓位
-		if excOrder.Status == model.OrderStatusTypeFilled {
-			if excOrder.Type == model.OrderTypeStop || // 限价止损单
-				excOrder.Type == model.OrderTypeStopMarket || // 市价止损单
-				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) || // 市价平仓多单
-				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) { // 市价平仓空单
-				positionOrders, err := c.storage.Orders(
-					storage.OrderFilterParams{
-						TradingStatus: 0,
-						OrderFlag:     excOrder.OrderFlag,
-						OrderTypes: []model.OrderType{
-							model.OrderTypeLimit,
-						},
-						Statuses: []model.OrderStatusType{
-							model.OrderStatusTypeFilled,
-						},
-					},
-				)
-				if err != nil {
-					c.notifyError(err)
-					c.mtx.Unlock()
-					return
-				}
-				if len(positionOrders) > 0 {
-					for _, positionOrder := range positionOrders {
-						// 修改当前止损止盈单状态为已交易完成
-						// 修改当前止损止盈单关联的仓位为已交易完成
-						if positionOrder.Quantity == excOrder.Quantity {
-							positionOrder.TradingStatus = 1
-							excOrder.TradingStatus = 1
-						}
-						err = c.storage.UpdateOrder(positionOrder)
-						if err != nil {
-							c.notifyError(err)
-							continue
-						}
-						processedPositionOrders[positionOrder.ClientOrderId] = positionOrder
-						// 发送订单关闭信号
-						types.OrderCloseChan <- types.OrderCloseSignal{
-							Pair:      positionOrder.Pair,
-							OrderFlag: positionOrder.OrderFlag,
-						}
-					}
-				}
-			}
-		}
 
 		err = c.storage.UpdateOrder(&excOrder)
 		if err != nil {
@@ -614,7 +565,6 @@ func (c *ServiceOrder) ListenUpdateOrders() {
 	//pending orders
 	orders, err := c.storage.Orders(
 		storage.OrderFilterParams{
-			TradingStatus: 0,
 			Statuses: []model.OrderStatusType{
 				model.OrderStatusTypeNew,
 				model.OrderStatusTypeFilled,
@@ -645,56 +595,11 @@ func (c *ServiceOrder) ListenUpdateOrders() {
 		excOrder.ID = order.ID
 		excOrder.OrderFlag = order.OrderFlag
 		excOrder.Type = order.Type
+		excOrder.Amount = order.Amount
 		excOrder.LongShortRatio = order.LongShortRatio
 		excOrder.Leverage = order.Leverage
-		excOrder.GuiderOriginId = order.GuiderOriginId
-		excOrder.GuiderPrice = order.GuiderPrice
-		excOrder.GuiderQuantity = order.GuiderQuantity
-		excOrder.GuiderAmount = order.GuiderAmount
+		excOrder.GuiderPositionRate = order.GuiderPositionRate
 		excOrder.MatchStrategy = order.MatchStrategy
-
-		// 判断交易状态,如果已完成，关闭仓位 及止盈止损仓位
-		if excOrder.Status == model.OrderStatusTypeFilled {
-			if excOrder.Type == model.OrderTypeStop || // 限价止损单
-				excOrder.Type == model.OrderTypeStopMarket || // 市价止损单
-				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) || // 市价平仓多单
-				(order.Type == model.OrderTypeMarket && order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) { // 市价平仓空单
-				// 修改当前止损止盈单状态为已交易完成
-				excOrder.TradingStatus = 1
-				// 修改当前止损止盈单关联的仓位为已交易完成
-				positionOrders, err := c.storage.Orders(
-					storage.OrderFilterParams{
-						TradingStatus: 0,
-						OrderFlag:     excOrder.OrderFlag,
-						OrderTypes: []model.OrderType{
-							model.OrderTypeLimit,
-						},
-						Statuses: []model.OrderStatusType{
-							model.OrderStatusTypeFilled,
-						},
-					},
-				)
-				if err != nil {
-					c.notifyError(err)
-					c.mtx.Unlock()
-					return
-				}
-				if len(positionOrders) > 0 {
-					for _, positionOrder := range positionOrders {
-						if excOrder.Quantity != positionOrder.Quantity {
-							continue
-						}
-						positionOrder.TradingStatus = 1
-						err = c.storage.UpdateOrder(positionOrder)
-						if err != nil {
-							c.notifyError(err)
-							continue
-						}
-						processedPositionOrders[positionOrder.ClientOrderId] = positionOrder
-					}
-				}
-			}
-		}
 
 		err = c.storage.UpdateOrder(&excOrder)
 		if err != nil {

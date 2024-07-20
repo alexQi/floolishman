@@ -10,6 +10,8 @@ import (
 	"floolishman/strategies"
 	"floolishman/types"
 	"floolishman/utils"
+	"floolishman/utils/strutil"
+	"fmt"
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/glebarez/sqlite"
 	"github.com/spf13/viper"
@@ -56,7 +58,12 @@ func main() {
 		}
 		pairsSetting      = viper.GetStringMap("pairs")
 		strategiesSetting = viper.GetStringSlice("strategies")
+		guiderSetting     = viper.Get("guiders")
 	)
+
+	guiderConfigMap := guiderSetting.(map[string]interface{})
+	guiderConfigs := strutil.ConvertToNestedStringMap(guiderConfigMap)
+	fmt.Print(guiderConfigs)
 
 	settings := model.Settings{
 		PairOptions: []model.PairOption{},
@@ -142,6 +149,7 @@ func main() {
 		ctx,
 		settings,
 		binance,
+		guiderConfigs,
 		tradingSetting,
 		compositesStrategy,
 		bot.WithStorage(st),

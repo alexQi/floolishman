@@ -178,9 +178,6 @@ func (s *SQL) Orders(filterParams OrderFilterParams) ([]*model.Order, error) {
 	if len(filterParams.OrderFlag) > 0 {
 		query = query.Where("order_flag=?", filterParams.OrderFlag)
 	}
-	if filterParams.TradingStatus > 0 {
-		query = query.Where("trading_status=?", filterParams.TradingStatus)
-	}
 	if len(filterParams.Statuses) > 0 {
 		query = query.Where("status in ?", filterParams.Statuses)
 	}

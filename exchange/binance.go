@@ -411,17 +411,22 @@ func (p *Binance) ListenUpdateOrders() {
 	panic("implement me")
 }
 
-func (b *Binance) GetOrdersForPairOpened(pair string) ([]*model.Order, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (b *Binance) GetOrdersForOpened() ([]*model.Order, error) {
+func (b *Binance) GetOrdersForPostionLossUnfilled(_ string) ([]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
 func (b *Binance) GetOrdersForUnfilled() ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *Binance) GetPositionsForPair(pair string) ([]*model.Position, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *Binance) GetPositionsForOpened() ([]*model.Position, error) {
 	//TODO implement me
 	panic("implement me")
 }

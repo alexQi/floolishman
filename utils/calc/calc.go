@@ -27,6 +27,10 @@ func Abs(a float64) float64 {
 	return a
 }
 
+func FormatFloatRate(input float64) float64 {
+	return math.Floor(input*10000) / 10000
+}
+
 func MulFloat64(a, b float64) float64 {
 	// 将 float64 转换为 *big.Float
 	priceBig := new(big.Float).SetFloat64(a)

@@ -5,11 +5,10 @@ import (
 )
 
 type OrderFilterParams struct {
-	Pair          string
-	OrderFlag     string
-	TradingStatus int
-	Statuses      []model.OrderStatusType
-	OrderTypes    []model.OrderType
+	Pair       string
+	OrderFlag  string
+	Statuses   []model.OrderStatusType
+	OrderTypes []model.OrderType
 }
 
 type PositionFilterParams struct {
