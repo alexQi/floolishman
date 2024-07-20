@@ -4,7 +4,6 @@ import (
 	"context"
 	"floolishman/reference"
 	"floolishman/utils"
-	"floolishman/utils/calc"
 	"fmt"
 	"github.com/samber/lo"
 	"math"
@@ -208,7 +207,7 @@ type ServiceOrder struct {
 	finish         chan bool
 	status         Status
 
-	postionMap map[string]map[string]*model.Position
+	positionMap map[string]map[string]*model.Position
 }
 
 func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage storage.Storage,
@@ -223,7 +222,7 @@ func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage s
 		Results:        make(map[string]*summary),
 		tickerInterval: time.Second,
 		finish:         make(chan bool),
-		postionMap:     make(map[string]map[string]*model.Position),
+		positionMap:    make(map[string]map[string]*model.Position),
 	}
 }
 
@@ -237,8 +236,8 @@ func (c *ServiceOrder) OnCandle(candle model.Candle) {
 
 func (c *ServiceOrder) GetPositionsForPair(pair string) ([]*model.Position, error) {
 	positions := []*model.Position{}
-	if _, ok := c.postionMap[pair]; ok {
-		for _, position := range c.postionMap[pair] {
+	if _, ok := c.positionMap[pair]; ok {
+		for _, position := range c.positionMap[pair] {
 			positions = append(positions, position)
 		}
 	}
@@ -257,11 +256,11 @@ func (c *ServiceOrder) GetPositionsForPair(pair string) ([]*model.Position, erro
 		if len(positions) > 0 {
 			go func() {
 				// 交易对已知，提前初始化
-				if _, ok := c.postionMap[pair]; !ok {
-					c.postionMap[pair] = make(map[string]*model.Position)
+				if _, ok := c.positionMap[pair]; !ok {
+					c.positionMap[pair] = make(map[string]*model.Position)
 				}
 				for _, position := range positions {
-					c.postionMap[position.Pair][position.PositionSide] = position
+					c.positionMap[position.Pair][position.OrderFlag] = position
 				}
 			}()
 		}
@@ -272,8 +271,8 @@ func (c *ServiceOrder) GetPositionsForPair(pair string) ([]*model.Position, erro
 
 func (c *ServiceOrder) GetPositionsForOpened() ([]*model.Position, error) {
 	positions := []*model.Position{}
-	if len(c.postionMap) > 0 {
-		for _, pairPositions := range c.postionMap {
+	if len(c.positionMap) > 0 {
+		for _, pairPositions := range c.positionMap {
 			for _, position := range pairPositions {
 				positions = append(positions, position)
 			}
@@ -293,10 +292,10 @@ func (c *ServiceOrder) GetPositionsForOpened() ([]*model.Position, error) {
 		if len(positions) > 0 {
 			go func() {
 				for _, position := range positions {
-					if _, ok := c.postionMap[position.Pair]; !ok {
-						c.postionMap[position.Pair] = make(map[string]*model.Position)
+					if _, ok := c.positionMap[position.Pair]; !ok {
+						c.positionMap[position.Pair] = make(map[string]*model.Position)
 					}
-					c.postionMap[position.Pair][position.PositionSide] = position
+					c.positionMap[position.Pair][position.OrderFlag] = position
 				}
 			}()
 		}
@@ -356,40 +355,51 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 			// 平多单
 			if p.Quantity == order.Quantity {
 				p.Status = 1
-			} else {
+			} else if p.Quantity > order.Quantity {
 				p.Quantity -= order.Quantity
+			} else {
+				p.Quantity = order.Quantity - p.Quantity
+				p.AvgPrice = price
+				// todo 待考察会不会变成反手仓位
+				//p.Side = string(order.Side)
+				//p.PositionSide = string(order.PositionSide)
 			}
-			quantity := calc.Abs(order.Quantity)
+
 			order.Profit = (price - p.AvgPrice) / p.AvgPrice
-			order.ProfitValue = (price - p.AvgPrice) * quantity
+			order.ProfitValue = (price - p.AvgPrice) * order.Quantity
 
 			result = &Result{
-				CreatedAt:     order.CreatedAt,
 				Pair:          order.Pair,
+				OrderFlag:     order.OrderFlag,
 				Duration:      order.CreatedAt.Sub(p.CreatedAt),
 				ProfitPercent: order.Profit,
 				ProfitValue:   order.ProfitValue,
 				Side:          model.SideType(p.Side),
+				CreatedAt:     order.CreatedAt,
 				MatchStrategy: p.MatchStrategy,
 			}
 		} else {
 			// 平空单
 			if p.Quantity == order.Quantity {
 				p.Status = 1
-			} else {
+			} else if p.Quantity > order.Quantity {
 				p.Quantity -= order.Quantity
+			} else {
+				p.Quantity = order.Quantity - p.Quantity
+				p.AvgPrice = price
 			}
-			quantity := calc.Abs(order.Quantity)
+
 			order.Profit = (p.AvgPrice - price) / p.AvgPrice
-			order.ProfitValue = (p.AvgPrice - price) * quantity
+			order.ProfitValue = (p.AvgPrice - price) * order.Quantity
 
 			result = &Result{
-				CreatedAt:     order.CreatedAt,
 				Pair:          order.Pair,
+				OrderFlag:     order.OrderFlag,
 				Duration:      order.CreatedAt.Sub(p.CreatedAt),
 				ProfitPercent: order.Profit,
 				ProfitValue:   order.ProfitValue,
 				Side:          model.SideType(p.Side),
+				CreatedAt:     order.CreatedAt,
 				MatchStrategy: p.MatchStrategy,
 			}
 		}
@@ -400,11 +410,11 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 }
 
 func (c *ServiceOrder) updatePosition(o *model.Order) {
-	_, ok := c.postionMap[o.Pair]
+	_, ok := c.positionMap[o.Pair]
 	if !ok {
-		c.postionMap[o.Pair] = make(map[string]*model.Position)
+		c.positionMap[o.Pair] = make(map[string]*model.Position)
 	}
-	position, ok := c.postionMap[o.Pair][o.OrderFlag]
+	position, ok := c.positionMap[o.Pair][o.OrderFlag]
 	// 查询当前内存缓存是否存在仓位，不存在则创建仓位
 	if !ok {
 		// 判断当前订单在数据库中是否有仓位
@@ -424,17 +434,19 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 				return
 			}
 			position = &model.Position{
-				OrderFlag:      o.OrderFlag,
-				AvgPrice:       o.Price,
-				Quantity:       o.Quantity,
-				Leverage:       o.Leverage,
-				LongShortRatio: o.LongShortRatio,
-				CreatedAt:      o.CreatedAt,
-				Side:           string(o.Side),
-				PositionSide:   string(o.PositionSide),
-				MatchStrategy:  o.MatchStrategy,
+				Pair:               o.Pair,
+				OrderFlag:          o.OrderFlag,
+				Side:               string(o.Side),
+				PositionSide:       string(o.PositionSide),
+				AvgPrice:           o.Price,
+				Quantity:           o.Quantity,
+				Leverage:           o.Leverage,
+				LongShortRatio:     o.LongShortRatio,
+				GuiderPositionRate: o.GuiderPositionRate,
+				CreatedAt:          o.CreatedAt,
+				MatchStrategy:      o.MatchStrategy,
 			}
-			c.postionMap[o.Pair][o.OrderFlag] = position
+			c.positionMap[o.Pair][o.OrderFlag] = position
 			// 插入数据
 			err := c.storage.CreatePosition(position)
 			if err != nil {
@@ -442,8 +454,9 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 			}
 			return
 		} else {
-			c.postionMap[o.Pair][o.OrderFlag] = position
+			c.positionMap[o.Pair][o.OrderFlag] = position
 		}
+		fmt.Printf("fawefawf")
 	}
 
 	result := c.Update(position, o)
@@ -454,7 +467,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 			return
 		}
 		// 删除内存缓存
-		delete(c.postionMap[o.Pair], o.OrderFlag)
+		delete(c.positionMap[o.Pair], o.OrderFlag)
 	}
 
 	if result != nil {
@@ -657,7 +670,8 @@ func (c *ServiceOrder) CreateOrderLimit(side model.SideType, positionSide model.
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	utils.Log.Infof("[ORDER] Creating LIMIT %s order for %s", side, pair)
+	utils.Log.Infof("[ORDER LIMIT] Creating | %s order for: %s, OrderFlag: %s, %v x %v", side, pair, extra.OrderFlag, limit, size)
+
 	order, err := c.exchange.CreateOrderLimit(side, positionSide, pair, size, limit, extra)
 	if err != nil {
 		c.notifyError(err)
@@ -678,7 +692,7 @@ func (c *ServiceOrder) CreateOrderMarket(side model.SideType, positionSide model
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	utils.Log.Infof("[ORDER] Creating MARKET %s order for: %s", side, pair, extra.OrderFlag)
+	utils.Log.Infof("[ORDER MARKET] Creating | %s order for: %s, OrderFlag: %s,  %v", side, pair, extra.OrderFlag, size)
 	order, err := c.exchange.CreateOrderMarket(side, positionSide, pair, size, extra)
 	if err != nil {
 		c.notifyError(err)
@@ -701,7 +715,8 @@ func (c *ServiceOrder) CreateOrderStopLimit(side model.SideType, positionSide mo
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	utils.Log.Infof("[ORDER] Creating STOP LIMIT %s order for %s: %s", side, pair, extra.OrderFlag)
+	utils.Log.Infof("[ORDER STOP LIMIT] Creating | %s order for: %s, OrderFlag: %s, %v x %v", side, pair, extra.OrderFlag, stopPrice, size)
+
 	order, err := c.exchange.CreateOrderStopLimit(side, positionSide, pair, size, limit, stopPrice, extra)
 	if err != nil {
 		c.notifyError(err)
@@ -722,7 +737,7 @@ func (c *ServiceOrder) CreateOrderStopMarket(side model.SideType, positionSide m
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	utils.Log.Infof("[ORDER] Creating STOP MARKET %s order for %s: %s", side, pair, extra.OrderFlag)
+	utils.Log.Infof("[ORDER STOP MARKET] Creating | %s order for: %s, OrderFlag: %s, %v x %v", side, pair, extra.OrderFlag, stopPrice, size)
 	order, err := c.exchange.CreateOrderStopMarket(side, positionSide, pair, size, stopPrice, extra)
 	if err != nil {
 		c.notifyError(err)

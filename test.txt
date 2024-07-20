@@ -1,13 +1,16 @@
-        "Range15m",
-        "Momentum15m",
-        "MomentumVolume15m",
-        "Rsi15m",
-        "Emacross15m",
-        "Vibrate15m",
-        "Kc15m"
+"Range15m",
+"Momentum15m",
+"MomentumVolume15m",
+"Rsi15m",
+"Emacross15m",
+"Vibrate15m",
+"Kc15m"
 
 go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 1h --futures --days 2 --output ./testdata/eth-1h.csv
 go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 15m --futures --output ./testdata/eth-15m.csv --days 2
+
+go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 4h --futures --output ./testdata/eth-4h.csv --days 15
+
 
 
 go run cmd/tools/cmd.go download --pair BTCUSDT --timeframe 1h --futures --days 7 --output ./testdata/btc-1h.csv

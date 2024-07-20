@@ -384,7 +384,9 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 		return
 	}
 	currentPrice := s.pairPrices[guiderPosition.Symbol]
-	amount := (quotePosition * float64(config.Leverage) * (guiderPosition.InitialMargin / guiderPosition.AvailQuote)) / currentPrice
+
+	// 对方的保证金占比
+	amount := ((guiderPosition.InitialMargin / guiderPosition.AvailQuote) * quotePosition * float64(config.Leverage)) / currentPrice
 
 	var finalSide model.SideType
 	if model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeLong {
@@ -420,8 +422,7 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	if existPosition != nil {
 		if s.backtest == false {
 			utils.Log.Infof(
-				"[WATCHDOG HOLD ORDER - %s] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
-				existPosition.Status,
+				"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
 				existPosition.Pair,
 				existPosition.AvgPrice,
 				existPosition.Quantity,
@@ -442,13 +443,13 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 		return
 	}
 	utils.Log.Infof(
-		"[OPEN WATCHDOG] Pair: %s | Price: %v | Quantity: %v | Side: %s",
+		"[WATCHDOG OPEN] Pair: %s | Price: %v | Quantity: %v | Side: %s",
 		guiderPosition.Symbol,
 		currentPrice,
 		amount,
 		finalSide,
 	)
-	guiderPositionRate := calc.FormatFloatRate(amount / guiderPosition.PositionAmount)
+	guiderPositionRate := calc.FormatFloatRate(amount / calc.Abs(guiderPosition.PositionAmount))
 	// 根据最新价格创建限价单
 	_, err = s.broker.CreateOrderLimit(finalSide, model.PositionSideType(guiderPosition.PositionSide), guiderPosition.Symbol, amount, currentPrice, model.OrderExtra{
 		Leverage:           config.Leverage,
@@ -461,6 +462,7 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 }
 
 func (s *ServiceStrategy) closePostionForWatchdog() {
+	// 查询用户仓位
 	userPositions, err := s.guider.FetchPosition()
 	if err != nil {
 		return
@@ -471,7 +473,7 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 		return
 	}
 	var tempSideType model.SideType
-	var currentGuiderPositionRate, currentQuantity float64
+	var guiderPositionAmount, currentGuiderPositionRate, currentQuantity float64
 	// 循环当前仓位，根据仓位orderFlag查询当前仓位关联的所有订单
 	for _, openedPosition := range openedPositions {
 		// 获取平仓方向
@@ -480,7 +482,7 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 		} else {
 			tempSideType = model.SideTypeBuy
 		}
-		// 判断当前币种仓位是否在guider中存在，平掉全部仓位
+		// 判断当前币种仓位是否在guider中存在，不存在时平掉全部仓位
 		if _, ok := userPositions[openedPosition.Pair]; !ok {
 			_, err := s.broker.CreateOrderMarket(
 				tempSideType,
@@ -488,10 +490,8 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 				openedPosition.Pair,
 				openedPosition.Quantity,
 				model.OrderExtra{
-					OrderFlag:      openedPosition.OrderFlag,
-					Leverage:       openedPosition.Leverage,
-					LongShortRatio: openedPosition.LongShortRatio,
-					MatchStrategy:  openedPosition.MatchStrategy,
+					OrderFlag: openedPosition.OrderFlag,
+					Leverage:  openedPosition.Leverage,
 				},
 			)
 			if err != nil {
@@ -519,13 +519,14 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 					return
 				}
 			} else {
+				guiderPositionAmount = calc.Abs(currentGuiderPositions[0].PositionAmount)
 				// 双方都持有相同方向的仓位，判断仓位缩放比例
-				currentGuiderPositionRate = calc.FormatFloatRate(openedPosition.Quantity / currentGuiderPositions[0].PositionAmount)
+				currentGuiderPositionRate = calc.FormatFloatRate(openedPosition.Quantity / guiderPositionAmount)
 				// 仓位存在，判断当前仓位比例是否和之前一致,一致时跳过
 				if currentGuiderPositionRate == openedPosition.GuiderPositionRate {
 					continue
 				}
-				currentQuantity = currentGuiderPositions[0].PositionAmount * currentGuiderPositionRate
+				currentQuantity = guiderPositionAmount * currentGuiderPositionRate
 				// 判断当前计算的仓位与现在的仓位大小
 				if currentQuantity < openedPosition.Quantity {
 					_, err := s.broker.CreateOrderMarket(

@@ -31,6 +31,7 @@ var ConstStraties = map[string]types.Strategy{
 	"Rsi15m":            &strategies.Rsi15m{},
 	"Vibrate15m":        &strategies.Vibrate15m{},
 	"Kc15m":             &strategies.Kc15m{},
+	"Macd4h":            &strategies.Macd4h{},
 }
 
 func main() {
@@ -97,6 +98,11 @@ func main() {
 			File:      "testdata/eth-15m.csv",
 			Timeframe: "15m",
 		},
+		//exchange.PairFeed{
+		//	Pair:      "ETHUSDT",
+		//	File:      "testdata/eth-4h.csv",
+		//	Timeframe: "4h",
+		//},
 		//exchange.PairFeed{
 		//	Pair:      "BTCUSDT",
 		//	File:      "testdata/btc-15m.csv",
