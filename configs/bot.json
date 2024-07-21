@@ -20,8 +20,8 @@
         "Kc15m"
     ],
     "trading": {
-        "checkMode": "candle",
-        "followSymbol": false,
+        "checkMode": "watchdog",
+        "followSymbol": true,
         "lossTimeDuration": 40,
         "fullSpaceRadio": 0.15,
         "baseLossRatio": 0.0047,

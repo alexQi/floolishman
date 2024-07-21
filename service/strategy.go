@@ -9,6 +9,7 @@ import (
 	"floolishman/utils/calc"
 	"fmt"
 	"github.com/adshao/go-binance/v2/futures"
+	"math/big"
 	"reflect"
 	"sync"
 	"time"
@@ -142,6 +143,7 @@ func (s *ServiceStrategy) RegisterOrderSignal() {
 func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 	tickerCheck := time.NewTicker(CheckStrategyInterval * time.Second)
 	tickerClose := time.NewTicker(CheckCloseInterval * time.Millisecond)
+	var currentUserPosition model.GuiderPosition
 	for {
 		select {
 		case <-tickerCheck.C:
@@ -160,11 +162,15 @@ func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 						continue
 					}
 					if _, ok := userPosition[model.PositionSideTypeLong]; !ok {
-						s.openPositionForWatchdog(userPosition[model.PositionSideTypeShort][0])
+						currentUserPosition = userPosition[model.PositionSideTypeShort][0]
 					}
 					if _, ok := userPosition[model.PositionSideTypeShort]; !ok {
-						s.openPositionForWatchdog(userPosition[model.PositionSideTypeLong][0])
+						currentUserPosition = userPosition[model.PositionSideTypeLong][0]
 					}
+					if _, ok := options[currentUserPosition.Symbol]; !ok {
+						continue
+					}
+					s.openPositionForWatchdog(currentUserPosition)
 				}
 			} else {
 				var longShortRatio float64
@@ -389,21 +395,32 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	amount := ((guiderPosition.InitialMargin / guiderPosition.AvailQuote) * quotePosition * float64(config.Leverage)) / currentPrice
 
 	var finalSide model.SideType
+	isProfited := true
 	if model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeLong {
 		finalSide = model.SideTypeBuy
 		if currentPrice > guiderPosition.EntryPrice {
-			profitRatio := calc.ProfitRatio(finalSide, guiderPosition.EntryPrice, currentPrice, float64(config.Leverage), amount)
-			if profitRatio > 0.12/100*float64(config.Leverage) {
-				return
-			}
+			isProfited = false
+
 		}
 	} else {
 		finalSide = model.SideTypeSell
 		if currentPrice < guiderPosition.EntryPrice {
-			profitRatio := calc.ProfitRatio(finalSide, guiderPosition.EntryPrice, currentPrice, float64(config.Leverage), amount)
-			if profitRatio > 0.12/100*float64(config.Leverage) {
-				return
-			}
+			isProfited = false
+		}
+	}
+	if isProfited == false {
+		profitRatio := calc.ProfitRatio(finalSide, guiderPosition.EntryPrice, currentPrice, float64(config.Leverage), amount)
+		if profitRatio > 0.12/100*float64(config.Leverage) {
+			utils.Log.Infof(
+				"[IGNORE ORDER] Pair: %s, Price: %v, Quantity: %v, Position Side: %s | Current: %v | (%.f)",
+				guiderPosition.Symbol,
+				guiderPosition.EntryPrice,
+				guiderPosition.PositionAmount,
+				guiderPosition.PositionSide,
+				currentPrice,
+				profitRatio,
+			)
+			return
 		}
 	}
 	openedPositions, err := s.broker.GetPositionsForPair(guiderPosition.Symbol)
@@ -420,19 +437,48 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	}
 	// 当前方向已存在仓位，不在开仓
 	if existPosition != nil {
-		if s.backtest == false {
-			utils.Log.Infof(
-				"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
-				existPosition.Pair,
-				existPosition.AvgPrice,
-				existPosition.Quantity,
-				existPosition.Side,
-				existPosition.OrderFlag,
-			)
-		}
+		utils.Log.Infof(
+			"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
+			existPosition.Pair,
+			existPosition.AvgPrice,
+			existPosition.Quantity,
+			existPosition.Side,
+			existPosition.OrderFlag,
+		)
 		return
 	}
-
+	// 判断当前是否已有同向挂单未成交，有则不在开单
+	existUnfilledOrderMap, err := s.getPairUnfilledOrders(guiderPosition.Symbol, s.broker)
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	var exsitOrder *model.Order
+	for _, existUnfilledOrder := range existUnfilledOrderMap {
+		positionOrders, ok := existUnfilledOrder["position"]
+		if !ok {
+			continue
+		}
+		for _, positionOrder := range positionOrders {
+			// 判断当前是否有同向挂单
+			if positionOrder.Side == finalSide && positionOrder.PositionSide == model.PositionSideType(guiderPosition.PositionSide) {
+				exsitOrder = positionOrder
+				break
+			}
+		}
+	}
+	// 判断当前是否已有同向挂单
+	if exsitOrder != nil {
+		utils.Log.Infof(
+			"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s ｜ (UNFILLED)",
+			exsitOrder.Pair,
+			exsitOrder.Price,
+			exsitOrder.Quantity,
+			exsitOrder.Side,
+			exsitOrder.OrderFlag,
+		)
+		return
+	}
 	// 设置当前交易对信息
 	err = s.exchange.SetPairOption(s.ctx, model.PairOption{
 		Pair:       config.Symbol,
@@ -443,17 +489,16 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 		return
 	}
 	utils.Log.Infof(
-		"[WATCHDOG OPEN] Pair: %s | Price: %v | Quantity: %v | Side: %s",
+		"[WATCHDOG OPEN] Guider Pair: %s | Price: %v | Quantity: %v | Position Side: %s",
 		guiderPosition.Symbol,
-		currentPrice,
-		amount,
-		finalSide,
+		guiderPosition.EntryPrice,
+		guiderPosition.PositionAmount,
+		guiderPosition.PositionSide,
 	)
-	guiderPositionRate := calc.FormatFloatRate(amount / calc.Abs(guiderPosition.PositionAmount))
 	// 根据最新价格创建限价单
 	_, err = s.broker.CreateOrderLimit(finalSide, model.PositionSideType(guiderPosition.PositionSide), guiderPosition.Symbol, amount, currentPrice, model.OrderExtra{
-		Leverage:           config.Leverage,
-		GuiderPositionRate: guiderPositionRate,
+		Leverage:       config.Leverage,
+		PositionAmount: calc.Abs(guiderPosition.PositionAmount),
 	})
 	if err != nil {
 		utils.Log.Error(err)
@@ -472,8 +517,9 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 		utils.Log.Error(err)
 		return
 	}
+	var hasPendingOrder bool
 	var tempSideType model.SideType
-	var guiderPositionAmount, currentGuiderPositionRate, currentQuantity float64
+	var guiderPositionAmount, processQuantity, currentQuantity float64
 	// 循环当前仓位，根据仓位orderFlag查询当前仓位关联的所有订单
 	for _, openedPosition := range openedPositions {
 		// 获取平仓方向
@@ -520,23 +566,50 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 				}
 			} else {
 				guiderPositionAmount = calc.Abs(currentGuiderPositions[0].PositionAmount)
-				// 双方都持有相同方向的仓位，判断仓位缩放比例
-				currentGuiderPositionRate = calc.FormatFloatRate(openedPosition.Quantity / guiderPositionAmount)
 				// 仓位存在，判断当前仓位比例是否和之前一致,一致时跳过
-				if currentGuiderPositionRate == openedPosition.GuiderPositionRate {
+				if calc.FloatEquals(openedPosition.Quantity/guiderPositionAmount, openedPosition.GuiderPositionRate, 0.02) {
 					continue
 				}
-				currentQuantity = guiderPositionAmount * currentGuiderPositionRate
-				// 判断当前计算的仓位与现在的仓位大小
-				if currentQuantity < openedPosition.Quantity {
+				currentQuantity = calc.RoundToDecimalPlaces(guiderPositionAmount*openedPosition.GuiderPositionRate, 3)
+				// 获取当前要加减仓的数量
+				processQuantity, _ = new(big.Float).Sub(
+					new(big.Float).SetFloat64(openedPosition.Quantity),
+					new(big.Float).SetFloat64(currentQuantity),
+				).Float64()
+				// 判断当前是否已有加仓减仓的单子
+				existUnfilledOrderMap, err := s.getPairUnfilledOrders(openedPosition.Pair, s.broker)
+				if err != nil {
+					utils.Log.Error(err)
+					return
+				}
+				// 仓位比之前小，减仓
+				if processQuantity > 0 {
+					// 判断是否已有减仓订单
+					if _, ok := existUnfilledOrderMap[openedPosition.OrderFlag]; ok {
+						positionOrders, ok := existUnfilledOrderMap[openedPosition.OrderFlag]["lossLimit"]
+						if ok {
+							// 判断当前是否有同向挂单
+							for _, positionOrder := range positionOrders {
+								if positionOrder.Side != model.SideType(openedPosition.Side) && positionOrder.PositionSide == model.PositionSideType(openedPosition.PositionSide) {
+									hasPendingOrder = true
+									break
+								}
+							}
+						}
+					}
+					if hasPendingOrder {
+						return
+					}
+
 					_, err := s.broker.CreateOrderMarket(
 						tempSideType,
 						model.PositionSideType(openedPosition.PositionSide),
 						openedPosition.Pair,
-						openedPosition.Quantity-currentQuantity,
+						processQuantity,
 						model.OrderExtra{
-							Leverage:  openedPosition.Leverage,
-							OrderFlag: openedPosition.OrderFlag,
+							Leverage:       openedPosition.Leverage,
+							OrderFlag:      openedPosition.OrderFlag,
+							PositionAmount: guiderPositionAmount,
 						},
 					)
 					if err != nil {
@@ -544,15 +617,32 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 						return
 					}
 				} else {
+					// 判断是否已有加仓订单
+					if _, ok := existUnfilledOrderMap[openedPosition.OrderFlag]; ok {
+						positionOrders, ok := existUnfilledOrderMap[openedPosition.OrderFlag]["lossLimit"]
+						if ok {
+							// 判断当前是否有同向挂单
+							for _, positionOrder := range positionOrders {
+								if positionOrder.Side == model.SideType(openedPosition.Side) && positionOrder.PositionSide == model.PositionSideType(openedPosition.PositionSide) {
+									hasPendingOrder = true
+									break
+								}
+							}
+						}
+					}
+					if hasPendingOrder {
+						return
+					}
 					// 加仓操作
 					_, err := s.broker.CreateOrderMarket(
 						model.SideType(openedPosition.Side),
 						model.PositionSideType(openedPosition.PositionSide),
 						openedPosition.Pair,
-						currentQuantity-openedPosition.Quantity,
+						calc.Abs(processQuantity),
 						model.OrderExtra{
-							Leverage:  openedPosition.Leverage,
-							OrderFlag: openedPosition.OrderFlag,
+							Leverage:       openedPosition.Leverage,
+							OrderFlag:      openedPosition.OrderFlag,
+							PositionAmount: guiderPositionAmount,
 						},
 					)
 					if err != nil {
@@ -946,36 +1036,65 @@ func (s *ServiceStrategy) timeoutOption() {
 			if s.checkMode == "candle" {
 				currentTime = s.lastUpdate
 			}
-			// 判断当前订单是未成交，未成交的订单取消
-			if positionOrder.Status == model.OrderStatusTypeNew {
-				// 获取挂单时间是否超长
-				cancelLimitTime := positionOrder.UpdatedAt.Add(CancelLimitDuration * time.Second)
-				// 判断当前时间是否在cancelLimitTime之前,在取消时间之前则不取消,防止挂单后被立马取消
-				if currentTime.Before(cancelLimitTime) {
-					continue
-				}
-				// 取消之前的未成交的限价单
-				err = s.broker.Cancel(*positionOrder)
+			// 获取挂单时间是否超长
+			cancelLimitTime := positionOrder.UpdatedAt.Add(CancelLimitDuration * time.Second)
+			// 判断当前时间是否在cancelLimitTime之前,在取消时间之前则不取消,防止挂单后被立马取消
+			if currentTime.Before(cancelLimitTime) {
+				continue
+			}
+			// 取消之前的未成交的限价单
+			err = s.broker.Cancel(*positionOrder)
+			if err != nil {
+				utils.Log.Error(err)
+				continue
+			}
+			// 取消之前的止损单
+			lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
+			if !ok {
+				continue
+			}
+			for _, lossLimitOrder := range lossLimitOrders {
+				// 取消之前的止损单
+				err = s.broker.Cancel(*lossLimitOrder)
 				if err != nil {
 					utils.Log.Error(err)
-					continue
-				}
-				// 取消之前的止损单
-				lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
-				if !ok {
-					continue
-				}
-				for _, lossLimitOrder := range lossLimitOrders {
-					// 取消之前的止损单
-					err = s.broker.Cancel(*lossLimitOrder)
-					if err != nil {
-						utils.Log.Error(err)
-						return
-					}
+					return
 				}
 			}
 		}
 	}
+}
+
+func (s *ServiceStrategy) getPairUnfilledOrders(pair string, broker reference.Broker) (map[string]map[string][]*model.Order, error) {
+	// 存储当前存在的仓位和限价单
+	unfilledOrders := map[string]map[string][]*model.Order{}
+	positionOrders, err := broker.GetOrdersForPairUnfilled(pair)
+	if err != nil {
+		utils.Log.Error(err)
+		return unfilledOrders, err
+	}
+	if len(positionOrders) > 0 {
+		for _, order := range positionOrders {
+			if _, ok := unfilledOrders[order.OrderFlag]; !ok {
+				unfilledOrders[order.OrderFlag] = make(map[string][]*model.Order)
+			}
+			// 获取所有开仓单子
+			if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort) {
+				if _, ok := unfilledOrders[order.OrderFlag]["position"]; !ok {
+					unfilledOrders[order.OrderFlag]["position"] = []*model.Order{}
+				}
+				unfilledOrders[order.OrderFlag]["position"] = append(unfilledOrders[order.OrderFlag]["position"], order)
+			}
+			// 获取所有平仓单子
+			if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) {
+				if _, ok := unfilledOrders[order.OrderFlag]["lossLimit"]; !ok {
+					unfilledOrders[order.OrderFlag]["lossLimit"] = []*model.Order{}
+				}
+				unfilledOrders[order.OrderFlag]["lossLimit"] = append(unfilledOrders[order.OrderFlag]["lossLimit"], order)
+			}
+		}
+	}
+	return unfilledOrders, nil
 }
 
 func (s *ServiceStrategy) getUnfilledOrders(broker reference.Broker) (map[string]map[string][]*model.Order, error) {

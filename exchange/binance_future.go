@@ -4,6 +4,7 @@ import (
 	"context"
 	"floolishman/types"
 	"floolishman/utils"
+	"floolishman/utils/calc"
 	"floolishman/utils/strutil"
 	"fmt"
 	"strconv"
@@ -182,14 +183,14 @@ func (b *BinanceFuture) validate(pair string, quantity float64) error {
 	return nil
 }
 
-func (b *BinanceFuture) formatPrice(pair string, value float64) string {
+func (b *BinanceFuture) FormatPrice(pair string, value float64) string {
 	if info, ok := b.assetsInfo[pair]; ok {
 		value = common.AmountToLotSize(info.TickSize, info.QuotePrecision, value)
 	}
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
-func (b *BinanceFuture) formatQuantity(pair string, value float64, toLot bool) string {
+func (b *BinanceFuture) FormatQuantity(pair string, value float64, toLot bool) string {
 	if toLot {
 		if info, ok := b.assetsInfo[pair]; ok {
 			value = common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
@@ -215,8 +216,8 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		TimeInForce(futures.TimeInForceTypeGTC).
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
-		Quantity(b.formatQuantity(pair, quantity, true)).
-		Price(b.formatPrice(pair, limit)).
+		Quantity(b.FormatQuantity(pair, quantity, true)).
+		Price(b.FormatPrice(pair, limit)).
 		Do(b.ctx)
 	if err != nil {
 		return model.Order{}, err
@@ -230,6 +231,10 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 	quantity, err = strconv.ParseFloat(order.OrigQuantity, 64)
 	if err != nil {
 		return model.Order{}, err
+	}
+	var guiderPositionRate float64
+	if extra.PositionAmount > 0 {
+		guiderPositionRate = calc.FormatFloatRate(quantity / extra.PositionAmount)
 	}
 
 	return model.Order{
@@ -249,7 +254,7 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		Leverage:           extra.Leverage,
 		LongShortRatio:     extra.LongShortRatio,
 		MatchStrategy:      extra.MatchStrategy,
-		GuiderPositionRate: extra.GuiderPositionRate,
+		GuiderPositionRate: guiderPositionRate,
 	}, nil
 }
 
@@ -266,7 +271,7 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 		Type(futures.OrderTypeMarket).
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
-		Quantity(b.formatQuantity(pair, quantity, true)).
+		Quantity(b.FormatQuantity(pair, quantity, true)).
 		Do(b.ctx)
 
 	if err != nil {
@@ -324,10 +329,10 @@ func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide m
 		TimeInForce(futures.TimeInForceTypeGTC).
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
-		Quantity(b.formatQuantity(pair, quantity, false)).
+		Quantity(b.FormatQuantity(pair, quantity, false)).
 		WorkingType(futures.WorkingTypeMarkPrice).
-		StopPrice(b.formatPrice(pair, stopPrice)).
-		Price(b.formatPrice(pair, limit)).
+		StopPrice(b.FormatPrice(pair, stopPrice)).
+		Price(b.FormatPrice(pair, limit)).
 		Do(b.ctx)
 	if err != nil {
 		return model.Order{}, err
@@ -380,9 +385,9 @@ func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide 
 		TimeInForce(futures.TimeInForceTypeGTC).
 		Side(futures.SideType(side)).
 		PositionSide(futures.PositionSideType(positionSide)).
-		Quantity(b.formatQuantity(pair, quantity, false)).
+		Quantity(b.FormatQuantity(pair, quantity, false)).
 		WorkingType(futures.WorkingTypeMarkPrice).
-		StopPrice(b.formatPrice(pair, stopPrice)).
+		StopPrice(b.FormatPrice(pair, stopPrice)).
 		Do(b.ctx)
 	if err != nil {
 		return model.Order{}, err
@@ -468,6 +473,11 @@ func (b *BinanceFuture) GetOrdersForPostionLossUnfilled(_ string) ([]*model.Orde
 }
 
 func (b *BinanceFuture) GetOrdersForUnfilled() ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *BinanceFuture) GetOrdersForPairUnfilled(pair string) ([]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }

@@ -11,7 +11,6 @@ import (
 	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/strutil"
-	"fmt"
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/glebarez/sqlite"
 	"github.com/spf13/viper"
@@ -63,7 +62,6 @@ func main() {
 
 	guiderConfigMap := guiderSetting.(map[string]interface{})
 	guiderConfigs := strutil.ConvertToNestedStringMap(guiderConfigMap)
-	fmt.Print(guiderConfigs)
 
 	settings := model.Settings{
 		PairOptions: []model.PairOption{},

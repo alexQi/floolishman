@@ -161,8 +161,8 @@ func (b *Binance) CreateOrderStop(pair string, quantity float64, limit float64) 
 		Type(binance.OrderTypeStopLoss).
 		TimeInForce(binance.TimeInForceTypeGTC).
 		Side(binance.SideTypeSell).
-		Quantity(b.formatQuantity(pair, quantity)).
-		Price(b.formatPrice(pair, limit)).
+		Quantity(b.FormatQuantity(pair, quantity, true)).
+		Price(b.FormatPrice(pair, limit)).
 		Do(b.ctx)
 	if err != nil {
 		return model.Order{}, err
@@ -184,16 +184,18 @@ func (b *Binance) CreateOrderStop(pair string, quantity float64, limit float64) 
 	}, nil
 }
 
-func (b *Binance) formatPrice(pair string, value float64) string {
+func (b *Binance) FormatPrice(pair string, value float64) string {
 	if info, ok := b.assetsInfo[pair]; ok {
 		value = common.AmountToLotSize(info.TickSize, info.QuotePrecision, value)
 	}
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
-func (b *Binance) formatQuantity(pair string, value float64) string {
-	if info, ok := b.assetsInfo[pair]; ok {
-		value = common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
+func (b *Binance) FormatQuantity(pair string, value float64, toLot bool) string {
+	if toLot {
+		if info, ok := b.assetsInfo[pair]; ok {
+			value = common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
+		}
 	}
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
@@ -211,8 +213,8 @@ func (b *Binance) CreateOrderLimit(side model.SideType, pair string,
 		Type(binance.OrderTypeLimit).
 		TimeInForce(binance.TimeInForceTypeGTC).
 		Side(binance.SideType(side)).
-		Quantity(b.formatQuantity(pair, quantity)).
-		Price(b.formatPrice(pair, limit)).
+		Quantity(b.FormatQuantity(pair, quantity, true)).
+		Price(b.FormatPrice(pair, limit)).
 		Do(b.ctx)
 	if err != nil {
 		return model.Order{}, err
@@ -254,8 +256,8 @@ func (b *Binance) CreateOrderStopLimit(side model.SideType, positionSide model.P
 		Type(binance.OrderTypeStopLoss).
 		TimeInForce(binance.TimeInForceTypeGTC).
 		Side(binance.SideType(side)).
-		Quantity(b.formatQuantity(pair, quantity)).
-		Price(b.formatPrice(pair, limit)).
+		Quantity(b.FormatQuantity(pair, quantity, true)).
+		Price(b.FormatPrice(pair, limit)).
 		Do(b.ctx)
 	if err != nil {
 		return model.Order{}, err
@@ -294,7 +296,7 @@ func (b *Binance) CreateOrderMarket(side model.SideType, pair string, quantity f
 		Symbol(pair).
 		Type(binance.OrderTypeMarket).
 		Side(binance.SideType(side)).
-		Quantity(b.formatQuantity(pair, quantity)).
+		Quantity(b.FormatQuantity(pair, quantity, true)).
 		NewOrderRespType(binance.NewOrderRespTypeFULL).
 		Do(b.ctx)
 	if err != nil {
@@ -334,7 +336,7 @@ func (b *Binance) CreateOrderMarketQuote(side model.SideType, pair string, quant
 		Symbol(pair).
 		Type(binance.OrderTypeMarket).
 		Side(binance.SideType(side)).
-		QuoteOrderQty(b.formatQuantity(pair, quantity)).
+		QuoteOrderQty(b.FormatQuantity(pair, quantity, true)).
 		NewOrderRespType(binance.NewOrderRespTypeFULL).
 		Do(b.ctx)
 	if err != nil {
@@ -417,6 +419,11 @@ func (b *Binance) GetOrdersForPostionLossUnfilled(_ string) ([]*model.Order, err
 }
 
 func (b *Binance) GetOrdersForUnfilled() ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *Binance) GetOrdersForPairUnfilled(pair string) ([]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }

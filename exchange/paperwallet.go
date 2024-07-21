@@ -671,8 +671,8 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 	}
 	orderFlag := strutil.RandomString(6)
 
-	currentQuantity := p.formatQuantity(pair, quantity, true)
-	currentPrice := p.formatPrice(pair, limit)
+	currentQuantity := p.FormatQuantity(pair, quantity, true)
+	currentPrice := p.FormatPrice(pair, limit)
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
 		return model.Order{}, err
@@ -714,8 +714,8 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 		orderFlag = strutil.RandomString(6)
 	}
 
-	currentQuantity := p.formatQuantity(pair, quantity, true)
-	currentPrice := p.formatPrice(pair, p.lastCandle[pair].Close)
+	currentQuantity := p.FormatQuantity(pair, quantity, true)
+	currentPrice := p.FormatPrice(pair, p.lastCandle[pair].Close)
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
 		return model.Order{}, err
@@ -766,8 +766,8 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 		return model.Order{}, ErrInvalidQuantity
 	}
 
-	currentQuantity := p.formatQuantity(pair, quantity, false)
-	currentPrice := p.formatPrice(pair, limit)
+	currentQuantity := p.FormatQuantity(pair, quantity, false)
+	currentPrice := p.FormatPrice(pair, limit)
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
 		return model.Order{}, err
@@ -807,16 +807,16 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 		return model.Order{}, ErrInvalidQuantity
 	}
 
-	currentQuantity := p.formatQuantity(pair, quantity, false)
-	currentPrice := p.formatPrice(pair, stopPrice)
+	currentQuantity := p.FormatQuantity(pair, quantity, false)
+	currentPrice := p.FormatPrice(pair, stopPrice)
 	if positionSide == model.PositionSideTypeLong {
 		// 判断触发时机，当前价格小于触发价格时直接平掉
 		if stopPrice >= p.lastCandle[pair].Close {
-			currentPrice = p.formatPrice(pair, p.lastCandle[pair].Close)
+			currentPrice = p.FormatPrice(pair, p.lastCandle[pair].Close)
 		}
 	} else {
 		if stopPrice <= p.lastCandle[pair].Close {
-			currentPrice = p.formatPrice(pair, p.lastCandle[pair].Close)
+			currentPrice = p.FormatPrice(pair, p.lastCandle[pair].Close)
 		}
 	}
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
@@ -892,8 +892,11 @@ func (p *PaperWallet) GetOrdersForPostionLossUnfilled(_ string) ([]*model.Order,
 	//TODO implement me
 	panic("implement me")
 }
-
 func (b *PaperWallet) GetOrdersForUnfilled() ([]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+func (b *PaperWallet) GetOrdersForPairUnfilled(pair string) ([]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -906,12 +909,12 @@ func (b *PaperWallet) GetPositionsForOpened() ([]*model.Position, error) {
 	panic("implement me")
 }
 
-func (p *PaperWallet) formatPrice(pair string, value float64) float64 {
+func (p *PaperWallet) FormatPrice(pair string, value float64) float64 {
 	info := p.AssetsInfo(pair)
 	return common.AmountToLotSize(info.TickSize, info.QuotePrecision, value)
 }
 
-func (p *PaperWallet) formatQuantity(pair string, value float64, toLot bool) float64 {
+func (p *PaperWallet) FormatQuantity(pair string, value float64, toLot bool) float64 {
 	if toLot {
 		//info := p.AssetsInfo(pair)
 		//return common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)

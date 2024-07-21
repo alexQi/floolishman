@@ -4,6 +4,7 @@ import (
 	"floolishman/model"
 	"math"
 	"math/big"
+	"strconv"
 )
 
 func Max(a, b float64) float64 {
@@ -27,8 +28,25 @@ func Abs(a float64) float64 {
 	return a
 }
 
+func StringToFloat64(input string) (float64, error) {
+	value, err := strconv.ParseFloat(input, 64)
+	if err != nil {
+		return 0, err
+	}
+	return value, nil
+}
+
+func FloatEquals(a, b, epsilon float64) bool {
+	return math.Abs(a-b) <= epsilon
+}
+
 func FormatFloatRate(input float64) float64 {
-	return math.Floor(input*10000) / 10000
+	return math.Round(input*100) / 100
+}
+
+func RoundToDecimalPlaces(value float64, decimalPlaces int) float64 {
+	factor := math.Pow(10, float64(decimalPlaces))
+	return math.Round(value*factor) / factor
 }
 
 func MulFloat64(a, b float64) float64 {

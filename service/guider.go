@@ -120,6 +120,10 @@ func (s *ServiceGuider) FetchPosition() (map[string]map[model.PositionSideType][
 		tempUserPositions = append(tempUserPositions, userPositions...)
 	}
 	for _, position := range tempUserPositions {
+		// 只允许跟随双向持仓
+		if model.PositionSideType(position.PositionSide) == model.PositionSideTypeBoth {
+			continue
+		}
 		if _, ok := guiderPosition[position.Symbol]; !ok {
 			guiderPosition[position.Symbol] = make(map[model.PositionSideType][]model.GuiderPosition)
 		}

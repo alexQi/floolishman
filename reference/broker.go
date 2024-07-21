@@ -9,10 +9,13 @@ import (
 type Broker interface {
 	Account() (model.Account, error)
 	Position(pair string) (asset, quote float64, err error)
+	FormatPrice(pair string, value float64) string
+	FormatQuantity(pair string, value float64, toLot bool) string
 	GetPositionsForPair(pair string) ([]*model.Position, error)
 	GetPositionsForOpened() ([]*model.Position, error)
 	Order(pair string, id int64) (model.Order, error)
 	GetOrdersForUnfilled() ([]*model.Order, error)
+	GetOrdersForPairUnfilled(pair string) ([]*model.Order, error)
 	GetOrdersForPostionLossUnfilled(orderFlag string) ([]*model.Order, error)
 	CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string, size float64, limit float64, extra model.OrderExtra) (model.Order, error)
 	CreateOrderMarket(side model.SideType, positionSide model.PositionSideType, pair string, size float64, extra model.OrderExtra) (model.Order, error)

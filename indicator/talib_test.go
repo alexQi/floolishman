@@ -1,8 +1,10 @@
 package indicator
 
 import (
+	"floolishman/utils/calc"
 	"fmt"
 	"math"
+	"math/big"
 	"testing"
 )
 
@@ -75,18 +77,20 @@ func CalculateAngle(sequence []float64) float64 {
 }
 
 func TestA(t *testing.T) {
-	volume := []float64{5, 4, 2}
-	isIncreasing := true
-	isDecreasing := true
-	for i := 1; i < len(volume); i++ {
-		if volume[i] > volume[i-1] {
-			isDecreasing = false
-		} else if volume[i] < volume[i-1] {
-			isIncreasing = false
-		}
-		if !isIncreasing && !isDecreasing {
-			break
-		}
+	guiderPositionAmount := 0.012
+	openPositionQuantity := 0.008
+	guiderPositionRate := 1.33
+	// 仓位存在，判断当前仓位比例是否和之前一致,一致时跳过
+	if calc.FloatEquals(openPositionQuantity/guiderPositionAmount, guiderPositionRate, 0.02) {
+		fmt.Printf("在范围内")
+		return
 	}
-	fmt.Print(isIncreasing, isDecreasing)
+	currentQuantity := calc.RoundToDecimalPlaces(guiderPositionAmount*guiderPositionRate, 3)
+	fmt.Print(currentQuantity)
+	// 获取当前要加减仓的数量
+	processQuantity, _ := new(big.Float).Sub(
+		new(big.Float).SetFloat64(openPositionQuantity),
+		new(big.Float).SetFloat64(currentQuantity),
+	).Float64()
+	fmt.Print(processQuantity)
 }

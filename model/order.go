@@ -13,6 +13,7 @@ type OrderStatusType string
 var (
 	SideTypeBuy              SideType         = "BUY"
 	SideTypeSell             SideType         = "SELL"
+	PositionSideTypeBoth     PositionSideType = "BOTH"
 	PositionSideTypeLong     PositionSideType = "LONG"
 	PositionSideTypeShort    PositionSideType = "SHORT"
 	OrderTypeLimit           OrderType        = "LIMIT"
@@ -39,6 +40,7 @@ type OrderExtra struct {
 	LongShortRatio     float64
 	Leverage           int
 	GuiderPositionRate float64
+	PositionAmount     float64
 	MatchStrategy      map[string]int
 }
 

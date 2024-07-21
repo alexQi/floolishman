@@ -234,15 +234,12 @@ func (s *SQL) UpdatePosition(position *model.Position) error {
 
 func (s *SQL) Positions(filterParams PositionFilterParams) ([]*model.Position, error) {
 	positions := make([]*model.Position, 0)
-	query := s.db
+	query := s.db.Where("status=?", filterParams.Status)
 	if len(filterParams.Pair) > 0 {
 		query = query.Where("pair=?", filterParams.Pair)
 	}
 	if len(filterParams.OrderFlag) > 0 {
 		query = query.Where("order_flag=?", filterParams.OrderFlag)
-	}
-	if filterParams.Status > 0 {
-		query = query.Where("status=?", filterParams.Status)
 	}
 	if len(filterParams.Side) > 0 {
 		query = query.Where("side=?", filterParams.Side)
@@ -260,15 +257,12 @@ func (s *SQL) Positions(filterParams PositionFilterParams) ([]*model.Position, e
 
 func (s *SQL) GetPosition(filterParams PositionFilterParams) (*model.Position, error) {
 	position := &model.Position{}
-	query := s.db
+	query := s.db.Where("status=?", filterParams.Status)
 	if len(filterParams.Pair) > 0 {
 		query = query.Where("pair=?", filterParams.Pair)
 	}
 	if len(filterParams.OrderFlag) > 0 {
 		query = query.Where("order_flag=?", filterParams.OrderFlag)
-	}
-	if filterParams.Status > 0 {
-		query = query.Where("status=?", filterParams.Status)
 	}
 	if len(filterParams.Side) > 0 {
 		query = query.Where("side=?", filterParams.Side)

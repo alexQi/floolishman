@@ -210,6 +210,14 @@ type ServiceOrder struct {
 	positionMap map[string]map[string]*model.Position
 }
 
+func (c *ServiceOrder) FormatPrice(pair string, value float64) string {
+	return c.exchange.FormatPrice(pair, value)
+}
+
+func (c *ServiceOrder) FormatQuantity(pair string, value float64, toLot bool) string {
+	return c.exchange.FormatQuantity(pair, value, toLot)
+}
+
 func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage storage.Storage,
 	orderFeed *model.Feed) *ServiceOrder {
 
@@ -271,6 +279,7 @@ func (c *ServiceOrder) GetPositionsForPair(pair string) ([]*model.Position, erro
 
 func (c *ServiceOrder) GetPositionsForOpened() ([]*model.Position, error) {
 	positions := []*model.Position{}
+
 	if len(c.positionMap) > 0 {
 		for _, pairPositions := range c.positionMap {
 			for _, position := range pairPositions {
@@ -300,7 +309,6 @@ func (c *ServiceOrder) GetPositionsForOpened() ([]*model.Position, error) {
 			}()
 		}
 	}
-
 	return positions, nil
 }
 
@@ -325,6 +333,22 @@ func (c *ServiceOrder) GetOrdersForPostionLossUnfilled(orderFlag string) ([]*mod
 		}
 		return true
 	}), nil
+}
+
+func (c *ServiceOrder) GetOrdersForPairUnfilled(pair string) ([]*model.Order, error) {
+	orders := []*model.Order{}
+	orders, err := c.storage.Orders(
+		storage.OrderFilterParams{
+			Pair: pair,
+			Statuses: []model.OrderStatusType{
+				model.OrderStatusTypeNew, // 未成交订单
+			},
+		},
+	)
+	if err != nil {
+		return orders, err
+	}
+	return orders, nil
 }
 
 func (c *ServiceOrder) GetOrdersForUnfilled() ([]*model.Order, error) {
@@ -417,6 +441,10 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 	position, ok := c.positionMap[o.Pair][o.OrderFlag]
 	// 查询当前内存缓存是否存在仓位，不存在则创建仓位
 	if !ok {
+		// 不是开仓订单。跳过
+		if (o.Side == model.SideTypeBuy && o.PositionSide == model.PositionSideTypeShort) || (o.Side == model.SideTypeSell && o.PositionSide == model.PositionSideTypeLong) {
+			return
+		}
 		// 判断当前订单在数据库中是否有仓位
 		position, err := c.storage.GetPosition(storage.PositionFilterParams{
 			Pair:      o.Pair,
@@ -429,10 +457,6 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		}
 		// 不存在则创建仓位
 		if position.ID == 0 {
-			// 不是开仓订单。跳过
-			if (o.Side == model.SideTypeBuy && o.PositionSide == model.PositionSideTypeShort) || (o.Side == model.SideTypeSell && o.PositionSide == model.PositionSideTypeLong) {
-				return
-			}
 			position = &model.Position{
 				Pair:               o.Pair,
 				OrderFlag:          o.OrderFlag,
@@ -456,17 +480,17 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		} else {
 			c.positionMap[o.Pair][o.OrderFlag] = position
 		}
-		fmt.Printf("fawefawf")
 	}
 
 	result := c.Update(position, o)
+	// 更新数据库仓位记录
+	err := c.storage.UpdatePosition(position)
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	// 结束后删除内存缓存，删除内存缓存
 	if position.Status > 0 {
-		// 更新数据库仓位记录
-		err := c.storage.UpdatePosition(position)
-		if err != nil {
-			return
-		}
-		// 删除内存缓存
 		delete(c.positionMap[o.Pair], o.OrderFlag)
 	}
 
