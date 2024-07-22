@@ -49,6 +49,20 @@ func RoundToDecimalPlaces(value float64, decimalPlaces int) float64 {
 	return math.Round(value*factor) / factor
 }
 
+func AccurateAdd(a, b float64) float64 {
+	bigFloatA := new(big.Float).SetFloat64(a)
+	bigFloatB := new(big.Float).SetFloat64(b)
+	result, _ := new(big.Float).Add(bigFloatA, bigFloatB).Float64()
+	return result
+}
+
+func AccurateSub(a, b float64) float64 {
+	bigFloatA := new(big.Float).SetFloat64(a)
+	bigFloatB := new(big.Float).SetFloat64(b)
+	result, _ := new(big.Float).Sub(bigFloatA, bigFloatB).Float64()
+	return result
+}
+
 func MulFloat64(a, b float64) float64 {
 	// 将 float64 转换为 *big.Float
 	priceBig := new(big.Float).SetFloat64(a)

@@ -9,7 +9,6 @@ import (
 	"floolishman/utils/calc"
 	"fmt"
 	"github.com/adshao/go-binance/v2/futures"
-	"math/big"
 	"reflect"
 	"sync"
 	"time"
@@ -438,12 +437,13 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	// 当前方向已存在仓位，不在开仓
 	if existPosition != nil {
 		utils.Log.Infof(
-			"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
+			"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v",
 			existPosition.Pair,
 			existPosition.AvgPrice,
 			existPosition.Quantity,
 			existPosition.Side,
 			existPosition.OrderFlag,
+			currentPrice,
 		)
 		return
 	}
@@ -470,12 +470,13 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	// 判断当前是否已有同向挂单
 	if exsitOrder != nil {
 		utils.Log.Infof(
-			"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s ｜ (UNFILLED)",
+			"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v ｜ (UNFILLED)",
 			exsitOrder.Pair,
 			exsitOrder.Price,
 			exsitOrder.Quantity,
 			exsitOrder.Side,
 			exsitOrder.OrderFlag,
+			currentPrice,
 		)
 		return
 	}
@@ -519,7 +520,7 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 	}
 	var hasPendingOrder bool
 	var tempSideType model.SideType
-	var guiderPositionAmount, processQuantity, currentQuantity float64
+	var guiderPositionAmount, processQuantity, currentQuantity, currentPrice float64
 	// 循环当前仓位，根据仓位orderFlag查询当前仓位关联的所有订单
 	for _, openedPosition := range openedPositions {
 		// 获取平仓方向
@@ -528,6 +529,7 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 		} else {
 			tempSideType = model.SideTypeBuy
 		}
+		currentPrice = s.pairPrices[openedPosition.Pair]
 		// 判断当前币种仓位是否在guider中存在，不存在时平掉全部仓位
 		if _, ok := userPositions[openedPosition.Pair]; !ok {
 			_, err := s.broker.CreateOrderMarket(
@@ -568,14 +570,20 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 				guiderPositionAmount = calc.Abs(currentGuiderPositions[0].PositionAmount)
 				// 仓位存在，判断当前仓位比例是否和之前一致,一致时跳过
 				if calc.FloatEquals(openedPosition.Quantity/guiderPositionAmount, openedPosition.GuiderPositionRate, 0.02) {
+					utils.Log.Infof(
+						"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v",
+						openedPosition.Pair,
+						openedPosition.AvgPrice,
+						openedPosition.Quantity,
+						openedPosition.Side,
+						openedPosition.OrderFlag,
+						currentPrice,
+					)
 					continue
 				}
 				currentQuantity = calc.RoundToDecimalPlaces(guiderPositionAmount*openedPosition.GuiderPositionRate, 3)
 				// 获取当前要加减仓的数量
-				processQuantity, _ = new(big.Float).Sub(
-					new(big.Float).SetFloat64(openedPosition.Quantity),
-					new(big.Float).SetFloat64(currentQuantity),
-				).Float64()
+				processQuantity = calc.AccurateSub(openedPosition.Quantity, currentQuantity)
 				// 判断当前是否已有加仓减仓的单子
 				existUnfilledOrderMap, err := s.getPairUnfilledOrders(openedPosition.Pair, s.broker)
 				if err != nil {
@@ -600,7 +608,11 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 					if hasPendingOrder {
 						return
 					}
-
+					// 处理精度波动导致无法完全平仓
+					if processQuantity/openedPosition.Quantity > 0.97 {
+						processQuantity = openedPosition.Quantity
+					}
+					// 减仓或者平仓
 					_, err := s.broker.CreateOrderMarket(
 						tempSideType,
 						model.PositionSideType(openedPosition.PositionSide),
@@ -706,13 +718,13 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 	if existPosition != nil {
 		if s.backtest == false {
 			utils.Log.Infof(
-				"[WATCHDOG HOLD ORDER - %s] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s",
-				existPosition.Status,
+				"[HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v",
 				existPosition.Pair,
 				existPosition.AvgPrice,
 				existPosition.Quantity,
 				existPosition.Side,
 				existPosition.OrderFlag,
+				currentPrice,
 			)
 		}
 		return

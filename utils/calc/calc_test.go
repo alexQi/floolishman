@@ -2,10 +2,20 @@ package calc
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 )
 
 func Test_formatFloat(t *testing.T) {
-	a := FloatEquals(2.1994, 2.1996, 0.01)
-	fmt.Print(a)
+	ac := 0.012
+	ab := 0.006
+	processQuantityA := AccurateSub(ac, ab)
+	fmt.Print(processQuantityA)
+
+	processQuantityB, _ := new(big.Float).Sub(
+		new(big.Float).SetFloat64(ac),
+		new(big.Float).SetFloat64(ab),
+	).Float64()
+
+	fmt.Print(processQuantityB)
 }

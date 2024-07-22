@@ -671,8 +671,8 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 	}
 	orderFlag := strutil.RandomString(6)
 
-	currentQuantity := p.FormatQuantity(pair, quantity, true)
-	currentPrice := p.FormatPrice(pair, limit)
+	currentQuantity := p.FormatQuantityFloat(pair, quantity, true)
+	currentPrice := p.FormatPriceFloat(pair, limit)
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
 		return model.Order{}, err
@@ -714,8 +714,8 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 		orderFlag = strutil.RandomString(6)
 	}
 
-	currentQuantity := p.FormatQuantity(pair, quantity, true)
-	currentPrice := p.FormatPrice(pair, p.lastCandle[pair].Close)
+	currentQuantity := p.FormatQuantityFloat(pair, quantity, true)
+	currentPrice := p.FormatPriceFloat(pair, p.lastCandle[pair].Close)
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
 		return model.Order{}, err
@@ -766,8 +766,8 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 		return model.Order{}, ErrInvalidQuantity
 	}
 
-	currentQuantity := p.FormatQuantity(pair, quantity, false)
-	currentPrice := p.FormatPrice(pair, limit)
+	currentQuantity := p.FormatQuantityFloat(pair, quantity, false)
+	currentPrice := p.FormatPriceFloat(pair, limit)
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
 	if err != nil {
 		return model.Order{}, err
@@ -807,16 +807,16 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 		return model.Order{}, ErrInvalidQuantity
 	}
 
-	currentQuantity := p.FormatQuantity(pair, quantity, false)
-	currentPrice := p.FormatPrice(pair, stopPrice)
+	currentQuantity := p.FormatQuantityFloat(pair, quantity, false)
+	currentPrice := p.FormatPriceFloat(pair, stopPrice)
 	if positionSide == model.PositionSideTypeLong {
 		// 判断触发时机，当前价格小于触发价格时直接平掉
 		if stopPrice >= p.lastCandle[pair].Close {
-			currentPrice = p.FormatPrice(pair, p.lastCandle[pair].Close)
+			currentPrice = p.FormatPriceFloat(pair, p.lastCandle[pair].Close)
 		}
 	} else {
 		if stopPrice <= p.lastCandle[pair].Close {
-			currentPrice = p.FormatPrice(pair, p.lastCandle[pair].Close)
+			currentPrice = p.FormatPriceFloat(pair, p.lastCandle[pair].Close)
 		}
 	}
 	err := p.validateFunds(side, positionSide, pair, currentQuantity, currentPrice)
@@ -909,25 +909,31 @@ func (b *PaperWallet) GetPositionsForOpened() ([]*model.Position, error) {
 	panic("implement me")
 }
 
-func (p *PaperWallet) FormatPrice(pair string, value float64) float64 {
+func (p *PaperWallet) FormatPriceFloat(pair string, value float64) float64 {
 	info := p.AssetsInfo(pair)
 	return common.AmountToLotSize(info.TickSize, info.QuotePrecision, value)
 }
 
-func (p *PaperWallet) FormatQuantity(pair string, value float64, toLot bool) float64 {
+func (p *PaperWallet) FormatQuantityFloat(pair string, value float64, toLot bool) float64 {
 	if toLot {
-		//info := p.AssetsInfo(pair)
-		//return common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
-		formatNumber := strconv.FormatFloat(value, 'f', -1, 64)
-		// 将字符串转换回 float64
-		intNumber, err := strconv.ParseFloat(formatNumber, 64)
-		if err != nil {
-			fmt.Println("Error parsing float:", err)
-			return 0
-		}
-		return intNumber
+		info := p.AssetsInfo(pair)
+		value = common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
 	}
 	return value
+}
+
+func (p *PaperWallet) FormatPrice(pair string, value float64) string {
+	info := p.AssetsInfo(pair)
+	value = common.AmountToLotSize(info.TickSize, info.QuotePrecision, value)
+	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func (p *PaperWallet) FormatQuantity(pair string, value float64, toLot bool) string {
+	if toLot {
+		info := p.AssetsInfo(pair)
+		value = common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
+	}
+	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
 func (p *PaperWallet) CandlesByPeriod(ctx context.Context, pair, period string,

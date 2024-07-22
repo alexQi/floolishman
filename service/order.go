@@ -4,6 +4,7 @@ import (
 	"context"
 	"floolishman/reference"
 	"floolishman/utils"
+	"floolishman/utils/calc"
 	"fmt"
 	"github.com/samber/lo"
 	"math"
@@ -373,24 +374,25 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 	price := order.Price
 	if p.Side == string(order.Side) {
 		p.AvgPrice = (p.AvgPrice*p.Quantity + price*order.Quantity) / (p.Quantity + order.Quantity)
-		p.Quantity += order.Quantity
+		p.Quantity = calc.AccurateAdd(p.Quantity, order.Quantity)
 	} else {
 		if p.PositionSide == string(model.PositionSideTypeLong) {
 			// 平多单
 			if p.Quantity == order.Quantity {
 				p.Status = 1
+				p.Quantity = 0
 			} else if p.Quantity > order.Quantity {
-				p.Quantity -= order.Quantity
+				p.Quantity = calc.AccurateSub(p.Quantity, order.Quantity)
 			} else {
-				p.Quantity = order.Quantity - p.Quantity
+				p.Quantity = calc.AccurateSub(order.Quantity, p.Quantity)
 				p.AvgPrice = price
 				// todo 待考察会不会变成反手仓位
 				//p.Side = string(order.Side)
 				//p.PositionSide = string(order.PositionSide)
 			}
 
-			order.Profit = (price - p.AvgPrice) / p.AvgPrice
-			order.ProfitValue = (price - p.AvgPrice) * order.Quantity
+			order.Profit = calc.AccurateSub(price, p.AvgPrice) / p.AvgPrice
+			order.ProfitValue = calc.AccurateSub(price, p.AvgPrice) * order.Quantity
 
 			result = &Result{
 				Pair:          order.Pair,
@@ -406,15 +408,16 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 			// 平空单
 			if p.Quantity == order.Quantity {
 				p.Status = 1
+				p.Quantity = 0
 			} else if p.Quantity > order.Quantity {
-				p.Quantity -= order.Quantity
+				p.Quantity = calc.AccurateSub(p.Quantity, order.Quantity)
 			} else {
-				p.Quantity = order.Quantity - p.Quantity
+				p.Quantity = calc.AccurateSub(order.Quantity, p.Quantity)
 				p.AvgPrice = price
 			}
 
-			order.Profit = (p.AvgPrice - price) / p.AvgPrice
-			order.ProfitValue = (p.AvgPrice - price) * order.Quantity
+			order.Profit = calc.AccurateSub(p.AvgPrice, price) / p.AvgPrice
+			order.ProfitValue = calc.AccurateSub(p.AvgPrice, price) * order.Quantity
 
 			result = &Result{
 				Pair:          order.Pair,
