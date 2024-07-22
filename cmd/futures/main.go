@@ -14,7 +14,6 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/glebarez/sqlite"
 	"github.com/spf13/viper"
-	"gorm.io/gorm"
 	"log"
 	"os"
 	"path/filepath"
@@ -139,7 +138,7 @@ func main() {
 			utils.Log.Panicf("mkdir error : %s", err.Error())
 		}
 	}
-	st, err := storage.FromSQL(sqlite.Open(storagePath), &gorm.Config{})
+	st, err := storage.FromSQL(sqlite.Open(storagePath))
 	if err != nil {
 		log.Fatal(err)
 	}

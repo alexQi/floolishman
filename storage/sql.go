@@ -1,11 +1,12 @@
 package storage
 
 import (
+	"floolishman/utils/log"
+	"gorm.io/gorm/logger"
 	"time"
 
-	"gorm.io/gorm"
-
 	"floolishman/model"
+	"gorm.io/gorm"
 )
 
 type SQL struct {
@@ -19,6 +20,10 @@ type SQL struct {
 //	if err != nil {
 //	}
 func FromSQL(dialect gorm.Dialector, opts ...gorm.Option) (Storage, error) {
+	gormLogger := log.NewGormLogger(log.InitLogger())
+	opts = append(opts, &gorm.Config{
+		Logger: gormLogger.LogMode(logger.Warn),
+	})
 	db, err := gorm.Open(dialect, opts...)
 	if err != nil {
 		return nil, err

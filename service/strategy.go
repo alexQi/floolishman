@@ -191,7 +191,7 @@ func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 					} else {
 						longShortRatio = 0
 					}
-					assetPosition, quotePosition, err := s.broker.Position(option.Pair)
+					assetPosition, quotePosition, err := s.broker.PairAsset(option.Pair)
 					if err != nil {
 						utils.Log.Error(err)
 					}
@@ -285,7 +285,7 @@ func (s *ServiceStrategy) StartJudger(pair string) {
 				continue
 			}
 			// 执行开仓检查
-			assetPosition, quotePosition, err := s.broker.Position(pair)
+			assetPosition, quotePosition, err := s.broker.PairAsset(pair)
 			if err != nil {
 				utils.Log.Error(err)
 			}
@@ -351,7 +351,7 @@ func (s *ServiceStrategy) checkPosition(option model.PairOption) (float64, float
 	if longShortRatio < 0 {
 		return 0, 0, longShortRatio, matcherStrategy
 	}
-	assetPosition, quotePosition, err := s.broker.Position(option.Pair)
+	assetPosition, quotePosition, err := s.broker.PairAsset(option.Pair)
 	if err != nil {
 		utils.Log.Error(err)
 		return 0, 0, longShortRatio, matcherStrategy
@@ -366,7 +366,7 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 		return
 	}
 	// 判断当前资产
-	assetPosition, quotePosition, err := s.broker.Position(guiderPosition.Symbol)
+	assetPosition, quotePosition, err := s.broker.PairAsset(guiderPosition.Symbol)
 	if err != nil {
 		utils.Log.Error(err)
 	}

@@ -645,7 +645,7 @@ func (p *PaperWallet) Account() (model.Account, error) {
 	}, nil
 }
 
-func (p *PaperWallet) Position(pair string) (asset, quote float64, err error) {
+func (p *PaperWallet) PairAsset(pair string) (asset, quote float64, err error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -658,6 +658,10 @@ func (p *PaperWallet) Position(pair string) (asset, quote float64, err error) {
 	assetBalance, quoteBalance := acc.Balance(assetTick, quoteTick)
 
 	return assetBalance.Free + assetBalance.Lock, quoteBalance.Free + quoteBalance.Lock, nil
+}
+
+func (b *PaperWallet) PairPosition(pair string) (map[string]map[string]*model.Position, error) {
+	panic("not implemented")
 }
 
 func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string,

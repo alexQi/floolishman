@@ -404,10 +404,6 @@ func (b *Binance) Order(pair string, id int64) (model.Order, error) {
 	return newOrder(order), nil
 }
 
-func (b *Binance) Positions(pair string) ([]model.Position, error) {
-	panic("not implemented")
-}
-
 func (p *Binance) ListenOrders() {
 	//TODO implement me
 	panic("implement me")
@@ -490,7 +486,7 @@ func (b *Binance) Account() (model.Account, error) {
 	}, nil
 }
 
-func (b *Binance) Position(pair string) (asset, quote float64, err error) {
+func (b *Binance) PairAsset(pair string) (asset, quote float64, err error) {
 	assetTick, quoteTick := SplitAssetQuote(pair)
 	acc, err := b.Account()
 	if err != nil {
@@ -500,6 +496,10 @@ func (b *Binance) Position(pair string) (asset, quote float64, err error) {
 	assetBalance, quoteBalance := acc.Balance(assetTick, quoteTick)
 
 	return assetBalance.Free + assetBalance.Lock, quoteBalance.Free + quoteBalance.Lock, nil
+}
+
+func (b *Binance) PairPosition(pair string) (map[string]map[string]*model.Position, error) {
+	panic("not implemented")
 }
 
 func (b *Binance) CandlesSubscription(ctx context.Context, pair, period string) (chan model.Candle, chan error) {

@@ -196,17 +196,18 @@ type Result struct {
 	CreatedAt     time.Time
 }
 type ServiceOrder struct {
-	mtx            sync.Mutex
-	ctx            context.Context
-	exchange       reference.Exchange
-	storage        storage.Storage
-	orderFeed      *model.Feed
-	notifier       reference.Notifier
-	Results        map[string]*summary
-	lastPrice      map[string]float64
-	tickerInterval time.Duration
-	finish         chan bool
-	status         Status
+	mtx                    sync.Mutex
+	ctx                    context.Context
+	exchange               reference.Exchange
+	storage                storage.Storage
+	orderFeed              *model.Feed
+	notifier               reference.Notifier
+	Results                map[string]*summary
+	lastPrice              map[string]float64
+	tickerOrderInterval    time.Duration
+	tickerPositionInterval time.Duration
+	finish                 chan bool
+	status                 Status
 
 	positionMap map[string]map[string]*model.Position
 }
@@ -223,15 +224,118 @@ func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage s
 	orderFeed *model.Feed) *ServiceOrder {
 
 	return &ServiceOrder{
-		ctx:            ctx,
-		storage:        storage,
-		exchange:       exchange,
-		orderFeed:      orderFeed,
-		lastPrice:      make(map[string]float64),
-		Results:        make(map[string]*summary),
-		tickerInterval: time.Second,
-		finish:         make(chan bool),
-		positionMap:    make(map[string]map[string]*model.Position),
+		ctx:                    ctx,
+		storage:                storage,
+		exchange:               exchange,
+		orderFeed:              orderFeed,
+		lastPrice:              make(map[string]float64),
+		Results:                make(map[string]*summary),
+		tickerOrderInterval:    500 * time.Millisecond,
+		tickerPositionInterval: time.Second,
+		finish:                 make(chan bool),
+		positionMap:            make(map[string]map[string]*model.Position),
+	}
+}
+
+func (c *ServiceOrder) Start() {
+	if c.status != StatusRunning {
+		c.status = StatusRunning
+		// 监听所有挂单
+		go func() {
+			tickerOrder := time.NewTicker(c.tickerOrderInterval)
+			for {
+				select {
+				case <-tickerOrder.C:
+					c.ListenOrders()
+				case <-c.finish:
+					tickerOrder.Stop()
+					return
+				}
+			}
+		}()
+		go func() {
+			tickerPosition := time.NewTicker(c.tickerPositionInterval)
+			for {
+				select {
+				case <-tickerPosition.C:
+					c.ListenPositions()
+				case <-c.finish:
+					tickerPosition.Stop()
+					return
+				}
+			}
+		}()
+		utils.Log.Info("Bot started.")
+	}
+}
+
+func (c *ServiceOrder) Stop() {
+	if c.status == StatusRunning {
+		c.status = StatusStopped
+		c.ListenOrders()
+		c.finish <- true
+		utils.Log.Info("Bot stopped.")
+	}
+}
+
+// ListenPositions 监控仓位，本地如果有仓位则判断线上有没有仓位，线上没有仓位则更新平仓
+func (c *ServiceOrder) ListenPositions() {
+	if len(c.positionMap) == 0 {
+		return
+	}
+
+	var ok bool
+	// 获取当前交易对线上仓位 map[pair][positionSide]position
+	pairPositions, err := c.PairPosition()
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+
+	for pair, flagPositions := range c.positionMap {
+		if len(flagPositions) == 0 {
+			continue
+		}
+		for orderFlag, position := range flagPositions {
+			// 不存在删除仓位
+			if _, ok = pairPositions[position.Pair]; !ok {
+				position.Status = 1
+				position.Quantity = 0
+				// 更新数据库仓位记录
+				err := c.storage.UpdatePosition(position)
+				if err != nil {
+					utils.Log.Error(err)
+					return
+				}
+				delete(c.positionMap[pair], orderFlag)
+				continue
+			}
+			// 当前方向的仓位不存在删除仓位
+			if _, ok = pairPositions[position.Pair][position.PositionSide]; !ok {
+				position.Status = 1
+				position.Quantity = 0
+				// 更新数据库仓位记录
+				err := c.storage.UpdatePosition(position)
+				if err != nil {
+					utils.Log.Error(err)
+					return
+				}
+				delete(c.positionMap[pair], orderFlag)
+				continue
+			}
+			// 同步仓位大小
+			// todo 暂时屏蔽
+			//if position.Quantity != pairPositions[position.Pair][position.PositionSide].Quantity {
+			//	c.positionMap[pair][orderFlag].Quantity = pairPositions[position.Pair][position.PositionSide].Quantity
+			//	c.positionMap[pair][orderFlag].AvgPrice = pairPositions[position.Pair][position.PositionSide].AvgPrice
+			//	// 更新数据库仓位记录
+			//	err := c.storage.UpdatePosition(position)
+			//	if err != nil {
+			//		utils.Log.Error(err)
+			//		return
+			//	}
+			//}
+		}
 	}
 }
 
@@ -640,53 +744,20 @@ func (c *ServiceOrder) ListenOrders() {
 	}
 }
 
-func (c *ServiceOrder) Start() {
-	if c.status != StatusRunning {
-		c.status = StatusRunning
-		// 监听已有仓位
-		go func() {
-			ticker := time.NewTicker(c.tickerInterval)
-			for {
-				select {
-				case <-ticker.C:
-					c.ListenOrders()
-				case <-c.finish:
-					ticker.Stop()
-					return
-				}
-			}
-		}()
-		utils.Log.Info("Bot started.")
-	}
-}
-
-func (c *ServiceOrder) Stop() {
-	if c.status == StatusRunning {
-		c.status = StatusStopped
-		c.ListenOrders()
-		c.finish <- true
-		utils.Log.Info("Bot stopped.")
-	}
-}
-
 func (c *ServiceOrder) Account() (model.Account, error) {
 	return c.exchange.Account()
 }
 
-func (c *ServiceOrder) Position(pair string) (asset, quote float64, err error) {
-	return c.exchange.Position(pair)
+func (c *ServiceOrder) PairPosition() (map[string]map[string]*model.Position, error) {
+	return c.exchange.PairPosition()
+}
+
+func (c *ServiceOrder) PairAsset(pair string) (asset, quote float64, err error) {
+	return c.exchange.PairAsset(pair)
 }
 
 func (c *ServiceOrder) LastQuote(pair string) (float64, error) {
 	return c.exchange.LastQuote(c.ctx, pair)
-}
-
-func (c *ServiceOrder) PositionValue(pair string) (float64, error) {
-	asset, _, err := c.exchange.Position(pair)
-	if err != nil {
-		return 0, err
-	}
-	return asset * c.lastPrice[pair], nil
 }
 
 func (c *ServiceOrder) Order(pair string, id int64) (model.Order, error) {

@@ -8,7 +8,8 @@ import (
 
 type Broker interface {
 	Account() (model.Account, error)
-	Position(pair string) (asset, quote float64, err error)
+	PairAsset(pair string) (asset, quote float64, err error)
+	PairPosition() (map[string]map[string]*model.Position, error)
 	FormatPrice(pair string, value float64) string
 	FormatQuantity(pair string, value float64, toLot bool) string
 	GetPositionsForPair(pair string) ([]*model.Position, error)

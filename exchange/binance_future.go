@@ -585,7 +585,7 @@ func (b *BinanceFuture) Account() (model.Account, error) {
 	}, nil
 }
 
-func (b *BinanceFuture) Position(pair string) (asset, quote float64, err error) {
+func (b *BinanceFuture) PairAsset(pair string) (asset, quote float64, err error) {
 	assetTick, quoteTick := SplitAssetQuote(pair)
 	acc, err := b.Account()
 	if err != nil {
@@ -595,6 +595,39 @@ func (b *BinanceFuture) Position(pair string) (asset, quote float64, err error) 
 	assetBalance, quoteBalance := acc.Balance(assetTick, quoteTick)
 
 	return assetBalance.Free + assetBalance.Lock, quoteBalance.Free + quoteBalance.Lock, nil
+}
+
+func (b *BinanceFuture) PairPosition() (map[string]map[string]*model.Position, error) {
+	positions := map[string]map[string]*model.Position{}
+	acc, err := b.client.NewGetAccountService().Do(b.ctx)
+	if err != nil {
+		return positions, err
+	}
+	var side string
+	var avgPrice, quantity, leverage float64
+	for _, position := range acc.Positions {
+		if _, ok := positions[position.Symbol]; !ok {
+			positions[position.Symbol] = make(map[string]*model.Position)
+		}
+		avgPrice, _ = strconv.ParseFloat(position.EntryPrice, 64)
+		quantity, _ = strconv.ParseFloat(position.PositionAmt, 64)
+		leverage, _ = strconv.ParseFloat(position.Leverage, 64)
+
+		if string(position.PositionSide) == "LONG" {
+			side = "BUY"
+		} else {
+			side = "SELL"
+		}
+		positions[position.Symbol][string(position.PositionSide)] = &model.Position{
+			Pair:         position.Symbol,
+			Side:         side,
+			PositionSide: string(position.PositionSide),
+			AvgPrice:     avgPrice,
+			Quantity:     quantity,
+			Leverage:     int(leverage),
+		}
+	}
+	return positions, nil
 }
 
 func (b *BinanceFuture) CandlesSubscription(ctx context.Context, pair, period string) (chan model.Candle, chan error) {
