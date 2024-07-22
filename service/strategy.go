@@ -151,7 +151,6 @@ func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 				return
 			}
 			if len(userPositions) == 0 {
-				utils.Log.Infof("[Watchdog] guider has not open any postion")
 				break
 			}
 			// 跟随模式下，开仓平仓都跟随看门口
@@ -166,6 +165,7 @@ func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 					if _, ok := userPosition[model.PositionSideTypeShort]; !ok {
 						currentUserPosition = userPosition[model.PositionSideTypeLong][0]
 					}
+					// 屏蔽未配置的交易对
 					if _, ok := options[currentUserPosition.Symbol]; !ok {
 						continue
 					}
@@ -362,9 +362,15 @@ func (s *ServiceStrategy) checkPosition(option model.PairOption) (float64, float
 func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPosition) {
 	s.mu.Lock()         // 加锁
 	defer s.mu.Unlock() // 解锁
-	if _, ok := s.pairOptions[guiderPosition.Symbol]; !ok {
-		return
-	}
+	currentPrice := s.pairPrices[guiderPosition.Symbol]
+	utils.Log.Infof(
+		"[GUIDER POSITION] Pair: %s, Price: %v, Quantity: %v, Position Side: %s | Current: %v",
+		guiderPosition.Symbol,
+		guiderPosition.EntryPrice,
+		guiderPosition.PositionAmount,
+		guiderPosition.PositionSide,
+		currentPrice,
+	)
 	// 判断当前资产
 	assetPosition, quotePosition, err := s.broker.PairAsset(guiderPosition.Symbol)
 	if err != nil {
@@ -388,8 +394,6 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	if err != nil {
 		return
 	}
-	currentPrice := s.pairPrices[guiderPosition.Symbol]
-
 	// 对方的保证金占比
 	amount := ((guiderPosition.InitialMargin / guiderPosition.AvailQuote) * quotePosition * float64(config.Leverage)) / currentPrice
 
@@ -399,7 +403,6 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 		finalSide = model.SideTypeBuy
 		if currentPrice > guiderPosition.EntryPrice {
 			isProfited = false
-
 		}
 	} else {
 		finalSide = model.SideTypeSell
