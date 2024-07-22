@@ -606,13 +606,15 @@ func (b *BinanceFuture) PairPosition() (map[string]map[string]*model.Position, e
 	var side string
 	var avgPrice, quantity, leverage float64
 	for _, position := range acc.Positions {
-		if _, ok := positions[position.Symbol]; !ok {
-			positions[position.Symbol] = make(map[string]*model.Position)
-		}
 		avgPrice, _ = strconv.ParseFloat(position.EntryPrice, 64)
 		quantity, _ = strconv.ParseFloat(position.PositionAmt, 64)
 		leverage, _ = strconv.ParseFloat(position.Leverage, 64)
-
+		if quantity == 0 {
+			continue
+		}
+		if _, ok := positions[position.Symbol]; !ok {
+			positions[position.Symbol] = make(map[string]*model.Position)
+		}
 		if string(position.PositionSide) == "LONG" {
 			side = "BUY"
 		} else {
