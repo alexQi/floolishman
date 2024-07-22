@@ -138,8 +138,8 @@ func (s *BinanceSource) CheckUserOrder(portfolioId string, authHeader map[string
 	return response.Data, nil
 }
 
-func (s *BinanceSource) CheckUserPosition(portfolioId string, authHeader map[string]string) ([]model.GuiderPosition, error) {
-	guiderPositions := []model.GuiderPosition{}
+func (s *BinanceSource) CheckUserPosition(portfolioId string, authHeader map[string]string) ([]*model.GuiderPosition, error) {
+	guiderPositions := []*model.GuiderPosition{}
 	var response types.UserPositionResponse
 	apiURL := fmt.Sprintf("%s/v6/private/future/user-data/user-position", baseUrl)
 	payload := strings.NewReader(fmt.Sprintf(`{"copyTradeType":"COPY","portfolioId":"%s"}`, portfolioId))
@@ -175,7 +175,7 @@ func (s *BinanceSource) CheckUserPosition(portfolioId string, authHeader map[str
 			return guiderPositions, err
 		}
 		position.PortfolioId = portfolioId
-		guiderPositions = append(guiderPositions, position)
+		guiderPositions = append(guiderPositions, &position)
 	}
 	return guiderPositions, nil
 }

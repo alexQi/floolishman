@@ -49,6 +49,10 @@ func FromSQL(dialect gorm.Dialector, opts ...gorm.Option) (Storage, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = db.AutoMigrate(&model.GuiderPosition{})
+	if err != nil {
+		return nil, err
+	}
 
 	return &SQL{
 		db: db,
@@ -88,15 +92,33 @@ func (s *SQL) CreateGuiderItems(guiderItems []model.GuiderItem) error {
 		liveCopyPortfolioIds = append(liveCopyPortfolioIds, item.CopyPortfolioId)
 		og = model.GuiderItem{}
 		s.db.Where("copy_portfolio_id=?", item.CopyPortfolioId).First(&og)
-		if len(og.CopyPortfolioId) > 0 {
-			continue
-		}
-		result := s.db.Create(&item)
-		if result.Error != nil {
-			return result.Error
+		// 更新操作
+		if og.ID > 0 {
+			item.ID = og.ID
+			result := s.db.Save(&item)
+			if result.Error != nil {
+				return result.Error
+			}
+		} else {
+			//新增
+			result := s.db.Create(&item)
+			if result.Error != nil {
+				return result.Error
+			}
 		}
 	}
+	// 清除过期的跟单员
 	err := s.db.Where("copy_portfolio_id NOT IN ?", liveCopyPortfolioIds).Delete(&model.GuiderItem{}).Error
+	if err != nil {
+		return err
+	}
+	// 清除过期的跟单员交易对配置
+	err = s.db.Where("portfolio_id NOT IN ?", liveCopyPortfolioIds).Delete(&model.GuiderSymbolConfig{}).Error
+	if err != nil {
+		return err
+	}
+	// 清除过期的跟单员仓位配置
+	err = s.db.Where("portfolio_id NOT IN ?", liveCopyPortfolioIds).Delete(&model.GuiderPosition{}).Error
 	if err != nil {
 		return err
 	}
@@ -153,6 +175,31 @@ func (s *SQL) CreateSymbolConfigs(guiderSymbolConfigs []model.GuiderSymbolConfig
 		}
 	}
 	return nil
+}
+
+func (s *SQL) CreateGuiderPositions(portfolioIds []string, guiderPositions []*model.GuiderPosition) error {
+	// 清除实时仓位记录
+	err := s.db.Where("portfolio_id IN ?", portfolioIds).Delete(&model.GuiderPosition{}).Error
+	if err != nil {
+		return err
+	}
+	// 重新插入跟单交易对数据
+	for _, item := range guiderPositions {
+		result := s.db.Create(item)
+		if result.Error != nil {
+			return result.Error
+		}
+	}
+	return nil
+}
+
+func (s *SQL) GuiderPositions(portfolioIds []string) ([]*model.GuiderPosition, error) {
+	guiderPositions := make([]*model.GuiderPosition, 0)
+	result := s.db.Where("portfolio_id NOT IN ?", portfolioIds).Find(&guiderPositions)
+	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
+		return guiderPositions, result.Error
+	}
+	return guiderPositions, nil
 }
 
 func (s *SQL) CreateGuiderOrders(portfolioId string, guiderOrders []model.GuiderOrder) error {

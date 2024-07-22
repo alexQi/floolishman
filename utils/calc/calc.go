@@ -40,8 +40,9 @@ func FloatEquals(a, b, epsilon float64) bool {
 	return math.Abs(a-b) <= epsilon
 }
 
-func FormatFloatRate(input float64) float64 {
-	return math.Round(input*100) / 100
+func FormatFloatRate(input float64, places int) float64 {
+	shift := math.Pow(10, float64(places))
+	return math.Floor(input*shift) / shift
 }
 
 func RoundToDecimalPlaces(value float64, decimalPlaces int) float64 {

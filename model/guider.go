@@ -45,29 +45,32 @@ type GuiderSymbolConfig struct {
 }
 
 type GuiderPosition struct {
-	PortfolioId            string  `json:"portfolioId" gorm:"portfolio_id" db:"portfolio_id"`
-	Symbol                 string  `json:"symbol" db:"symbol"`
-	PositionSide           string  `json:"positionSide" db:"position_side"`
-	PositionAmount         float64 `json:"positionAmount" db:"position_amount"`
-	EntryPrice             float64 `json:"entryPrice" db:"entry_price"`
-	BreakEvenPrice         float64 `json:"breakEvenPrice" db:"break_even_price"`
-	MarkPrice              float64 `json:"markPrice" db:"mark_price"`
-	UnrealizedProfit       float64 `json:"unrealizedProfit" db:"unrealized_profit"`
-	LiquidationPrice       float64 `json:"liquidationPrice" db:"liquidation_price"`
-	IsolatedMargin         float64 `json:"isolatedMargin" db:"isolated_margin"`
-	NotionalValue          float64 `json:"notionalValue" db:"notional_value"`
-	Collateral             string  `json:"collateral" db:"collateral"`
-	IsolatedWallet         float64 `json:"isolatedWallet" db:"isolated_wallet"`
-	CumRealized            float64 `json:"cumRealized" db:"cum_realized"`
-	InitialMargin          float64 `json:"initialMargin" db:"initial_margin"`
-	MaintMargin            float64 `json:"maintMargin" db:"maint_margin"`
-	AvailQuote             float64 `json:"AvailQuote" db:"avail_quote"`
-	PositionInitialMargin  float64 `json:"positionInitialMargin" db:"position_initial_margin"`
-	OpenOrderInitialMargin float64 `json:"openOrderInitialMargin" db:"open_order_initial_margin"`
-	Adl                    int     `json:"adl" db:"adl"`
-	AskNotional            float64 `json:"askNotional" db:"ask_notional"`
-	BidNotional            float64 `json:"bidNotional" db:"bid_notional"`
-	UpdateTime             int     `json:"updateTime" db:"update_time"`
+	ID                     int64     `json:"id" gorm:"primaryKey;autoIncrement" db:"id"`
+	PortfolioId            string    `json:"portfolioId" gorm:"portfolio_id" db:"portfolio_id"`
+	Symbol                 string    `json:"symbol" db:"symbol"`
+	PositionSide           string    `json:"positionSide" db:"position_side"`
+	PositionAmount         float64   `json:"positionAmount" db:"position_amount"`
+	EntryPrice             float64   `json:"entryPrice" db:"entry_price"`
+	BreakEvenPrice         float64   `json:"breakEvenPrice" db:"break_even_price"`
+	MarkPrice              float64   `json:"markPrice" db:"mark_price"`
+	UnrealizedProfit       float64   `json:"unrealizedProfit" db:"unrealized_profit"`
+	LiquidationPrice       float64   `json:"liquidationPrice" db:"liquidation_price"`
+	IsolatedMargin         float64   `json:"isolatedMargin" db:"isolated_margin"`
+	NotionalValue          float64   `json:"notionalValue" db:"notional_value"`
+	Collateral             string    `json:"collateral" db:"collateral"`
+	IsolatedWallet         float64   `json:"isolatedWallet" db:"isolated_wallet"`
+	CumRealized            float64   `json:"cumRealized" db:"cum_realized"`
+	InitialMargin          float64   `json:"initialMargin" db:"initial_margin"`
+	MaintMargin            float64   `json:"maintMargin" db:"maint_margin"`
+	AvailQuote             float64   `json:"AvailQuote" db:"avail_quote"`
+	PositionInitialMargin  float64   `json:"positionInitialMargin" db:"position_initial_margin"`
+	OpenOrderInitialMargin float64   `json:"openOrderInitialMargin" db:"open_order_initial_margin"`
+	Adl                    int       `json:"adl" db:"adl"`
+	AskNotional            float64   `json:"askNotional" db:"ask_notional"`
+	BidNotional            float64   `json:"bidNotional" db:"bid_notional"`
+	UpdateTime             int       `json:"updateTime" db:"update_time"`
+	CreatedAt              time.Time `gorm:"created_at" db:"created_at"`
+	UpdatedAt              time.Time `gorm:"updated_at" db:"updated_at"`
 }
 
 type GuiderOrder struct {

@@ -234,7 +234,7 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 	}
 	var guiderPositionRate float64
 	if extra.PositionAmount > 0 {
-		guiderPositionRate = calc.FormatFloatRate(quantity / extra.PositionAmount)
+		guiderPositionRate = calc.FormatFloatRate(quantity/extra.PositionAmount, 4)
 	}
 
 	return model.Order{

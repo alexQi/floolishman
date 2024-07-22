@@ -30,6 +30,8 @@ type Storage interface {
 	Positions(filterParams PositionFilterParams) ([]*model.Position, error)
 	CreateGuiderItems(guiderItems []model.GuiderItem) error
 	CreateSymbolConfigs(guiderSymbolConfigs []model.GuiderSymbolConfig) error
+	CreateGuiderPositions(portfolioIds []string, guiderPositions []*model.GuiderPosition) error
+	GuiderPositions(portfolioIds []string) ([]*model.GuiderPosition, error)
 	CreateGuiderOrders(copyPortfolioId string, guiderOrders []model.GuiderOrder) error
 	GetGuiderItems() ([]*model.GuiderItem, error)
 	GetGuiderItemByPortfolioId(portfolioId string) (*model.GuiderItem, error)

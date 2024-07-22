@@ -146,7 +146,7 @@ func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 	for {
 		select {
 		case <-tickerCheck.C:
-			userPositions, err := s.guider.FetchPosition()
+			userPositions, err := s.guider.GetGuiderPosition()
 			if err != nil {
 				return
 			}
@@ -384,7 +384,7 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 		return
 	}
 	// 获取当前交易对配置
-	config, err := s.guider.FetchPairConfig(guiderPosition.PortfolioId, guiderPosition.Symbol)
+	config, err := s.guider.GetGuiderPairConfig(guiderPosition.PortfolioId, guiderPosition.Symbol)
 	if err != nil {
 		return
 	}
@@ -509,7 +509,7 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 
 func (s *ServiceStrategy) closePostionForWatchdog() {
 	// 查询用户仓位
-	userPositions, err := s.guider.FetchPosition()
+	userPositions, err := s.guider.GetGuiderPosition()
 	if err != nil {
 		return
 	}
