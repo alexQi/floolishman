@@ -280,9 +280,9 @@ func (c *ServiceOrder) Stop() {
 
 // ListenPositions 监控仓位，本地如果有仓位则判断线上有没有仓位，线上没有仓位则更新平仓
 func (c *ServiceOrder) ListenPositions() {
-	//if len(c.positionMap) == 0 {
-	//	return
-	//}
+	if len(c.positionMap) == 0 {
+		return
+	}
 
 	var ok bool
 	// 获取当前交易对线上仓位 map[pair][positionSide]position
