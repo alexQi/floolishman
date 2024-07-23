@@ -447,6 +447,7 @@ func (c *ServiceOrder) GetOrdersForPairUnfilled(pair string) ([]*model.Order, er
 			Pair: pair,
 			Statuses: []model.OrderStatusType{
 				model.OrderStatusTypeNew, // 未成交订单
+				model.OrderStatusTypePartiallyFilled,
 			},
 		},
 	)
