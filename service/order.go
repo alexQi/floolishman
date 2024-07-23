@@ -663,7 +663,7 @@ func (c *ServiceOrder) notifyError(err error) {
 
 func (c *ServiceOrder) processTrade(order *model.Order) {
 	//部分成交的订单也需要计算仓位
-	if order.Status != model.OrderStatusTypeFilled && order.Status != model.OrderStatusTypePartiallyFilled {
+	if order.Status != model.OrderStatusTypeFilled {
 		return
 	}
 
