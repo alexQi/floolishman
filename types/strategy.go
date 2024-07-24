@@ -11,6 +11,7 @@ import (
 
 type StrategyPosition struct {
 	Useable      bool
+	ChaseModel   int
 	Side         model.SideType
 	Pair         string
 	StrategyName string

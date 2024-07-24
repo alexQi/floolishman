@@ -47,6 +47,7 @@ func (s *Momentum15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
 		LastAtr:      df.Metadata["atr"].Last(1),
+		ChaseModel:   1,
 	}
 
 	ema8 := df.Metadata["ema8"].Last(0)

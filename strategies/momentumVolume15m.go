@@ -44,14 +44,13 @@ func (s *MomentumVolume15m) OnCandle(df *model.Dataframe) types.StrategyPosition
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
 		LastAtr:      df.Metadata["atr"].Last(1),
+		ChaseModel:   1,
 	}
 
 	momentums := df.Metadata["momentum"].LastValues(2)
 	volume := df.Metadata["volume"].LastValues(3)
 	avgVolume := df.Metadata["avgVolume"].LastValues(3)
 
-	openPrice := df.Open.Last(0)
-	closePrice := df.Close.Last(0)
 	momentumsDistance := momentums[1] - momentums[0]
 
 	isCross, _ := s.bactchCheckVolume(volume, avgVolume, 2)
@@ -61,10 +60,9 @@ func (s *MomentumVolume15m) OnCandle(df *model.Dataframe) types.StrategyPosition
 	// 趋势判断
 	// 动量正向增长
 	// 7 35
-	if momentumsDistance > 7 &&
+	if momentumsDistance > 8 &&
 		momentums[1] < 35 &&
 		isCross &&
-		closePrice > openPrice &&
 		!isUpperPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
@@ -75,7 +73,6 @@ func (s *MomentumVolume15m) OnCandle(df *model.Dataframe) types.StrategyPosition
 		calc.Abs(momentumsDistance) > 7 &&
 		calc.Abs(momentums[1]) < 18 &&
 		isCross &&
-		openPrice > closePrice &&
 		!isLowerPinBar {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
