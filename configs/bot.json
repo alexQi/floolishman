@@ -10,6 +10,9 @@
             "marginType": "CROSSED"
         }
     },
+    "watchdog": {
+        "host": "127.0.0.1:9999"
+    },
     "strategies": [
         "Range15m",
         "Momentum15m",
@@ -27,10 +30,6 @@
         "baseLossRatio": 0.0047,
         "profitableScale": 0.08,
         "initProfitRatioLimit": 0.12
-    },
-    "proxy": {
-        "status": true,
-        "url": "http://127.0.0.1:7890"
     },
     "storage": {
         "driver": "sqlite",

@@ -26,7 +26,7 @@ type GuiderItem struct {
 	MarginBalance          float64   `json:"marginBalance" gorm:"margin_balance" db:"margin_balance"`
 	MarginBalanceAsset     string    `json:"marginBalanceAsset" gorm:"margin_balance_asset" db:"margin_balance_asset"`
 	ProfitSharingRate      string    `json:"profitSharingRate" gorm:"profit_sharing_rate" db:"profit_sharing_rate"`
-	CopierUnlockPeriodDays int       `json:"copierUnlockPeriodDays" gorm:"copier_unlock_period_days" db:"copier_unlock_period_days"`
+	CopierUnlockPeriodDays int64     `json:"copierUnlockPeriodDays" gorm:"copier_unlock_period_days" db:"copier_unlock_period_days"`
 	TotalSlRate            float64   `json:"totalSlRate" gorm:"total_sl_rate" db:"total_sl_rate"`
 	CreatedAt              time.Time `gorm:"created_at" db:"created_at"`
 	UpdatedAt              time.Time `gorm:"updated_at" db:"updated_at"`

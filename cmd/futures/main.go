@@ -63,7 +63,8 @@ func main() {
 	guiderConfigs := strutil.ConvertToNestedStringMap(guiderConfigMap)
 
 	settings := model.Settings{
-		PairOptions: []model.PairOption{},
+		GuiderGrpcHost: viper.GetString("watchdog.host"),
+		PairOptions:    []model.PairOption{},
 		Telegram: model.TelegramSettings{
 			Enabled: false,
 			Token:   telegramToken,

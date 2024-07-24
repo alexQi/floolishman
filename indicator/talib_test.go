@@ -3,8 +3,9 @@ package indicator
 import (
 	"floolishman/utils/calc"
 	"fmt"
+	"github.com/adshao/go-binance/v2/common"
 	"math"
-	"math/big"
+	"strconv"
 	"testing"
 )
 
@@ -77,20 +78,12 @@ func CalculateAngle(sequence []float64) float64 {
 }
 
 func TestA(t *testing.T) {
-	guiderPositionAmount := 0.012
-	openPositionQuantity := 0.008
-	guiderPositionRate := 1.33
-	// 仓位存在，判断当前仓位比例是否和之前一致,一致时跳过
-	if calc.FloatEquals(openPositionQuantity/guiderPositionAmount, guiderPositionRate, 0.02) {
-		fmt.Printf("在范围内")
-		return
-	}
-	currentQuantity := calc.RoundToDecimalPlaces(guiderPositionAmount*guiderPositionRate, 3)
-	fmt.Print(currentQuantity)
-	// 获取当前要加减仓的数量
-	processQuantity, _ := new(big.Float).Sub(
-		new(big.Float).SetFloat64(openPositionQuantity),
-		new(big.Float).SetFloat64(currentQuantity),
-	).Float64()
-	fmt.Print(processQuantity)
+	a := 4.749
+	stepSize := 0.001
+	val := calc.FormatAmountToSize(a, stepSize)
+	value := common.AmountToLotSize(stepSize, 8, a)
+
+	fmt.Print(strconv.FormatFloat(value, 'f', -1, 64))
+	fmt.Printf("\n")
+	fmt.Print(strconv.FormatFloat(val, 'f', -1, 64))
 }

@@ -146,14 +146,15 @@ func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 	for {
 		select {
 		case <-tickerCheck.C:
-			userPositions, err := s.guider.GetGuiderPosition()
+			userPositions, err := s.guider.GetAllPositions()
 			if err != nil {
-				return
+				utils.Log.Error(err)
+				break
 			}
 			if len(userPositions) == 0 {
 				break
 			}
-			// 跟随模式下，开仓平仓都跟随看门口
+			// 跟随模式下，开仓平仓都跟随看门狗，多跟模式下开仓保持不变
 			if s.followSymbol {
 				for _, userPosition := range userPositions {
 					if len(userPosition) > 1 {
@@ -169,7 +170,7 @@ func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 					if _, ok := options[currentUserPosition.Symbol]; !ok {
 						continue
 					}
-					s.openPositionForWatchdog(currentUserPosition)
+					go s.openPositionForWatchdog(currentUserPosition)
 				}
 			} else {
 				var longShortRatio float64
@@ -364,17 +365,19 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	defer s.mu.Unlock() // 解锁
 	currentPrice := s.pairPrices[guiderPosition.Symbol]
 	utils.Log.Infof(
-		"[GUIDER POSITION] Pair: %s, Price: %v, Quantity: %v, Position Side: %s | Current: %v",
+		"[GUIDER POSITION] Pair: %s, Price: %v, Quantity: %v, Position Side: %s ｜PortfolioId %s | Current: %v",
 		guiderPosition.Symbol,
 		guiderPosition.EntryPrice,
 		guiderPosition.PositionAmount,
 		guiderPosition.PositionSide,
+		guiderPosition.PortfolioId,
 		currentPrice,
 	)
 	// 判断当前资产
 	assetPosition, quotePosition, err := s.broker.PairAsset(guiderPosition.Symbol)
 	if err != nil {
 		utils.Log.Error(err)
+		return
 	}
 	// 无资产
 	if quotePosition <= 0 {
@@ -383,47 +386,76 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	}
 	// 当前仓位为多，最近策略为多，保持仓位
 	if assetPosition > 0 && model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeLong {
+		utils.Log.Infof(
+			"[POSITION EXSIT] Pair: %s | Price: %v | Quantity: %v  | Position Side: %s | Current: %v, %v",
+			guiderPosition.Symbol,
+			guiderPosition.EntryPrice,
+			guiderPosition.PositionAmount,
+			guiderPosition.PositionSide,
+			currentPrice,
+			assetPosition,
+		)
 		return
 	}
 	// 当前仓位为空，最近策略为空，保持仓位
 	if assetPosition < 0 && model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeShort {
+		utils.Log.Infof(
+			"[POSITION EXSIT] Pair: %s | Price: %v | Quantity: %v  | Position Side: %s | Current: %v, %v",
+			guiderPosition.Symbol,
+			guiderPosition.EntryPrice,
+			guiderPosition.PositionAmount,
+			guiderPosition.PositionSide,
+			currentPrice,
+			assetPosition,
+		)
 		return
 	}
 	// 获取当前交易对配置
 	config, err := s.guider.GetGuiderPairConfig(guiderPosition.PortfolioId, guiderPosition.Symbol)
 	if err != nil {
+		utils.Log.Error(err)
 		return
 	}
 	// 对方的保证金占比
 	amount := ((guiderPosition.InitialMargin / guiderPosition.AvailQuote) * quotePosition * float64(config.Leverage)) / currentPrice
 
 	var finalSide model.SideType
-	isProfited := true
+	isGuiderProfited := false
 	if model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeLong {
 		finalSide = model.SideTypeBuy
 		if currentPrice > guiderPosition.EntryPrice {
-			isProfited = false
+			isGuiderProfited = true
 		}
 	} else {
 		finalSide = model.SideTypeSell
 		if currentPrice < guiderPosition.EntryPrice {
-			isProfited = false
+			isGuiderProfited = true
 		}
 	}
-	if isProfited == false {
-		profitRatio := calc.ProfitRatio(finalSide, guiderPosition.EntryPrice, currentPrice, float64(config.Leverage), amount)
-		if profitRatio > 0.12/100*float64(config.Leverage) {
-			utils.Log.Infof(
-				"[IGNORE ORDER] Pair: %s, Price: %v, Quantity: %v, Position Side: %s | Current: %v | (%.f)",
-				guiderPosition.Symbol,
-				guiderPosition.EntryPrice,
-				guiderPosition.PositionAmount,
-				guiderPosition.PositionSide,
-				currentPrice,
-				profitRatio,
-			)
-			return
-		}
+	// 当guider盈利时不在开仓，点位保持比guier优
+	if isGuiderProfited == true {
+		utils.Log.Infof(
+			"[IGNORE PISITION] Pair: %s, Price: %v, Quantity: %v, Position Side: %s | Current: %v",
+			guiderPosition.Symbol,
+			guiderPosition.EntryPrice,
+			guiderPosition.PositionAmount,
+			guiderPosition.PositionSide,
+			currentPrice,
+		)
+		return
+		//profitRatio := calc.ProfitRatio(finalSide, guiderPosition.EntryPrice, currentPrice, float64(config.Leverage), amount)
+		//if profitRatio > 0.12/100*float64(config.Leverage) {
+		//	utils.Log.Infof(
+		//		"[IGNORE ORDER] Pair: %s, Price: %v, Quantity: %v, Position Side: %s | Current: %v | (%.f)",
+		//		guiderPosition.Symbol,
+		//		guiderPosition.EntryPrice,
+		//		guiderPosition.PositionAmount,
+		//		guiderPosition.PositionSide,
+		//		currentPrice,
+		//		profitRatio,
+		//	)
+		//	return
+		//}
 	}
 	openedPositions, err := s.broker.GetPositionsForPair(guiderPosition.Symbol)
 	if err != nil {
@@ -440,7 +472,7 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	// 当前方向已存在仓位，不在开仓
 	if existPosition != nil {
 		utils.Log.Infof(
-			"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v",
+			"[WATCHDOG HOLD ORDER - OPEN ] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v",
 			existPosition.Pair,
 			existPosition.AvgPrice,
 			existPosition.Quantity,
@@ -473,7 +505,7 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	// 判断当前是否已有同向挂单
 	if exsitOrder != nil {
 		utils.Log.Infof(
-			"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v ｜ (UNFILLED)",
+			"[WATCHDOG HOLD ORDER - NEW] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v ｜ (UNFILLED)",
 			exsitOrder.Pair,
 			exsitOrder.Price,
 			exsitOrder.Quantity,
@@ -490,6 +522,7 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 		MarginType: futures.MarginType(config.MarginType),
 	})
 	if err != nil {
+		utils.Log.Error(err)
 		return
 	}
 	utils.Log.Infof(
@@ -503,6 +536,7 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	_, err = s.broker.CreateOrderLimit(finalSide, model.PositionSideType(guiderPosition.PositionSide), guiderPosition.Symbol, amount, currentPrice, model.OrderExtra{
 		Leverage:       config.Leverage,
 		PositionAmount: calc.Abs(guiderPosition.PositionAmount),
+		GuiderOrigin:   guiderPosition.PortfolioId, // 仓位识别表示，判定交易员
 	})
 	if err != nil {
 		utils.Log.Error(err)
@@ -512,8 +546,10 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 
 func (s *ServiceStrategy) closePostionForWatchdog() {
 	// 查询用户仓位
-	userPositions, err := s.guider.GetGuiderPosition()
+	userPositions, err := s.guider.GetAllPositions()
 	if err != nil {
+		//todo 需要统计错误次数 ，错误次数太多需要发送通知
+		utils.Log.Error(err)
 		return
 	}
 	openedPositions, err := s.broker.GetPositionsForOpened()
@@ -521,6 +557,7 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 		utils.Log.Error(err)
 		return
 	}
+	// 平仓时判断当前仓位GuiderOrigin 是否还在
 	var hasPendingOrder bool
 	var tempSideType model.SideType
 	var guiderPositionAmount, processQuantity, currentQuantity, currentPrice float64
@@ -533,7 +570,7 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 			tempSideType = model.SideTypeBuy
 		}
 		currentPrice = s.pairPrices[openedPosition.Pair]
-		// 判断当前币种仓位是否在guider中存在，不存在时平掉全部仓位
+		// 判断当前币种仓位是否在guider中存在，不存在时平掉全部仓位 （所有guider都没有该方向仓位则该订单已被平仓）
 		if _, ok := userPositions[openedPosition.Pair]; !ok {
 			_, err := s.broker.CreateOrderMarket(
 				tempSideType,
@@ -541,8 +578,9 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 				openedPosition.Pair,
 				openedPosition.Quantity,
 				model.OrderExtra{
-					OrderFlag: openedPosition.OrderFlag,
-					Leverage:  openedPosition.Leverage,
+					OrderFlag:    openedPosition.OrderFlag,
+					Leverage:     openedPosition.Leverage,
+					GuiderOrigin: openedPosition.GuiderOrigin,
 				},
 			)
 			if err != nil {
@@ -550,8 +588,8 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 				return
 			}
 		} else {
+			// 判断用户当前方向仓位是否在guider的仓位中，不在则继续平仓 （所有guider都没有该方向仓位）
 			currentGuiderPositions, ok := userPositions[openedPosition.Pair][model.PositionSideType(openedPosition.PositionSide)]
-			// 判断用户当前仓位是否在guider的仓位中，不在则继续平仓
 			if !ok {
 				_, err := s.broker.CreateOrderMarket(
 					tempSideType,
@@ -559,10 +597,9 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 					openedPosition.Pair,
 					openedPosition.Quantity,
 					model.OrderExtra{
-						OrderFlag:      openedPosition.OrderFlag,
-						Leverage:       openedPosition.Leverage,
-						LongShortRatio: openedPosition.LongShortRatio,
-						MatchStrategy:  openedPosition.MatchStrategy,
+						OrderFlag:    openedPosition.OrderFlag,
+						Leverage:     openedPosition.Leverage,
+						GuiderOrigin: openedPosition.GuiderOrigin,
 					},
 				)
 				if err != nil {
@@ -570,11 +607,15 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 					return
 				}
 			} else {
+				// 判断当前guiderPosition是否与当前仓位同源
+				if openedPosition.GuiderOrigin != currentGuiderPositions[0].PortfolioId {
+					continue
+				}
+				// 同源仓位存在，判断当前仓位比例是否和之前一致,一致时跳过
 				guiderPositionAmount = calc.Abs(currentGuiderPositions[0].PositionAmount)
-				// 仓位存在，判断当前仓位比例是否和之前一致,一致时跳过
 				if calc.FloatEquals(openedPosition.Quantity/guiderPositionAmount, openedPosition.GuiderPositionRate, 0.02) {
 					utils.Log.Infof(
-						"[WATCHDOG HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v",
+						"[WATCHDOG HOLD ORDER - WATCH] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v",
 						openedPosition.Pair,
 						openedPosition.AvgPrice,
 						openedPosition.Quantity,
@@ -625,6 +666,7 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 							Leverage:       openedPosition.Leverage,
 							OrderFlag:      openedPosition.OrderFlag,
 							PositionAmount: guiderPositionAmount,
+							GuiderOrigin:   openedPosition.GuiderOrigin,
 						},
 					)
 					if err != nil {
@@ -658,6 +700,7 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 							Leverage:       openedPosition.Leverage,
 							OrderFlag:      openedPosition.OrderFlag,
 							PositionAmount: guiderPositionAmount,
+							GuiderOrigin:   openedPosition.GuiderOrigin,
 						},
 					)
 					if err != nil {

@@ -72,7 +72,7 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 	// 加载订单服务
 	bot.serviceOrder = service.NewServiceOrder(ctx, exch, bot.storage, bot.orderFeed)
 	// 家在领航员服务
-	bot.serviceGuider = service.NewServiceGuider(ctx, guiderSetting, bot.storage, bot.proxyOption, bot.settings.PairOptions)
+	bot.serviceGuider = service.NewServiceGuider(ctx, settings.GuiderGrpcHost)
 	// 加载策略服务
 	bot.serviceStrategy = service.NewServiceStrategy(ctx, strategySetting, strategy, bot.serviceOrder, bot.exchange, bot.serviceGuider, bot.backtest)
 	// 加载通知服务
@@ -378,9 +378,6 @@ func (n *Bot) Run(ctx context.Context) {
 		defer n.serviceOrder.Stop()
 	} else {
 		utils.Log.Info("Starting backtesting")
-	}
-	if n.strategySetting.CheckMode == "watchdog" {
-		n.serviceGuider.Start()
 	}
 
 	n.SettingPairs(ctx)

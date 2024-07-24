@@ -14,8 +14,9 @@ type TelegramSettings struct {
 }
 
 type Settings struct {
-	PairOptions []PairOption
-	Telegram    TelegramSettings
+	GuiderGrpcHost string
+	PairOptions    []PairOption
+	Telegram       TelegramSettings
 }
 
 type Balance struct {
@@ -38,6 +39,8 @@ type AssetInfo struct {
 
 	QuotePrecision     int
 	BaseAssetPrecision int
+	PricePrecision     int
+	QuantityPrecision  int
 }
 
 type Dataframe struct {

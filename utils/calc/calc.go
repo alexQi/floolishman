@@ -28,6 +28,21 @@ func Abs(a float64) float64 {
 	return a
 }
 
+func FormatAmountToSize(amount, unit float64) float64 {
+	if unit <= 0 {
+		return amount // 如果单位为0或负数，则返回原始金额
+	}
+
+	// 计算精度（小数位数）
+	precision := int(math.Round(-math.Log10(unit)))
+
+	// 格式化金额
+	formattedAmount := math.Trunc(amount/unit) * unit
+
+	// 返回格式化后的金额，保留指定的精度
+	return math.Round(formattedAmount*math.Pow10(precision)) / math.Pow10(precision)
+}
+
 func StringToFloat64(input string) (float64, error) {
 	value, err := strconv.ParseFloat(input, 64)
 	if err != nil {

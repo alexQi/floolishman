@@ -16,6 +16,7 @@ type Position struct {
 	Leverage           int            `db:"leverage" json:"leverage"`
 	LongShortRatio     float64        `db:"long_short_ratio" json:"long_short_ratio"`
 	GuiderPositionRate float64        `db:"guider_position_rate" json:"guider_position_rate"`
+	GuiderOrigin       string         `db:"guider_origin" json:"guider_origin"`
 	Status             int            `db:"status" json:"status"`
 	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`

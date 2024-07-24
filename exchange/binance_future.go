@@ -185,7 +185,7 @@ func (b *BinanceFuture) validate(pair string, quantity float64) error {
 
 func (b *BinanceFuture) FormatPrice(pair string, value float64) string {
 	if info, ok := b.assetsInfo[pair]; ok {
-		value = common.AmountToLotSize(info.TickSize, info.QuotePrecision, value)
+		value = calc.FormatAmountToSize(value, info.TickSize)
 	}
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
@@ -193,7 +193,7 @@ func (b *BinanceFuture) FormatPrice(pair string, value float64) string {
 func (b *BinanceFuture) FormatQuantity(pair string, value float64, toLot bool) string {
 	if toLot {
 		if info, ok := b.assetsInfo[pair]; ok {
-			value = common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
+			value = calc.FormatAmountToSize(value, info.StepSize)
 		}
 	}
 	return strconv.FormatFloat(value, 'f', -1, 64)
@@ -255,6 +255,7 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		LongShortRatio:     extra.LongShortRatio,
 		MatchStrategy:      extra.MatchStrategy,
 		GuiderPositionRate: guiderPositionRate,
+		GuiderOrigin:       extra.GuiderOrigin,
 	}, nil
 }
 

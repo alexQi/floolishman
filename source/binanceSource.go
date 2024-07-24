@@ -62,6 +62,7 @@ func (s *BinanceSource) GetUserPortfolioList(authHeader map[string]string) ([]mo
 	}
 
 	if response.Success != true {
+		utils.Log.Errorf("Error fetching portfolio: %s", response.Message)
 		return response.Data, errors.New(response.Message)
 	}
 	return response.Data, nil
@@ -96,6 +97,7 @@ func (s *BinanceSource) CheckGuiderSymbolConfig(portfolioId string, authHeader m
 	}
 
 	if response.Success != true {
+		utils.Log.Errorf("Error fetching symbol config: %s", response.Message)
 		return response.Data.SymbolConfigItemList, errors.New(response.Message)
 	}
 	return response.Data.SymbolConfigItemList, nil
@@ -130,6 +132,7 @@ func (s *BinanceSource) CheckUserOrder(portfolioId string, authHeader map[string
 	}
 
 	if response.Success != true {
+		utils.Log.Errorf("Error fetching orders: %s", response.Message)
 		return response.Data, errors.New(response.Message)
 	}
 	for i := range response.Data {
@@ -167,7 +170,8 @@ func (s *BinanceSource) CheckUserPosition(portfolioId string, authHeader map[str
 	}
 
 	if response.Success != true {
-		utils.Log.Errorf("Error fetching orders: %s", response.Message)
+		utils.Log.Errorf("Error fetching postions: %s", response.Message)
+		return guiderPositions, errors.New(response.Message)
 	}
 	for i := range response.Data {
 		position, err := s.newGuiderPosition(response.Data[i])

@@ -660,7 +660,7 @@ func (p *PaperWallet) PairAsset(pair string) (asset, quote float64, err error) {
 	return assetBalance.Free + assetBalance.Lock, quoteBalance.Free + quoteBalance.Lock, nil
 }
 
-func (b *PaperWallet) PairPosition(pair string) (map[string]map[string]*model.Position, error) {
+func (b *PaperWallet) PairPosition() (map[string]map[string]*model.Position, error) {
 	panic("not implemented")
 }
 

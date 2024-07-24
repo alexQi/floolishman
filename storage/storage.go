@@ -19,6 +19,10 @@ type PositionFilterParams struct {
 	PositionSide string
 }
 
+type ItemFilterParams struct {
+	Account string
+}
+
 type Storage interface {
 	ResetTables() error
 	CreateOrder(order *model.Order) error
@@ -34,6 +38,7 @@ type Storage interface {
 	GuiderPositions(portfolioIds []string) ([]*model.GuiderPosition, error)
 	CreateGuiderOrders(copyPortfolioId string, guiderOrders []model.GuiderOrder) error
 	GetGuiderItems() ([]*model.GuiderItem, error)
+	GetGuiderItemsByFilter(filterParams ItemFilterParams) ([]*model.GuiderItem, error)
 	GetGuiderItemByPortfolioId(portfolioId string) (*model.GuiderItem, error)
 	GetSymbolConfigByPortfolioId(portfolioId string, pair string) (*model.GuiderSymbolConfig, error)
 }

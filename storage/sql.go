@@ -140,6 +140,19 @@ func (s *SQL) GetGuiderItems() ([]*model.GuiderItem, error) {
 	return guiderItems, nil
 }
 
+func (s *SQL) GetGuiderItemsByFilter(filterParams ItemFilterParams) ([]*model.GuiderItem, error) {
+	guiderItems := make([]*model.GuiderItem, 0)
+	query := s.db
+	if len(filterParams.Account) > 0 {
+		query = query.Where("account=?", filterParams.Account)
+	}
+	result := query.Find(&guiderItems)
+	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
+		return guiderItems, result.Error
+	}
+	return guiderItems, nil
+}
+
 func (s *SQL) GetGuiderItemByPortfolioId(portfolioId string) (*model.GuiderItem, error) {
 	guiderItem := &model.GuiderItem{}
 	result := s.db.Where("copy_portfolio_id=?", portfolioId).First(&guiderItem)

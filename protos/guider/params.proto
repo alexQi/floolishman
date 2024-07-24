@@ -1,0 +1,110 @@
+syntax = "proto3";
+package com.floolishman.guider.params;
+
+option go_package = "./pbs/guider";
+
+message GuiderItem {
+  string account = 2;
+  string avatarUrl = 3;
+  string nickname = 4;
+  string copyPortfolioId = 5;
+  string leadPortfolioId = 6;
+  int64 startDate = 7;
+  int64 endDate = 8;
+  string closedReason = 9;
+  double netCopyAmount = 10;
+  string netCopyAsset = 11;
+  double unrealizedPnl = 12;
+  string unrealizedPnlAsset = 13;
+  double realizedPnl = 14;
+  string realizedPnlAsset = 15;
+  double netProfitAmount = 16;
+  string netProfitAsset = 17;
+  double profitSharedAmount = 18;
+  string profitSharedAsset = 19;
+  double unProfitSharedAmount = 20;
+  double marginBalance = 21;
+  string marginBalanceAsset = 22;
+  string profitSharingRate = 23;
+  int64 copierUnlockPeriodDays = 24;
+  double totalSlRate = 25;
+}
+
+message GuiderSymbolConfig {
+  string account = 2;
+  string portfolioId = 3;
+  string symbol = 4;
+  string marginType = 5;
+  int32 leverage = 6;
+  string maxNotionalValue = 7;
+}
+
+message GuiderPosition {
+  string portfolioId = 2;
+  string symbol = 3;
+  string positionSide = 4;
+  double positionAmount = 5;
+  double entryPrice = 6;
+  double breakEvenPrice = 7;
+  double markPrice = 8;
+  double unrealizedProfit = 9;
+  double liquidationPrice = 10;
+  double isolatedMargin = 11;
+  double notionalValue = 12;
+  string collateral = 13;
+  double isolatedWallet = 14;
+  double cumRealized = 15;
+  double initialMargin = 16;
+  double maintMargin = 17;
+  double availQuote = 18;
+  double positionInitialMargin = 19;
+  double openOrderInitialMargin = 20;
+  int32 adl = 21;
+  double askNotional = 22;
+  double bidNotional = 23;
+}
+
+message GuiderOrder {
+  int64 id = 1;
+  string originId = 2;
+  int64 orderId = 3;
+  string symbol = 4;
+  string clientOrderId = 5;
+  string origClientOrderId = 6;
+  string price = 7;
+  string origQty = 8;
+  string executedQty = 9;
+  string executedQuoteQty = 10;
+  string status = 11;
+  string timeInForce = 12;
+  string type = 13;
+  string side = 14;
+  string stopPrice = 15;
+  string insertTime = 16;
+  string updateTime = 17;
+  string delegateMoney = 18;
+  string avgPrice = 19;
+  bool hasDetail = 20;
+  int32 targetStrategy = 21;
+  int32 priceProtect = 22;
+  bool reduceOnly = 23;
+  string workingType = 24;
+  string origType = 25;
+  string positionSide = 26;
+  string activatePrice = 27;
+  string priceRate = 28;
+  bool closePosition = 29;
+  string strategyId = 30;
+  string strategySubId = 31;
+  string strategyType = 32;
+  string markPrice = 33;
+  string baseAsset = 34;
+  string quoteAsset = 35;
+  string marginAsset = 36;
+  int32 goodTillDate = 37;
+  string priceMatch = 38;
+  string selfProtectionMode = 39;
+  string portfolioId = 40;
+  string createdAt = 41;
+  string updatedAt = 42;
+}

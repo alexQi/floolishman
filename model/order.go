@@ -40,6 +40,7 @@ type OrderExtra struct {
 	LongShortRatio     float64
 	Leverage           int
 	GuiderPositionRate float64
+	GuiderOrigin       string
 	PositionAmount     float64
 	MatchStrategy      map[string]int
 }
@@ -61,6 +62,7 @@ type Order struct {
 	Leverage           int              `db:"leverage" json:"leverage"`
 	LongShortRatio     float64          `db:"long_short_ratio" json:"long_short_ratio"`
 	GuiderPositionRate float64          `db:"guider_position_rate" json:"guider_position_rate"`
+	GuiderOrigin       string           `db:"guider_origin" json:"guider_origin"`
 	CreatedAt          time.Time        `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time        `db:"updated_at" json:"updated_at"`
 	Profit             float64          `json:"profit" gorm:"profit"`

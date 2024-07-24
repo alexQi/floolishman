@@ -1,0 +1,46 @@
+syntax = "proto3";
+package com.floolishman.guider.service;
+
+import "params.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "./pbs/guider";
+
+message GetItemsReq {
+  string account = 1;
+}
+
+//  响应结构
+message GetItemResp {
+  repeated com.floolishman.guider.params.GuiderItem guiderItems = 1;
+}
+
+message GetSymbolConfigReq {
+  string portfolioId = 1;
+  string pair = 2;
+}
+
+//  响应结构
+message GetSymbolConfigResp {
+  com.floolishman.guider.params.GuiderSymbolConfig symbolConfig = 1;
+}
+
+message GetPositionReq {
+  string portfolioId = 1;
+}
+
+//  响应结构
+message GetPositionResp {
+  repeated com.floolishman.guider.params.GuiderPosition positions = 1;
+}
+
+service GuiderWatcher {
+  // 通过account 获取指定配置下的跟单员列表信息
+  rpc GetItems (GetItemsReq) returns (GetItemResp) {}
+  // 根据指定账号及portfolioId获取交易对配置
+  rpc GetSymbolConfig (GetSymbolConfigReq) returns (GetSymbolConfigResp) {}
+  // 根据指定portfolioId获取当前positions
+  rpc GetPositions (GetPositionReq) returns (GetPositionResp) {}
+  // 获取所有当前可用仓位
+  rpc GetAllPositions (google.protobuf.Empty) returns (GetPositionResp) {}
+}

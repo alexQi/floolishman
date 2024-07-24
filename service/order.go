@@ -324,17 +324,16 @@ func (c *ServiceOrder) ListenPositions() {
 				continue
 			}
 			// 同步仓位大小
-			// todo 暂时屏蔽
-			//if position.Quantity != pairPositions[position.Pair][position.PositionSide].Quantity {
-			//	c.positionMap[pair][orderFlag].Quantity = pairPositions[position.Pair][position.PositionSide].Quantity
-			//	c.positionMap[pair][orderFlag].AvgPrice = pairPositions[position.Pair][position.PositionSide].AvgPrice
-			//	// 更新数据库仓位记录
-			//	err := c.storage.UpdatePosition(position)
-			//	if err != nil {
-			//		utils.Log.Error(err)
-			//		return
-			//	}
-			//}
+			if position.Quantity != calc.Abs(pairPositions[position.Pair][position.PositionSide].Quantity) {
+				c.positionMap[pair][orderFlag].Quantity = calc.Abs(pairPositions[position.Pair][position.PositionSide].Quantity)
+				c.positionMap[pair][orderFlag].AvgPrice = pairPositions[position.Pair][position.PositionSide].AvgPrice
+				// 更新数据库仓位记录
+				err := c.storage.UpdatePosition(position)
+				if err != nil {
+					utils.Log.Error(err)
+					return
+				}
+			}
 		}
 	}
 }
@@ -575,6 +574,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 				Leverage:           o.Leverage,
 				LongShortRatio:     o.LongShortRatio,
 				GuiderPositionRate: o.GuiderPositionRate,
+				GuiderOrigin:       o.GuiderOrigin,
 				CreatedAt:          o.CreatedAt,
 				MatchStrategy:      o.MatchStrategy,
 			}
@@ -727,6 +727,7 @@ func (c *ServiceOrder) ListenOrders() {
 		excOrder.LongShortRatio = order.LongShortRatio
 		excOrder.Leverage = order.Leverage
 		excOrder.GuiderPositionRate = order.GuiderPositionRate
+		excOrder.GuiderOrigin = order.GuiderOrigin
 
 		err = c.storage.UpdateOrder(&excOrder)
 		if err != nil {
