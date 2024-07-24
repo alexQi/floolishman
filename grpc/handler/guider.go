@@ -183,6 +183,7 @@ func (s *HandlerGuider) FetchPosition() ([]string, []*model.GuiderPosition, erro
 		userPositions, err := s.source.CheckUserPosition(guiderItem.CopyPortfolioId, s.guiderConfigs[guiderItem.Account])
 		if err != nil {
 			utils.Log.Error(err)
+			return portfolioIds, tempUserPositions, err
 		}
 		for _, userPosition := range userPositions {
 			// 计算用户可用金额
