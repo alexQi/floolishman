@@ -56,6 +56,7 @@ var (
 	CancelLimitDuration   time.Duration = 60
 	CheckOpenInterval     time.Duration = 10
 	CheckCloseInterval    time.Duration = 500
+	CheckLeverageInterval time.Duration = 1000
 	CheckTimeoutInterval  time.Duration = 500
 	CheckStrategyInterval time.Duration = 2
 	ResetStrategyInterval time.Duration = 120
@@ -142,6 +143,7 @@ func (s *ServiceStrategy) RegisterOrderSignal() {
 func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 	tickerCheck := time.NewTicker(CheckStrategyInterval * time.Second)
 	tickerClose := time.NewTicker(CheckCloseInterval * time.Millisecond)
+	tickerLeverage := time.NewTicker(CheckLeverageInterval * time.Millisecond)
 	var currentUserPosition model.GuiderPosition
 	for {
 		select {
@@ -202,6 +204,10 @@ func (s *ServiceStrategy) WatchdogCall(options map[string]model.PairOption) {
 		case <-tickerClose.C:
 			if s.followSymbol {
 				s.closePostionForWatchdog()
+			}
+		case <-tickerLeverage.C:
+			if s.followSymbol {
+				s.listenLeverageForWatchdog()
 			}
 		default:
 			time.Sleep(1 * time.Second)
@@ -541,6 +547,45 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	if err != nil {
 		utils.Log.Error(err)
 		return
+	}
+}
+
+func (s *ServiceStrategy) listenLeverageForWatchdog() {
+	openedPositions, err := s.broker.GetPositionsForOpened()
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	// 循环当前仓位，查询当前仓位杠杆信息有没有变动
+	// 本地仓位与guider仓位杠杆倍数不一致时重新设置杠杆倍数
+	// order服务中监听本地仓位信息，更新杠杆倍数
+	for _, openedPosition := range openedPositions {
+		// 获取当前交易对配置
+		config, err := s.guider.GetGuiderPairConfig(openedPosition.GuiderOrigin, openedPosition.Pair)
+		if err != nil {
+			utils.Log.Error(err)
+			return
+		}
+		if config.Leverage == openedPosition.Leverage {
+			continue
+		}
+		// 设置当前交易对信息
+		err = s.exchange.SetPairOption(s.ctx, model.PairOption{
+			Pair:       config.Symbol,
+			Leverage:   config.Leverage,
+			MarginType: futures.MarginType(config.MarginType),
+		})
+		if err != nil {
+			utils.Log.Error(err)
+			return
+		}
+		utils.Log.Infof(
+			"[WATCHDOG LEVERAGE] Guider Pair: %s | OrderFlag: %s | Origin: %v ,Current: %v",
+			openedPosition.Pair,
+			openedPosition.OrderFlag,
+			openedPosition.Leverage,
+			config.Leverage,
+		)
 	}
 }
 
