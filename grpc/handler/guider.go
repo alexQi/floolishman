@@ -104,7 +104,7 @@ func (s *HandlerGuider) ItemListen() {
 		utils.Log.Error(err)
 	}
 	// 删除
-	utils.Log.Infof("[GUIDER] synced all guiders, total:%v", len(guiderItems))
+	utils.Log.Infof("[GUIDER] Item updated | Total: %v", len(guiderItems))
 }
 func (s *HandlerGuider) SymbolConfigListen() {
 	guiderItems, err := s.storage.GetGuiderItems()
@@ -135,7 +135,7 @@ func (s *HandlerGuider) SymbolConfigListen() {
 		utils.Log.Error(err)
 		return
 	}
-	utils.Log.Infof("[GUIDER] synced all guider symbol config, total:%v", len(symbolConfigs))
+	utils.Log.Infof("[GUIDER] PairConfig updated | Total: %v", len(symbolConfigs))
 }
 
 func (s *HandlerGuider) PositionListen() {
@@ -149,7 +149,7 @@ func (s *HandlerGuider) PositionListen() {
 	if err != nil {
 		utils.Log.Error(err)
 	}
-	utils.Log.Infof("[GUIDER] synced all guider positions, total:%v", len(guiderPositions))
+	utils.Log.Infof("[GUIDER] Position updated | T otal: %v", len(guiderPositions))
 }
 
 // FetchPairNewOrder 获取当前交易对委托单 map[pair][PositionSide][]model.GuiderPosition
