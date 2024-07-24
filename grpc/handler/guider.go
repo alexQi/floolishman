@@ -104,7 +104,7 @@ func (s *HandlerGuider) ItemListen() {
 		utils.Log.Error(err)
 	}
 	// 删除
-	utils.Log.Infof("[Watchdog] synced all guiders, total:%v", len(guiderItems))
+	utils.Log.Infof("[GUIDER] synced all guiders, total:%v", len(guiderItems))
 }
 func (s *HandlerGuider) SymbolConfigListen() {
 	guiderItems, err := s.storage.GetGuiderItems()

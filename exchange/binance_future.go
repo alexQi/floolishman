@@ -621,6 +621,12 @@ func (b *BinanceFuture) PairPosition() (map[string]map[string]*model.Position, e
 		} else {
 			side = "SELL"
 		}
+		var marginType string
+		if position.Isolated {
+			marginType = "ISOLATED"
+		} else {
+			marginType = "CROSSED"
+		}
 		positions[position.Symbol][string(position.PositionSide)] = &model.Position{
 			Pair:         position.Symbol,
 			Side:         side,
@@ -628,6 +634,7 @@ func (b *BinanceFuture) PairPosition() (map[string]map[string]*model.Position, e
 			AvgPrice:     avgPrice,
 			Quantity:     quantity,
 			Leverage:     int(leverage),
+			MarginType:   marginType,
 		}
 	}
 	return positions, nil

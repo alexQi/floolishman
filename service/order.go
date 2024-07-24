@@ -323,16 +323,24 @@ func (c *ServiceOrder) ListenPositions() {
 				delete(c.positionMap[pair], orderFlag)
 				continue
 			}
+			hasChange := false
+			if position.Leverage != pairPositions[position.Pair][position.PositionSide].Leverage {
+				c.positionMap[pair][orderFlag].Leverage = pairPositions[position.Pair][position.PositionSide].Leverage
+				hasChange = true
+			}
 			// 同步仓位大小
 			if position.Quantity != calc.Abs(pairPositions[position.Pair][position.PositionSide].Quantity) {
 				c.positionMap[pair][orderFlag].Quantity = calc.Abs(pairPositions[position.Pair][position.PositionSide].Quantity)
 				c.positionMap[pair][orderFlag].AvgPrice = pairPositions[position.Pair][position.PositionSide].AvgPrice
-				// 更新数据库仓位记录
-				err := c.storage.UpdatePosition(position)
-				if err != nil {
-					utils.Log.Error(err)
-					return
-				}
+				hasChange = true
+			}
+			if hasChange == false {
+				return
+			}
+			// 更新数据库仓位记录
+			err := c.storage.UpdatePosition(c.positionMap[pair][orderFlag])
+			if err != nil {
+				utils.Log.Error(err)
 			}
 		}
 	}

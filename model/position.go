@@ -13,6 +13,7 @@ type Position struct {
 	PositionSide       string         `db:"position_side" json:"position_side"`
 	AvgPrice           float64        `db:"avg_price" json:"avg_price"`
 	Quantity           float64        `db:"quantity" json:"quantity"`
+	MarginType         string         `db:"margin_type" json:"margin_type"`
 	Leverage           int            `db:"leverage" json:"leverage"`
 	LongShortRatio     float64        `db:"long_short_ratio" json:"long_short_ratio"`
 	GuiderPositionRate float64        `db:"guider_position_rate" json:"guider_position_rate"`
