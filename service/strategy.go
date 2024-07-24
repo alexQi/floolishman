@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/adshao/go-binance/v2/futures"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 )
@@ -100,6 +101,7 @@ func NewServiceStrategy(
 
 func (s *ServiceStrategy) Start() {
 	s.started = true
+	utils.Log.Infof("Strategy model set: %s", strings.ToUpper(s.checkMode))
 	switch s.checkMode {
 	case "frequency":
 		for _, option := range s.pairOptions {
@@ -371,13 +373,13 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	defer s.mu.Unlock() // 解锁
 	currentPrice := s.pairPrices[guiderPosition.Symbol]
 	utils.Log.Infof(
-		"[GUIDER POSITION] Pair: %s, Price: %v, Quantity: %v, Position Side: %s ｜PortfolioId %s | Current: %v",
+		"[GUIDER POSITION] Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v ｜ PortfolioId: %s",
 		guiderPosition.Symbol,
-		guiderPosition.EntryPrice,
-		guiderPosition.PositionAmount,
 		guiderPosition.PositionSide,
-		guiderPosition.PortfolioId,
+		guiderPosition.PositionAmount,
+		guiderPosition.EntryPrice,
 		currentPrice,
+		guiderPosition.PortfolioId,
 	)
 	// 判断当前资产
 	assetPosition, quotePosition, err := s.broker.PairAsset(guiderPosition.Symbol)
@@ -391,27 +393,13 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 		return
 	}
 	// 当前仓位为多，最近策略为多，保持仓位
-	if assetPosition > 0 && model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeLong {
-		utils.Log.Infof(
-			"[POSITION EXSIT] Pair: %s | Price: %v | Quantity: %v  | Position Side: %s | Current: %v, %v",
-			guiderPosition.Symbol,
-			guiderPosition.EntryPrice,
-			guiderPosition.PositionAmount,
-			guiderPosition.PositionSide,
-			currentPrice,
-			assetPosition,
-		)
-		return
-	}
 	// 当前仓位为空，最近策略为空，保持仓位
-	if assetPosition < 0 && model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeShort {
+	if (assetPosition > 0 && model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeLong) ||
+		(assetPosition < 0 && model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeShort) {
 		utils.Log.Infof(
-			"[POSITION EXSIT] Pair: %s | Price: %v | Quantity: %v  | Position Side: %s | Current: %v, %v",
+			"[POSITION EXSIT]  Pair: %s | P.Side: %s | Quantity: %v",
 			guiderPosition.Symbol,
-			guiderPosition.EntryPrice,
-			guiderPosition.PositionAmount,
 			guiderPosition.PositionSide,
-			currentPrice,
 			assetPosition,
 		)
 		return
@@ -441,18 +429,17 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	// 当guider盈利时不在开仓，点位保持比guier优
 	if isGuiderProfited == true {
 		utils.Log.Infof(
-			"[IGNORE PISITION] Pair: %s, Price: %v, Quantity: %v, Position Side: %s | Current: %v",
+			"[GUIDER POSITION - IGNORE] Pair: %s | P.Side: %s | Price: %v, Current: %v",
 			guiderPosition.Symbol,
-			guiderPosition.EntryPrice,
-			guiderPosition.PositionAmount,
 			guiderPosition.PositionSide,
+			guiderPosition.EntryPrice,
 			currentPrice,
 		)
 		return
 		//profitRatio := calc.ProfitRatio(finalSide, guiderPosition.EntryPrice, currentPrice, float64(config.Leverage), amount)
 		//if profitRatio > 0.12/100*float64(config.Leverage) {
 		//	utils.Log.Infof(
-		//		"[IGNORE ORDER] Pair: %s, Price: %v, Quantity: %v, Position Side: %s | Current: %v | (%.f)",
+		//		"[IGNORE ORDER] Pair: %s, Price: %v, Quantity: %v, P.Side: %s | Current: %v | (%.f)",
 		//		guiderPosition.Symbol,
 		//		guiderPosition.EntryPrice,
 		//		guiderPosition.PositionAmount,
@@ -478,12 +465,12 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	// 当前方向已存在仓位，不在开仓
 	if existPosition != nil {
 		utils.Log.Infof(
-			"[WATCHDOG HOLD ORDER - OPEN ] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v",
-			existPosition.Pair,
-			existPosition.AvgPrice,
-			existPosition.Quantity,
-			existPosition.Side,
+			"[WATCHDOG POSITION - EXSIT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v",
 			existPosition.OrderFlag,
+			existPosition.Pair,
+			existPosition.PositionSide,
+			existPosition.Quantity,
+			existPosition.AvgPrice,
 			currentPrice,
 		)
 		return
@@ -511,12 +498,12 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 	// 判断当前是否已有同向挂单
 	if exsitOrder != nil {
 		utils.Log.Infof(
-			"[WATCHDOG HOLD ORDER - NEW] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v ｜ (UNFILLED)",
-			exsitOrder.Pair,
-			exsitOrder.Price,
-			exsitOrder.Quantity,
-			exsitOrder.Side,
-			exsitOrder.OrderFlag,
+			"[WATCHDOG POSITION - EXSIT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v | (UNFILLED)",
+			existPosition.OrderFlag,
+			existPosition.Pair,
+			existPosition.PositionSide,
+			existPosition.Quantity,
+			existPosition.AvgPrice,
 			currentPrice,
 		)
 		return
@@ -532,11 +519,12 @@ func (s *ServiceStrategy) openPositionForWatchdog(guiderPosition model.GuiderPos
 		return
 	}
 	utils.Log.Infof(
-		"[WATCHDOG OPEN] Guider Pair: %s | Price: %v | Quantity: %v | Position Side: %s",
+		"[WATCHDOG POSITION OPENING] Pair: %s | P.Side: %s | Quantity: %v | Price: %v | GuiderOrigin: %s",
 		guiderPosition.Symbol,
-		guiderPosition.EntryPrice,
-		guiderPosition.PositionAmount,
 		guiderPosition.PositionSide,
+		amount,
+		currentPrice,
+		guiderPosition.PortfolioId,
 	)
 	// 根据最新价格创建限价单
 	_, err = s.broker.CreateOrderLimit(finalSide, model.PositionSideType(guiderPosition.PositionSide), guiderPosition.Symbol, amount, currentPrice, model.OrderExtra{
@@ -580,9 +568,9 @@ func (s *ServiceStrategy) listenLeverageForWatchdog() {
 			return
 		}
 		utils.Log.Infof(
-			"[WATCHDOG LEVERAGE] Guider Pair: %s | OrderFlag: %s | Origin: %v ,Current: %v",
-			openedPosition.Pair,
+			"[WATCHDOG LEVERAGE] OrderFlag: %s | Pair: %s | Origin: %v, Current: %v",
 			openedPosition.OrderFlag,
+			openedPosition.Pair,
 			openedPosition.Leverage,
 			config.Leverage,
 		)
@@ -660,12 +648,12 @@ func (s *ServiceStrategy) closePostionForWatchdog() {
 				guiderPositionAmount = calc.Abs(currentGuiderPositions[0].PositionAmount)
 				if calc.FloatEquals(openedPosition.Quantity/guiderPositionAmount, openedPosition.GuiderPositionRate, 0.02) {
 					utils.Log.Infof(
-						"[WATCHDOG HOLD ORDER - WATCH] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v",
-						openedPosition.Pair,
-						openedPosition.AvgPrice,
-						openedPosition.Quantity,
-						openedPosition.Side,
+						"[WATCHDOG POSITION - WATCH] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v",
 						openedPosition.OrderFlag,
+						openedPosition.Pair,
+						openedPosition.PositionSide,
+						openedPosition.Quantity,
+						openedPosition.AvgPrice,
 						currentPrice,
 					)
 					continue
@@ -809,12 +797,12 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 	if existPosition != nil {
 		if s.backtest == false {
 			utils.Log.Infof(
-				"[HOLD ORDER] Pair: %s | Price: %v | Quantity: %v  | Side: %s |  OrderFlag: %s | Current: %v",
-				existPosition.Pair,
-				existPosition.AvgPrice,
-				existPosition.Quantity,
-				existPosition.Side,
+				"[POSITION - EXSIT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v",
 				existPosition.OrderFlag,
+				existPosition.Pair,
+				existPosition.PositionSide,
+				existPosition.Quantity,
+				existPosition.AvgPrice,
 				currentPrice,
 			)
 		}
@@ -851,17 +839,17 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 		}
 		// 删除止损时间限制配置
 		delete(s.lossLimitTimes, reversePosition.OrderFlag)
+
 		utils.Log.Infof(
-			"[REVERSE POSITION - %s ] Pair: %s | Price Open: %v, Close: %v | Quantity: %v |  OrderFlag: %s",
+			"[POSITION - REVERSE] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v",
+			reversePosition.OrderFlag,
+			reversePosition.Pair,
 			reversePosition.PositionSide,
-			option.Pair,
+			reversePosition.Quantity,
 			reversePosition.AvgPrice,
 			currentPrice,
-			reversePosition.Quantity,
-			reversePosition.OrderFlag,
 		)
 		// 查询当前orderFlag所有的止损单，全部取消
-
 		lossOrders, err := s.broker.GetOrdersForPostionLossUnfilled(reversePosition.OrderFlag)
 		if err != nil {
 			utils.Log.Error(err)
@@ -876,28 +864,28 @@ func (s *ServiceStrategy) openPosition(option model.PairOption, assetPosition, q
 			}
 		}
 	}
-	// ******************* 执行反手开仓操作 *****************//
-	// 根据多空比动态计算仓位大小
-	scoreRadio := calc.Abs(0.5-longShortRatio) / 0.5
-	amount := calc.OpenPositionSize(quotePosition, float64(s.pairOptions[option.Pair].Leverage), currentPrice, scoreRadio, s.fullSpaceRadio)
-	if s.backtest == false {
-		utils.Log.Infof(
-			"[OPEN POSITION] Pair: %s | Price: %v | Quantity: %v | Side: %s",
-			option.Pair,
-			currentPrice,
-			amount,
-			finalSide,
-		)
-	}
-
-	// 重置当前交易对止损比例
-	s.profitRatioLimit[option.Pair] = 0
 	// 获取最新仓位positionSide
 	if finalSide == model.SideTypeBuy {
 		postionSide = model.PositionSideTypeLong
 	} else {
 		postionSide = model.PositionSideTypeShort
 	}
+	// ******************* 执行反手开仓操作 *****************//
+	// 根据多空比动态计算仓位大小
+	scoreRadio := calc.Abs(0.5-longShortRatio) / 0.5
+	amount := calc.OpenPositionSize(quotePosition, float64(s.pairOptions[option.Pair].Leverage), currentPrice, scoreRadio, s.fullSpaceRadio)
+	if s.backtest == false {
+		utils.Log.Infof(
+			"[POSITION OPENING] Pair: %s | P.Side: %s | Quantity: %v | Price: %v",
+			option.Pair,
+			postionSide,
+			amount,
+			currentPrice,
+		)
+	}
+
+	// 重置当前交易对止损比例
+	s.profitRatioLimit[option.Pair] = 0
 	// 根据最新价格创建限价单
 	order, err := s.broker.CreateOrderLimit(finalSide, postionSide, option.Pair, amount, currentPrice, model.OrderExtra{
 		Leverage:       option.Leverage,
@@ -991,13 +979,15 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 		)
 		if s.backtest == false {
 			utils.Log.Infof(
-				"[WATCH] %s Pair: %s | Price Order: %v, Current: %v | Quantity: %v | Profit Ratio: %s | Stop Loss Time: %s",
-				openedPosition.UpdatedAt.In(loc).Format("2006-01-02 15:04:05"),
-				option.Pair,
+				"[POSITION - WATCH] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v | PR.%%: %s | Create: %s | Stop Cut-off: %s",
+				openedPosition.OrderFlag,
+				openedPosition.Pair,
+				openedPosition.PositionSide,
+				openedPosition.Quantity,
 				openedPosition.AvgPrice,
 				currentPrice,
-				openedPosition.Quantity,
 				fmt.Sprintf("%.2f%%", profitRatio*100),
+				openedPosition.UpdatedAt.In(loc).Format("2006-01-02 15:04:05"),
 				s.lossLimitTimes[openedPosition.OrderFlag].In(loc).Format("2006-01-02 15:04:05"),
 			)
 		}
@@ -1033,13 +1023,15 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 				return
 			}
 			utils.Log.Infof(
-				"[PROFIT TIMEOUT - %s ] Pair: %s | Price Open: %v, Close: %v | Quantity: %v |  OrderFlag: %s",
+				"[POSITION - TIMEOUT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v | PR.%%: %s | Create: %s",
+				openedPosition.OrderFlag,
+				openedPosition.Pair,
 				openedPosition.PositionSide,
-				option.Pair,
+				openedPosition.Quantity,
 				openedPosition.AvgPrice,
 				currentPrice,
-				openedPosition.Quantity,
-				openedPosition.OrderFlag,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
+				openedPosition.UpdatedAt.In(loc).Format("2006-01-02 15:04:05"),
 			)
 			// 删除止损时间限制配置
 			delete(s.lossLimitTimes, openedPosition.OrderFlag)
@@ -1078,15 +1070,17 @@ func (s *ServiceStrategy) closeOption(option model.PairOption) {
 		}
 		if s.backtest == false {
 			utils.Log.Infof(
-				"[PROFIT] Pair: %s | Side: %s | Order Price: %v, Current: %v | Quantity: %v | Profit Ratio: %s | New Stop Loss: %v, %s, Time: %s",
-				option.Pair,
-				openedPosition.Side,
+				"[POSITION - PROFIT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v, Stop: %v | PR.%%: %s, SPR.%%: %s | Create: %s | Stop Cut-off: %s",
+				openedPosition.OrderFlag,
+				openedPosition.Pair,
+				openedPosition.PositionSide,
+				openedPosition.Quantity,
 				openedPosition.AvgPrice,
 				currentPrice,
-				openedPosition.Quantity,
-				fmt.Sprintf("%.2f%%", profitRatio*100),
 				stopLimitPrice,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
 				fmt.Sprintf("%.2f%%", currentLossLimitProfit*100),
+				openedPosition.UpdatedAt.In(loc).Format("2006-01-02 15:04:05"),
 				s.lossLimitTimes[openedPosition.OrderFlag].In(loc).Format("2006-01-02 15:04:05"),
 			)
 		}
@@ -1128,6 +1122,7 @@ func (s *ServiceStrategy) timeoutOption() {
 		utils.Log.Error(err)
 		return
 	}
+	loc, err := time.LoadLocation("Asia/Shanghai")
 	for orderFlag, existOrders := range existOrderMap {
 		positionOrders, ok := existOrders["position"]
 		if !ok {
@@ -1151,6 +1146,15 @@ func (s *ServiceStrategy) timeoutOption() {
 				utils.Log.Error(err)
 				continue
 			}
+			utils.Log.Infof(
+				"[ORDER - TIMEOUT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v | Create: %s",
+				positionOrder.OrderFlag,
+				positionOrder.Pair,
+				positionOrder.PositionSide,
+				positionOrder.Quantity,
+				positionOrder.Price,
+				positionOrder.UpdatedAt.In(loc).Format("2006-01-02 15:04:05"),
+			)
 			// 取消之前的止损单
 			lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
 			if !ok {

@@ -113,7 +113,7 @@ func NewBinance(ctx context.Context, options ...BinanceOption) (*Binance, error)
 		exchange.assetsInfo[info.Symbol] = tradeLimits
 	}
 
-	utils.Log.Info("[SETUP] Using Binance exchange")
+	utils.Log.Info("Using Binance exchange")
 
 	return exchange, nil
 }

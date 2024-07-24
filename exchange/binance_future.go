@@ -134,7 +134,7 @@ func NewBinanceFuture(ctx context.Context, options ...BinanceFutureOption) (*Bin
 		exchange.assetsInfo[info.Symbol] = tradeLimits
 	}
 
-	utils.Log.Info("[SETUP] Using Binance Futures exchange")
+	utils.Log.Info("Using Binance Futures exchange")
 
 	return exchange, nil
 }
