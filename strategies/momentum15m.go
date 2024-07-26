@@ -49,20 +49,15 @@ func (s *Momentum15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 		LastAtr:      df.Metadata["atr"].Last(1),
 		ChaseModel:   1,
 	}
-
-	ema8 := df.Metadata["ema8"].Last(0)
 	momentums := df.Metadata["momentum"].LastValues(2)
-
-	currentPrice := df.Close.Last(0)
-	emaPriceRatio := calc.Abs(ema8-currentPrice) / ema8
-
+	momentumsDistance := momentums[1] - momentums[0]
 	// 动量向上
-	if (momentums[1]-momentums[0]) > 8 && momentums[0] < momentums[1] && currentPrice < ema8 && emaPriceRatio >= 0.005 {
+	if momentumsDistance > 8 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
 	// 动量向下
-	if (momentums[0]-momentums[1]) > 8 && momentums[0] > momentums[1] && currentPrice > ema8 && emaPriceRatio >= 0.005 {
+	if momentumsDistance < 0 && calc.Abs(momentumsDistance) > 7 {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}

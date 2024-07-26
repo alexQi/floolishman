@@ -441,9 +441,9 @@ func (c *ServiceOrder) GetOrdersForPostionLossUnfilled(orderFlag string) ([]*mod
 	return lo.Filter(orders, func(order *model.Order, _ int) bool {
 		if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) ||
 			(order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) {
-			return false
+			return true
 		}
-		return true
+		return false
 	}), nil
 }
 

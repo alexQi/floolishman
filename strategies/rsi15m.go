@@ -53,12 +53,12 @@ func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	isCross, direction := s.bactchCheckVolume(volume[:len(volume)-1], avgVolume[:len(avgVolume)-1], 2.2)
 
 	// 趋势判断 85 84
-	if strategyPosition.Tendency != "range" && rsis[0] > rsis[1] && rsis[0] > 90 && isUpperPinBar && isCross {
+	if strategyPosition.Tendency != "range" && rsis[0] > rsis[1] && rsis[1] > 90 && isUpperPinBar && isCross {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeSell
 	}
 	// RSI 小于30，买入信号
-	if strategyPosition.Tendency != "range" && rsis[0] < rsis[1] && rsis[0] <= 25 && isLowerPinBar && isCross && direction == "fall" {
+	if strategyPosition.Tendency != "range" && rsis[0] < rsis[1] && rsis[0] <= 8 && isLowerPinBar && isCross && direction == "fall" {
 		strategyPosition.Useable = true
 		strategyPosition.Side = model.SideTypeBuy
 	}
