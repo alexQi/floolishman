@@ -113,8 +113,8 @@ func NewPaperWallet(ctx context.Context, baseCoin string, options ...PaperWallet
 	}
 
 	wallet.initialValue = wallet.assets[wallet.baseCoin].Free
-	utils.Log.Info("[SETUP] Using paper wallet")
-	utils.Log.Infof("[SETUP] Initial Portfolio = %f %s", wallet.initialValue, wallet.baseCoin)
+	utils.Log.Infof("Using paper wallet")
+	utils.Log.Infof("Initial Portfolio = %f %s", wallet.initialValue, wallet.baseCoin)
 
 	return &wallet
 }
