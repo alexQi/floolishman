@@ -186,14 +186,14 @@ const (
 )
 
 type Result struct {
-	Pair          string
-	OrderFlag     string // 当前方向仓位标识
-	ProfitPercent float64
-	ProfitValue   float64
-	MatchStrategy map[string]int
-	Side          model.SideType
-	Duration      time.Duration
-	CreatedAt     time.Time
+	Pair                 string
+	OrderFlag            string // 当前方向仓位标识
+	ProfitPercent        float64
+	ProfitValue          float64
+	MatcherStrategyCount map[string]int
+	Side                 model.SideType
+	Duration             time.Duration
+	CreatedAt            time.Time
 }
 type ServiceOrder struct {
 	mtx                    sync.Mutex
@@ -228,11 +228,11 @@ func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage s
 		storage:                storage,
 		exchange:               exchange,
 		orderFeed:              orderFeed,
-		lastPrice:              make(map[string]float64),
-		Results:                make(map[string]*summary),
 		tickerOrderInterval:    500 * time.Millisecond,
 		tickerPositionInterval: time.Second,
 		finish:                 make(chan bool),
+		lastPrice:              make(map[string]float64),
+		Results:                make(map[string]*summary),
 		positionMap:            make(map[string]map[string]*model.Position),
 	}
 }
@@ -447,9 +447,9 @@ func (c *ServiceOrder) GetOrdersForPostionLossUnfilled(orderFlag string) ([]*mod
 	}), nil
 }
 
-func (c *ServiceOrder) GetOrdersForPairUnfilled(pair string) ([]*model.Order, error) {
-	orders := []*model.Order{}
-	orders, err := c.storage.Orders(
+func (c *ServiceOrder) GetOrdersForPairUnfilled(pair string) (map[string]map[string][]*model.Order, error) {
+	unfilledOrders := map[string]map[string][]*model.Order{}
+	positionOrders, err := c.storage.Orders(
 		storage.OrderFilterParams{
 			Pair: pair,
 			Statuses: []model.OrderStatusType{
@@ -459,14 +459,36 @@ func (c *ServiceOrder) GetOrdersForPairUnfilled(pair string) ([]*model.Order, er
 		},
 	)
 	if err != nil {
-		return orders, err
+		return unfilledOrders, err
 	}
-	return orders, nil
+	if len(positionOrders) == 0 {
+		return unfilledOrders, err
+	}
+	for _, order := range positionOrders {
+		if _, ok := unfilledOrders[order.OrderFlag]; !ok {
+			unfilledOrders[order.OrderFlag] = make(map[string][]*model.Order)
+		}
+		// 获取所有开仓单子
+		if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort) {
+			if _, ok := unfilledOrders[order.OrderFlag]["position"]; !ok {
+				unfilledOrders[order.OrderFlag]["position"] = []*model.Order{}
+			}
+			unfilledOrders[order.OrderFlag]["position"] = append(unfilledOrders[order.OrderFlag]["position"], order)
+		}
+		// 获取所有平仓单子
+		if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) {
+			if _, ok := unfilledOrders[order.OrderFlag]["lossLimit"]; !ok {
+				unfilledOrders[order.OrderFlag]["lossLimit"] = []*model.Order{}
+			}
+			unfilledOrders[order.OrderFlag]["lossLimit"] = append(unfilledOrders[order.OrderFlag]["lossLimit"], order)
+		}
+	}
+	return unfilledOrders, nil
 }
 
-func (c *ServiceOrder) GetOrdersForUnfilled() ([]*model.Order, error) {
-	orders := []*model.Order{}
-	orders, err := c.storage.Orders(
+func (c *ServiceOrder) GetOrdersForUnfilled() (map[string]map[string][]*model.Order, error) {
+	unfilledOrders := map[string]map[string][]*model.Order{}
+	positionOrders, err := c.storage.Orders(
 		storage.OrderFilterParams{
 			Statuses: []model.OrderStatusType{
 				model.OrderStatusTypeNew, // 未成交订单
@@ -474,9 +496,31 @@ func (c *ServiceOrder) GetOrdersForUnfilled() ([]*model.Order, error) {
 		},
 	)
 	if err != nil {
-		return orders, err
+		return unfilledOrders, err
 	}
-	return orders, nil
+	if len(positionOrders) == 0 {
+		return unfilledOrders, err
+	}
+	for _, order := range positionOrders {
+		if _, ok := unfilledOrders[order.OrderFlag]; !ok {
+			unfilledOrders[order.OrderFlag] = make(map[string][]*model.Order)
+		}
+		// 获取所有开仓单子
+		if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort) {
+			if _, ok := unfilledOrders[order.OrderFlag]["position"]; !ok {
+				unfilledOrders[order.OrderFlag]["position"] = []*model.Order{}
+			}
+			unfilledOrders[order.OrderFlag]["position"] = append(unfilledOrders[order.OrderFlag]["position"], order)
+		}
+		// 获取所有平仓单子
+		if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) {
+			if _, ok := unfilledOrders[order.OrderFlag]["lossLimit"]; !ok {
+				unfilledOrders[order.OrderFlag]["lossLimit"] = []*model.Order{}
+			}
+			unfilledOrders[order.OrderFlag]["lossLimit"] = append(unfilledOrders[order.OrderFlag]["lossLimit"], order)
+		}
+	}
+	return unfilledOrders, nil
 }
 
 func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Result) {
@@ -487,12 +531,16 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 	if p.Side == string(order.Side) {
 		p.AvgPrice = (p.AvgPrice*p.Quantity + price*order.Quantity) / (p.Quantity + order.Quantity)
 		p.Quantity = calc.AccurateAdd(p.Quantity, order.Quantity)
+		p.TotalQuantity = calc.AccurateAdd(p.TotalQuantity, order.Quantity)
 	} else {
 		if p.PositionSide == string(model.PositionSideTypeLong) {
 			// 平多单
 			if p.Quantity == order.Quantity {
 				p.Status = 1
 				p.Quantity = 0
+				p.ClosePrice = order.Price
+				p.Profit = calc.AccurateSub(price, p.AvgPrice) / p.AvgPrice
+				p.ProfitValue = calc.AccurateSub(price, p.AvgPrice) * p.TotalQuantity
 			} else if p.Quantity > order.Quantity {
 				p.Quantity = calc.AccurateSub(p.Quantity, order.Quantity)
 			} else {
@@ -502,25 +550,24 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 				//p.Side = string(order.Side)
 				//p.PositionSide = string(order.PositionSide)
 			}
-
-			order.Profit = calc.AccurateSub(price, p.AvgPrice) / p.AvgPrice
-			order.ProfitValue = calc.AccurateSub(price, p.AvgPrice) * order.Quantity
-
 			result = &Result{
-				Pair:          order.Pair,
-				OrderFlag:     order.OrderFlag,
-				Duration:      order.CreatedAt.Sub(p.CreatedAt),
-				ProfitPercent: order.Profit,
-				ProfitValue:   order.ProfitValue,
-				Side:          model.SideType(p.Side),
-				CreatedAt:     order.CreatedAt,
-				MatchStrategy: p.MatchStrategy,
+				Pair:                 p.Pair,
+				OrderFlag:            p.OrderFlag,
+				Duration:             order.CreatedAt.Sub(p.CreatedAt),
+				ProfitPercent:        p.Profit,
+				ProfitValue:          p.ProfitValue,
+				Side:                 model.SideType(p.Side),
+				CreatedAt:            order.CreatedAt,
+				MatcherStrategyCount: p.MatcherStrategyCount,
 			}
 		} else {
 			// 平空单
 			if p.Quantity == order.Quantity {
 				p.Status = 1
 				p.Quantity = 0
+				p.ClosePrice = order.Price
+				p.Profit = calc.AccurateSub(p.AvgPrice, price) / p.AvgPrice
+				p.ProfitValue = calc.AccurateSub(p.AvgPrice, price) * p.TotalQuantity
 			} else if p.Quantity > order.Quantity {
 				p.Quantity = calc.AccurateSub(p.Quantity, order.Quantity)
 			} else {
@@ -528,18 +575,15 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 				p.AvgPrice = price
 			}
 
-			order.Profit = calc.AccurateSub(p.AvgPrice, price) / p.AvgPrice
-			order.ProfitValue = calc.AccurateSub(p.AvgPrice, price) * order.Quantity
-
 			result = &Result{
-				Pair:          order.Pair,
-				OrderFlag:     order.OrderFlag,
-				Duration:      order.CreatedAt.Sub(p.CreatedAt),
-				ProfitPercent: order.Profit,
-				ProfitValue:   order.ProfitValue,
-				Side:          model.SideType(p.Side),
-				CreatedAt:     order.CreatedAt,
-				MatchStrategy: p.MatchStrategy,
+				Pair:                 p.Pair,
+				OrderFlag:            p.OrderFlag,
+				Duration:             order.CreatedAt.Sub(p.CreatedAt),
+				ProfitPercent:        p.Profit,
+				ProfitValue:          p.ProfitValue,
+				Side:                 model.SideType(p.Side),
+				CreatedAt:            order.CreatedAt,
+				MatcherStrategyCount: p.MatcherStrategyCount,
 			}
 		}
 		return result
@@ -573,18 +617,20 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		// 不存在则创建仓位
 		if position.ID == 0 {
 			position = &model.Position{
-				Pair:               o.Pair,
-				OrderFlag:          o.OrderFlag,
-				Side:               string(o.Side),
-				PositionSide:       string(o.PositionSide),
-				AvgPrice:           o.Price,
-				Quantity:           o.Quantity,
-				Leverage:           o.Leverage,
-				LongShortRatio:     o.LongShortRatio,
-				GuiderPositionRate: o.GuiderPositionRate,
-				GuiderOrigin:       o.GuiderOrigin,
-				CreatedAt:          o.CreatedAt,
-				MatchStrategy:      o.MatchStrategy,
+				Pair:                 o.Pair,
+				OrderFlag:            o.OrderFlag,
+				Side:                 string(o.Side),
+				PositionSide:         string(o.PositionSide),
+				AvgPrice:             o.Price,
+				Quantity:             o.Quantity,
+				TotalQuantity:        o.Quantity,
+				Leverage:             o.Leverage,
+				LongShortRatio:       o.LongShortRatio,
+				GuiderPositionRate:   o.GuiderPositionRate,
+				GuiderOrigin:         o.GuiderOrigin,
+				ChaseMode:            o.ChaseMode,
+				CreatedAt:            o.CreatedAt,
+				MatcherStrategyCount: o.MatcherStrategyCount,
 			}
 			c.positionMap[o.Pair][o.OrderFlag] = position
 			// 插入数据
@@ -616,14 +662,14 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 				c.Results[o.Pair].WinLong = append(c.Results[o.Pair].WinLong, result.ProfitValue)
 				c.Results[o.Pair].WinLongPercent = append(c.Results[o.Pair].WinLongPercent, result.ProfitPercent)
 
-				for s, i := range result.MatchStrategy {
+				for s, i := range result.MatcherStrategyCount {
 					c.Results[o.Pair].WinLongStrateis[s] += i
 				}
 			} else {
 				c.Results[o.Pair].WinShort = append(c.Results[o.Pair].WinShort, result.ProfitValue)
 				c.Results[o.Pair].WinShortPercent = append(c.Results[o.Pair].WinShortPercent, result.ProfitPercent)
 
-				for s, i := range result.MatchStrategy {
+				for s, i := range result.MatcherStrategyCount {
 					c.Results[o.Pair].WinShortStrateis[s] += i
 				}
 			}
@@ -632,14 +678,14 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 				c.Results[o.Pair].LoseLong = append(c.Results[o.Pair].LoseLong, result.ProfitValue)
 				c.Results[o.Pair].LoseLongPercent = append(c.Results[o.Pair].LoseLongPercent, result.ProfitPercent)
 
-				for s, i := range result.MatchStrategy {
+				for s, i := range result.MatcherStrategyCount {
 					c.Results[o.Pair].LoseLongStrateis[s] += i
 				}
 			} else {
 				c.Results[o.Pair].LoseShort = append(c.Results[o.Pair].LoseShort, result.ProfitValue)
 				c.Results[o.Pair].LoseShortPercent = append(c.Results[o.Pair].LoseShortPercent, result.ProfitPercent)
 
-				for s, i := range result.MatchStrategy {
+				for s, i := range result.MatcherStrategyCount {
 					c.Results[o.Pair].LoseShortStrateis[s] += i
 				}
 			}
@@ -736,6 +782,7 @@ func (c *ServiceOrder) ListenOrders() {
 		excOrder.Leverage = order.Leverage
 		excOrder.GuiderPositionRate = order.GuiderPositionRate
 		excOrder.GuiderOrigin = order.GuiderOrigin
+		excOrder.ChaseMode = order.ChaseMode
 
 		err = c.storage.UpdateOrder(&excOrder)
 		if err != nil {
@@ -743,7 +790,7 @@ func (c *ServiceOrder) ListenOrders() {
 			continue
 		}
 		// 重新放入策略统计数据 todo 记录每次订单开仓的策略
-		//excOrder.MatchStrategy = order.MatchStrategy
+		//excOrder.MatcherStrategyCount = order.MatcherStrategyCount
 		// 放入更新数组
 		utils.Log.Infof("[ORDER %s] %s", excOrder.Status, excOrder)
 		updatedOrders = append(updatedOrders, excOrder)
@@ -793,6 +840,22 @@ func (c *ServiceOrder) CreateOrderLimit(side model.SideType, positionSide model.
 		return model.Order{}, err
 	}
 	go c.orderFeed.Publish(order, true)
+	go func() {
+		for i := range extra.MatcherStrategy {
+			if model.SideType(extra.MatcherStrategy[i].Side) == order.Side {
+				extra.MatcherStrategy[i].IsFinal = 1
+			}
+			extra.MatcherStrategy[i].OrderFlag = order.OrderFlag
+		}
+		if len(extra.MatcherStrategy) > 1 {
+			fmt.Print(extra.MatcherStrategyCount)
+		}
+		err := c.storage.CreateStrategy(extra.MatcherStrategy)
+		if err != nil {
+			utils.Log.Error(err)
+			return
+		}
+	}()
 	utils.Log.Infof("[ORDER CREATED] %s", order)
 	return order, nil
 }
@@ -814,6 +877,22 @@ func (c *ServiceOrder) CreateOrderMarket(side model.SideType, positionSide model
 		return model.Order{}, err
 	}
 	utils.Log.Infof("[ORDER CREATED] %s", order)
+	if (order.PositionSide == model.PositionSideTypeLong && order.Side == model.SideTypeBuy) ||
+		(order.PositionSide == model.PositionSideTypeShort && order.Side == model.SideTypeSell) {
+		go func() {
+			for i := range extra.MatcherStrategy {
+				if model.SideType(extra.MatcherStrategy[i].Side) == order.Side {
+					extra.MatcherStrategy[i].IsFinal = 1
+				}
+				extra.MatcherStrategy[i].OrderFlag = order.OrderFlag
+			}
+			err := c.storage.CreateStrategy(extra.MatcherStrategy)
+			if err != nil {
+				utils.Log.Error(err)
+				return
+			}
+		}()
+	}
 	// calculate profit
 	c.processTrade(&order)
 	go c.orderFeed.Publish(order, true)

@@ -4,36 +4,18 @@ import (
 	"floolishman/model"
 	"floolishman/reference"
 	"floolishman/utils"
-	"fmt"
 	"reflect"
-	"time"
 )
 
 type StrategyPosition struct {
 	Useable      bool
-	ChaseModel   int
+	ChaseMode    int
 	Side         model.SideType
 	Pair         string
 	StrategyName string
 	Score        int
 	Tendency     string
 	LastAtr      float64
-}
-
-type PositionJudger struct {
-	Pair          string             //交易对
-	Matchers      []StrategyPosition // 策略通过结果数组
-	TendencyCount map[string]int     // 趋势得分Map
-	Count         int                // 当前周期执行次数
-	CreatedAt     time.Time          // 本次Counter创建时间
-}
-
-func (pj PositionJudger) String() string {
-	return fmt.Sprintf("[FREQUENCY] %s Pair: %s | Count: %d | TendencyCount: %v | Matchers: %v ", pj.CreatedAt.Format("2006-01-02 15:04:05"), pj.Pair, pj.Count, pj.TendencyCount, pj.Matchers)
-}
-
-func (sp StrategyPosition) String() string {
-	return fmt.Sprintf("<< Strategy: %s | Tendency: %s, Side: %s | %s, Score: %d >>", sp.StrategyName, sp.Tendency, sp.Side, sp.Pair, sp.Score)
 }
 
 type OpenPositionFunc func(option model.PairOption, broker reference.Broker)
@@ -52,7 +34,7 @@ type Strategy interface {
 	Indicators(df *model.Dataframe)
 	// OnCandle will be executed for each new candle, after indicators are filled, here you can do your trading logic.
 	// OnCandle is executed after the candle close.
-	OnCandle(df *model.Dataframe) StrategyPosition
+	OnCandle(df *model.Dataframe) model.Strategy
 }
 
 type CompositesStrategy struct {
@@ -81,9 +63,9 @@ func (cs *CompositesStrategy) TimeWarmupMap() map[string]int {
 	return timeFrames
 }
 
-func (cs *CompositesStrategy) CallMatchers(dataframes map[string]map[string]*model.Dataframe) []StrategyPosition {
+func (cs *CompositesStrategy) CallMatchers(dataframes map[string]map[string]*model.Dataframe) []model.Strategy {
 	var strategyName string
-	matchers := []StrategyPosition{}
+	matchers := []model.Strategy{}
 	for _, strategy := range cs.Strategies {
 		strategyName = reflect.TypeOf(strategy).Elem().Name()
 		if dataframes[strategy.Timeframe()][strategyName].Close == nil ||

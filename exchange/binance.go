@@ -414,12 +414,12 @@ func (b *Binance) GetOrdersForPostionLossUnfilled(_ string) ([]*model.Order, err
 	panic("implement me")
 }
 
-func (b *Binance) GetOrdersForUnfilled() ([]*model.Order, error) {
+func (b *Binance) GetOrdersForUnfilled() (map[string]map[string][]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (b *Binance) GetOrdersForPairUnfilled(pair string) ([]*model.Order, error) {
+func (b *Binance) GetOrdersForPairUnfilled(pair string) (map[string]map[string][]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }

@@ -3,7 +3,6 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
-	"floolishman/types"
 	"reflect"
 )
 
@@ -29,14 +28,16 @@ func (s Macd4h) Indicators(df *model.Dataframe) {
 	df.Metadata["macd"] = macdLine
 	df.Metadata["signal"] = signalLine
 	df.Metadata["hist"] = hist
+	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 }
 
-func (s *Macd4h) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	strategyPosition := types.StrategyPosition{
+func (s *Macd4h) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
+		LastAtr:      df.Metadata["atr"].Last(1),
 	}
 
 	macd := df.Metadata["macd"]
@@ -63,16 +64,16 @@ func (s *Macd4h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	if macdCrossedAboveZero {
 		if isGoldenCross {
 			// 多单
-			strategyPosition.Useable = true
-			strategyPosition.Side = model.SideTypeBuy
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeBuy)
 		}
 	}
 
 	if macdCrossedBelowZero {
 		if isDeathCross {
 			// 空单
-			strategyPosition.Useable = true
-			strategyPosition.Side = model.SideTypeSell
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeSell)
 		}
 	}
 

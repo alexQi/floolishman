@@ -3,7 +3,6 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
-	"floolishman/types"
 	"reflect"
 )
 
@@ -35,8 +34,8 @@ func (s Rsi15m) Indicators(df *model.Dataframe) {
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 }
 
-func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	strategyPosition := types.StrategyPosition{
+func (s *Rsi15m) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
@@ -54,13 +53,13 @@ func (s *Rsi15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 
 	// 趋势判断 85 84
 	if strategyPosition.Tendency != "range" && rsis[0] > rsis[1] && rsis[1] > 90 && isUpperPinBar && isCross {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeSell
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeSell)
 	}
 	// RSI 小于30，买入信号
 	if strategyPosition.Tendency != "range" && rsis[0] < rsis[1] && rsis[0] <= 8 && isLowerPinBar && isCross && direction == "fall" {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeBuy
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeBuy)
 	}
 	return strategyPosition
 }

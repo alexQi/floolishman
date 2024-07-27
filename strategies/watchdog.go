@@ -2,7 +2,6 @@ package strategies
 
 import (
 	"floolishman/model"
-	"floolishman/types"
 	"reflect"
 )
 
@@ -26,8 +25,8 @@ func (s Watchdog) Indicators(_ *model.Dataframe) {
 
 }
 
-func (s *Watchdog) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	strategyPosition := types.StrategyPosition{
+func (s *Watchdog) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
 		Tendency:     "watchdog",
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
@@ -38,14 +37,14 @@ func (s *Watchdog) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	flollowResult := true
 	// 求稳的多单进场逻辑
 	if flollowResult == true {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeBuy
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeBuy)
 	}
 
 	// 求稳的空单进场逻辑
 	if flollowResult == false {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeSell
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeSell)
 	}
 
 	return strategyPosition

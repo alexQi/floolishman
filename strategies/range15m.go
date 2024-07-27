@@ -3,7 +3,6 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
-	"floolishman/types"
 	"floolishman/utils/calc"
 	"reflect"
 )
@@ -44,8 +43,8 @@ func (s Range15m) Indicators(df *model.Dataframe) {
 	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 }
 
-func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	strategyPosition := types.StrategyPosition{
+func (s *Range15m) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
@@ -66,13 +65,13 @@ func (s *Range15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 
 	if strategyPosition.Tendency == "range" && calc.Abs(momentumsDistance) < 10 && momentumsAvg < 10 {
 		if rsi > 35 && currentPrice < (bbMiddle-bbWaveDistance*6) && volume < avgVolume*2 {
-			strategyPosition.Useable = true
-			strategyPosition.Side = model.SideTypeBuy
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeBuy)
 		}
 
 		if rsi < 65 && currentPrice > (bbMiddle+bbWaveDistance*6) && volume < avgVolume*2 {
-			strategyPosition.Useable = true
-			strategyPosition.Side = model.SideTypeSell
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeSell)
 		}
 	}
 

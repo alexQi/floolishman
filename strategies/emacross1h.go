@@ -3,7 +3,6 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
-	"floolishman/types"
 	"reflect"
 )
 
@@ -36,8 +35,8 @@ func (s Emacross1h) Indicators(df *model.Dataframe) {
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 }
 
-func (s *Emacross1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	strategyPosition := types.StrategyPosition{
+func (s *Emacross1h) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
@@ -51,13 +50,13 @@ func (s *Emacross1h) OnCandle(df *model.Dataframe) types.StrategyPosition {
 
 	// 判断量价关系
 	if strategyPosition.Tendency == "rise" && ema8.Crossover(ema21) && volume > avgVolume*2 {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeBuy
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeBuy)
 	}
 
 	if strategyPosition.Tendency == "down" && ema8.Crossunder(ema21) && volume > avgVolume*2 {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeSell
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeSell)
 	}
 
 	return strategyPosition

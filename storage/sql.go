@@ -42,6 +42,10 @@ func FromSQL(dialect gorm.Dialector, opts ...gorm.Option) (Storage, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = db.AutoMigrate(&model.Strategy{})
+	if err != nil {
+		return nil, err
+	}
 	err = db.AutoMigrate(&model.Position{})
 	if err != nil {
 		return nil, err
@@ -67,6 +71,7 @@ func FromSQL(dialect gorm.Dialector, opts ...gorm.Option) (Storage, error) {
 func (s *SQL) ResetTables() error {
 	tables := []interface{}{
 		&model.Order{},
+		&model.Strategy{},
 		&model.Position{},
 		&model.GuiderItem{},
 		&model.GuiderSymbolConfig{},
@@ -88,6 +93,42 @@ func (s *SQL) ResetTables() error {
 		}
 	}
 	return nil
+}
+
+func (s *SQL) CreateStrategy(strategies []model.Strategy) error {
+	for _, strategy := range strategies {
+		//新增
+		result := s.db.Create(&strategy)
+		if result.Error != nil {
+			return result.Error
+		}
+	}
+	return nil
+}
+
+func (s *SQL) Strategies(filterParams StrategyFilterParams) ([]*model.Strategy, error) {
+	strategies := make([]*model.Strategy, 0)
+	query := s.db
+	if len(filterParams.Pair) > 0 {
+		query = query.Where("pair=?", filterParams.Pair)
+	}
+	if len(filterParams.Type) > 0 {
+		query = query.Where("type=?", filterParams.Type)
+	}
+	if len(filterParams.OrderFlag) > 0 {
+		query = query.Where("order_flag=?", filterParams.OrderFlag)
+	}
+	if len(filterParams.Side) > 0 {
+		query = query.Where("side=?", filterParams.Side)
+	}
+	if len(filterParams.PositionSide) > 0 {
+		query = query.Where("position_side=?", filterParams.PositionSide)
+	}
+	result := query.Find(&strategies)
+	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
+		return strategies, result.Error
+	}
+	return strategies, nil
 }
 
 func (s *SQL) CreateGuiderItems(guiderItems []model.GuiderItem) error {

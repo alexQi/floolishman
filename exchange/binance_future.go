@@ -238,24 +238,25 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 	}
 
 	return model.Order{
-		ExchangeID:         order.OrderID,
-		ClientOrderId:      clientOrderId,
-		OrderFlag:          orderFlag,
-		OpenType:           "binance_futures",
-		CreatedAt:          time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		UpdatedAt:          time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		Pair:               pair,
-		Side:               model.SideType(order.Side),
-		PositionSide:       model.PositionSideType(order.PositionSide),
-		Type:               model.OrderType(order.Type),
-		Status:             model.OrderStatusType(order.Status),
-		Price:              price,
-		Quantity:           quantity,
-		Leverage:           extra.Leverage,
-		LongShortRatio:     extra.LongShortRatio,
-		MatchStrategy:      extra.MatchStrategy,
-		GuiderPositionRate: guiderPositionRate,
-		GuiderOrigin:       extra.GuiderOrigin,
+		ExchangeID:           order.OrderID,
+		ClientOrderId:        clientOrderId,
+		OrderFlag:            orderFlag,
+		OpenType:             "binance_futures",
+		CreatedAt:            time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		UpdatedAt:            time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		Pair:                 pair,
+		Side:                 model.SideType(order.Side),
+		PositionSide:         model.PositionSideType(order.PositionSide),
+		Type:                 model.OrderType(order.Type),
+		Status:               model.OrderStatusType(order.Status),
+		Price:                price,
+		Quantity:             quantity,
+		Leverage:             extra.Leverage,
+		LongShortRatio:       extra.LongShortRatio,
+		GuiderPositionRate:   guiderPositionRate,
+		GuiderOrigin:         extra.GuiderOrigin,
+		MatcherStrategyCount: extra.MatcherStrategyCount,
+		MatcherStrategy:      extra.MatcherStrategy,
 	}, nil
 }
 
@@ -294,23 +295,24 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, positionSide mode
 	}
 
 	return model.Order{
-		ExchangeID:         order.OrderID,
-		ClientOrderId:      clientOrderId,
-		OrderFlag:          orderFlag,
-		OpenType:           "binance_futures",
-		CreatedAt:          time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		UpdatedAt:          time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		Pair:               order.Symbol,
-		Side:               model.SideType(order.Side),
-		PositionSide:       model.PositionSideType(order.PositionSide),
-		Type:               model.OrderType(order.Type),
-		Status:             model.OrderStatusType(order.Status),
-		Price:              price,
-		Quantity:           quantity,
-		Leverage:           extra.Leverage,
-		LongShortRatio:     extra.LongShortRatio,
-		MatchStrategy:      extra.MatchStrategy,
-		GuiderPositionRate: extra.GuiderPositionRate,
+		ExchangeID:           order.OrderID,
+		ClientOrderId:        clientOrderId,
+		OrderFlag:            orderFlag,
+		OpenType:             "binance_futures",
+		CreatedAt:            time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		UpdatedAt:            time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		Pair:                 order.Symbol,
+		Side:                 model.SideType(order.Side),
+		PositionSide:         model.PositionSideType(order.PositionSide),
+		Type:                 model.OrderType(order.Type),
+		Status:               model.OrderStatusType(order.Status),
+		Price:                price,
+		Quantity:             quantity,
+		Leverage:             extra.Leverage,
+		LongShortRatio:       extra.LongShortRatio,
+		GuiderPositionRate:   extra.GuiderPositionRate,
+		MatcherStrategyCount: extra.MatcherStrategyCount,
+		MatcherStrategy:      extra.MatcherStrategy,
 	}, nil
 }
 
@@ -350,23 +352,24 @@ func (b *BinanceFuture) CreateOrderStopLimit(side model.SideType, positionSide m
 	}
 
 	return model.Order{
-		ExchangeID:         order.OrderID,
-		ClientOrderId:      clientOrderId,
-		OrderFlag:          extra.OrderFlag,
-		OpenType:           "binance_futures",
-		CreatedAt:          time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		UpdatedAt:          time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		Pair:               pair,
-		Side:               model.SideType(order.Side),
-		PositionSide:       model.PositionSideType(order.PositionSide),
-		Type:               model.OrderType(order.Type),
-		Status:             model.OrderStatusType(order.Status),
-		Price:              price,
-		Quantity:           quantity,
-		Leverage:           extra.Leverage,
-		LongShortRatio:     extra.LongShortRatio,
-		MatchStrategy:      extra.MatchStrategy,
-		GuiderPositionRate: extra.GuiderPositionRate,
+		ExchangeID:           order.OrderID,
+		ClientOrderId:        clientOrderId,
+		OrderFlag:            extra.OrderFlag,
+		OpenType:             "binance_futures",
+		CreatedAt:            time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		UpdatedAt:            time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		Pair:                 pair,
+		Side:                 model.SideType(order.Side),
+		PositionSide:         model.PositionSideType(order.PositionSide),
+		Type:                 model.OrderType(order.Type),
+		Status:               model.OrderStatusType(order.Status),
+		Price:                price,
+		Quantity:             quantity,
+		Leverage:             extra.Leverage,
+		LongShortRatio:       extra.LongShortRatio,
+		GuiderPositionRate:   extra.GuiderPositionRate,
+		MatcherStrategyCount: extra.MatcherStrategyCount,
+		MatcherStrategy:      extra.MatcherStrategy,
 	}, nil
 }
 
@@ -405,23 +408,24 @@ func (b *BinanceFuture) CreateOrderStopMarket(side model.SideType, positionSide 
 	}
 
 	return model.Order{
-		ExchangeID:         order.OrderID,
-		ClientOrderId:      clientOrderId,
-		OrderFlag:          extra.OrderFlag,
-		OpenType:           "binance_futures",
-		CreatedAt:          time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		UpdatedAt:          time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		Pair:               pair,
-		Side:               model.SideType(order.Side),
-		PositionSide:       model.PositionSideType(order.PositionSide),
-		Type:               model.OrderType(order.Type),
-		Status:             model.OrderStatusType(order.Status),
-		Price:              price,
-		Quantity:           quantity,
-		Leverage:           extra.Leverage,
-		LongShortRatio:     extra.LongShortRatio,
-		MatchStrategy:      extra.MatchStrategy,
-		GuiderPositionRate: extra.GuiderPositionRate,
+		ExchangeID:           order.OrderID,
+		ClientOrderId:        clientOrderId,
+		OrderFlag:            extra.OrderFlag,
+		OpenType:             "binance_futures",
+		CreatedAt:            time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		UpdatedAt:            time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		Pair:                 pair,
+		Side:                 model.SideType(order.Side),
+		PositionSide:         model.PositionSideType(order.PositionSide),
+		Type:                 model.OrderType(order.Type),
+		Status:               model.OrderStatusType(order.Status),
+		Price:                price,
+		Quantity:             quantity,
+		Leverage:             extra.Leverage,
+		LongShortRatio:       extra.LongShortRatio,
+		GuiderPositionRate:   extra.GuiderPositionRate,
+		MatcherStrategyCount: extra.MatcherStrategyCount,
+		MatcherStrategy:      extra.MatcherStrategy,
 	}, nil
 }
 
@@ -473,12 +477,12 @@ func (b *BinanceFuture) GetOrdersForPostionLossUnfilled(_ string) ([]*model.Orde
 	panic("implement me")
 }
 
-func (b *BinanceFuture) GetOrdersForUnfilled() ([]*model.Order, error) {
+func (b *BinanceFuture) GetOrdersForUnfilled() (map[string]map[string][]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (b *BinanceFuture) GetOrdersForPairUnfilled(pair string) ([]*model.Order, error) {
+func (b *BinanceFuture) GetOrdersForPairUnfilled(pair string) (map[string]map[string][]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }

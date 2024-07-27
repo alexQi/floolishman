@@ -3,7 +3,6 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
-	"floolishman/types"
 	"floolishman/utils/calc"
 	"reflect"
 )
@@ -40,26 +39,26 @@ func (s Momentum15m) Indicators(df *model.Dataframe) {
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 }
 
-func (s *Momentum15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	strategyPosition := types.StrategyPosition{
+func (s *Momentum15m) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
 		LastAtr:      df.Metadata["atr"].Last(1),
-		ChaseModel:   1,
+		ChaseMode:    1,
 	}
 	momentums := df.Metadata["momentum"].LastValues(2)
 	momentumsDistance := momentums[1] - momentums[0]
 	// 动量向上
 	if momentumsDistance > 8 {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeBuy
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeBuy)
 	}
 	// 动量向下
 	if momentumsDistance < 0 && calc.Abs(momentumsDistance) > 7 {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeSell
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeSell)
 	}
 	return strategyPosition
 }

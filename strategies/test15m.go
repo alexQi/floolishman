@@ -3,7 +3,6 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
-	"floolishman/types"
 	"floolishman/utils/calc"
 	"reflect"
 )
@@ -46,8 +45,8 @@ func (s Test15m) Indicators(df *model.Dataframe) {
 	df.Metadata["hist"] = hist
 }
 
-func (s *Test15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	strategyPosition := types.StrategyPosition{
+func (s *Test15m) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
@@ -91,14 +90,14 @@ func (s *Test15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	// 趋势判断和交易信号
 	if macdCrossedAboveZero && isGoldenCross && momentumsDistance > 7 && momentums[1] < 35 && isCross && closePrice > openPrice && !isUpperPinBar {
 		// 多单
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeBuy
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeBuy)
 	}
 
 	if macdCrossedBelowZero && isDeathCross && momentumsDistance < 0 && calc.Abs(momentumsDistance) > 7 && calc.Abs(momentums[1]) < 18 && isCross && openPrice > closePrice && !isLowerPinBar {
 		// 空单
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeSell
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeSell)
 	}
 
 	return strategyPosition

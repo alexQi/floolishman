@@ -3,7 +3,6 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
-	"floolishman/types"
 	"floolishman/utils/calc"
 	"reflect"
 )
@@ -39,12 +38,13 @@ func (s Vibrate15m) Indicators(df *model.Dataframe) {
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 }
 
-func (s *Vibrate15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	strategyPosition := types.StrategyPosition{
+func (s *Vibrate15m) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
+		LastAtr:      df.Metadata["atr"].Last(1),
 	}
 
 	// 使用前一帧的收盘价作为判断依据，避免未完成的K线对策略的影响
@@ -66,14 +66,14 @@ func (s *Vibrate15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 	if isInBoxRange {
 		// 高点做空
 		if previousPrice > (bbMiddle+bbWaveDistance*6) && emaPriceRatio >= 0.005 {
-			strategyPosition.Useable = true
-			strategyPosition.Side = model.SideTypeSell
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeSell)
 		}
 
 		// 低点做多
 		if previousPrice < (bbMiddle-bbWaveDistance*6) && emaPriceRatio >= 0.005 {
-			strategyPosition.Useable = true
-			strategyPosition.Side = model.SideTypeBuy
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeBuy)
 		}
 	}
 

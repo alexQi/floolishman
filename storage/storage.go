@@ -19,6 +19,14 @@ type PositionFilterParams struct {
 	PositionSide string
 }
 
+type StrategyFilterParams struct {
+	Pair         string
+	OrderFlag    string
+	Type         string
+	Side         string
+	PositionSide string
+}
+
 type ItemFilterParams struct {
 	Account string
 }
@@ -32,6 +40,8 @@ type Storage interface {
 	UpdatePosition(position *model.Position) error
 	GetPosition(filterParams PositionFilterParams) (*model.Position, error)
 	Positions(filterParams PositionFilterParams) ([]*model.Position, error)
+	CreateStrategy(strategies []model.Strategy) error
+	Strategies(filterParams StrategyFilterParams) ([]*model.Strategy, error)
 	CreateGuiderItems(guiderItems []model.GuiderItem) error
 	CreateSymbolConfigs(guiderSymbolConfigs []model.GuiderSymbolConfig) error
 	CreateGuiderPositions(portfolioIds []string, guiderPositions []*model.GuiderPosition) error

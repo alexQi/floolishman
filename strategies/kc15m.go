@@ -3,7 +3,6 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
-	"floolishman/types"
 	"reflect"
 )
 
@@ -38,12 +37,13 @@ func (s Kc15m) Indicators(df *model.Dataframe) {
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 }
 
-func (s *Kc15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
-	strategyPosition := types.StrategyPosition{
+func (s *Kc15m) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
 		Score:        s.SortScore(),
+		LastAtr:      df.Metadata["atr"].Last(1),
 	}
 
 	// 使用前一帧的收盘价作为判断依据，避免未完成的K线对策略的影响
@@ -58,14 +58,14 @@ func (s *Kc15m) OnCandle(df *model.Dataframe) types.StrategyPosition {
 
 	// 求稳的多单进场逻辑
 	if previousPrice < kcLower && currentPrice > kcLower && rsi < 30 && (bbUpper-bbLower)/bbMiddle < 0.1 {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeBuy
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeBuy)
 	}
 
 	// 求稳的空单进场逻辑
 	if previousPrice > kcUpper && currentPrice < kcUpper && rsi > 85 && (bbUpper-bbLower)/bbMiddle < 0.1 {
-		strategyPosition.Useable = true
-		strategyPosition.Side = model.SideTypeSell
+		strategyPosition.Useable = 1
+		strategyPosition.Side = string(model.SideTypeSell)
 	}
 
 	return strategyPosition

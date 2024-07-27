@@ -685,22 +685,24 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 	clientOrderId := strutil.RandomString(12)
 
 	order := model.Order{
-		ExchangeID:     p.ID(),
-		ClientOrderId:  clientOrderId,
-		OrderFlag:      orderFlag,
-		OpenType:       "paperwallet",
-		CreatedAt:      p.lastCandle[pair].Time,
-		UpdatedAt:      p.lastCandle[pair].Time,
-		Pair:           pair,
-		Side:           side,
-		PositionSide:   positionSide,
-		Type:           model.OrderTypeLimit,
-		Status:         model.OrderStatusTypeNew,
-		Price:          currentPrice,
-		Quantity:       currentQuantity,
-		Leverage:       extra.Leverage,
-		LongShortRatio: extra.LongShortRatio,
-		MatchStrategy:  extra.MatchStrategy,
+		ExchangeID:           p.ID(),
+		ClientOrderId:        clientOrderId,
+		OrderFlag:            orderFlag,
+		OpenType:             "paperwallet",
+		CreatedAt:            p.lastCandle[pair].Time,
+		UpdatedAt:            p.lastCandle[pair].Time,
+		Pair:                 pair,
+		Side:                 side,
+		PositionSide:         positionSide,
+		Type:                 model.OrderTypeLimit,
+		Status:               model.OrderStatusTypeNew,
+		Price:                currentPrice,
+		Quantity:             currentQuantity,
+		Leverage:             extra.Leverage,
+		LongShortRatio:       extra.LongShortRatio,
+		GuiderPositionRate:   extra.GuiderPositionRate,
+		MatcherStrategyCount: extra.MatcherStrategyCount,
+		MatcherStrategy:      extra.MatcherStrategy,
 	}
 	p.orders = append(p.orders, order)
 	return order, nil
@@ -734,22 +736,24 @@ func (p *PaperWallet) CreateOrderMarket(side model.SideType, positionSide model.
 	clientOrderId := strutil.RandomString(12)
 
 	order := model.Order{
-		ExchangeID:     p.ID(),
-		ClientOrderId:  clientOrderId,
-		OrderFlag:      orderFlag,
-		OpenType:       "paperwallet",
-		CreatedAt:      p.lastCandle[pair].Time,
-		UpdatedAt:      p.lastCandle[pair].Time,
-		Pair:           pair,
-		Side:           side,
-		PositionSide:   positionSide,
-		Type:           model.OrderTypeMarket,
-		Status:         model.OrderStatusTypeFilled,
-		Price:          currentPrice,
-		Quantity:       currentQuantity,
-		Leverage:       extra.Leverage,
-		LongShortRatio: extra.LongShortRatio,
-		MatchStrategy:  extra.MatchStrategy,
+		ExchangeID:           p.ID(),
+		ClientOrderId:        clientOrderId,
+		OrderFlag:            orderFlag,
+		OpenType:             "paperwallet",
+		CreatedAt:            p.lastCandle[pair].Time,
+		UpdatedAt:            p.lastCandle[pair].Time,
+		Pair:                 pair,
+		Side:                 side,
+		PositionSide:         positionSide,
+		Type:                 model.OrderTypeMarket,
+		Status:               model.OrderStatusTypeFilled,
+		Price:                currentPrice,
+		Quantity:             currentQuantity,
+		Leverage:             extra.Leverage,
+		LongShortRatio:       extra.LongShortRatio,
+		GuiderPositionRate:   extra.GuiderPositionRate,
+		MatcherStrategyCount: extra.MatcherStrategyCount,
+		MatcherStrategy:      extra.MatcherStrategy,
 	}
 	err = p.updateFunds(&order)
 	if err != nil {
@@ -780,22 +784,24 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 	clientOrderId := strutil.RandomString(12)
 
 	order := model.Order{
-		ExchangeID:     p.ID(),
-		ClientOrderId:  clientOrderId,
-		OrderFlag:      extra.OrderFlag,
-		OpenType:       "paperwallet",
-		CreatedAt:      p.lastCandle[pair].Time,
-		UpdatedAt:      p.lastCandle[pair].Time,
-		Pair:           pair,
-		Side:           side,
-		PositionSide:   positionSide,
-		Type:           model.OrderTypeStop,
-		Status:         model.OrderStatusTypeNew,
-		Price:          currentPrice,
-		Quantity:       currentQuantity,
-		Leverage:       extra.Leverage,
-		LongShortRatio: extra.LongShortRatio,
-		MatchStrategy:  extra.MatchStrategy,
+		ExchangeID:           p.ID(),
+		ClientOrderId:        clientOrderId,
+		OrderFlag:            extra.OrderFlag,
+		OpenType:             "paperwallet",
+		CreatedAt:            p.lastCandle[pair].Time,
+		UpdatedAt:            p.lastCandle[pair].Time,
+		Pair:                 pair,
+		Side:                 side,
+		PositionSide:         positionSide,
+		Type:                 model.OrderTypeStop,
+		Status:               model.OrderStatusTypeNew,
+		Price:                currentPrice,
+		Quantity:             currentQuantity,
+		Leverage:             extra.Leverage,
+		LongShortRatio:       extra.LongShortRatio,
+		GuiderPositionRate:   extra.GuiderPositionRate,
+		MatcherStrategyCount: extra.MatcherStrategyCount,
+		MatcherStrategy:      extra.MatcherStrategy,
 	}
 
 	p.orders = append(p.orders, order)
@@ -830,22 +836,24 @@ func (p *PaperWallet) CreateOrderStopMarket(side model.SideType, positionSide mo
 	clientOrderId := strutil.RandomString(12)
 
 	order := model.Order{
-		ExchangeID:     p.ID(),
-		ClientOrderId:  clientOrderId,
-		OrderFlag:      extra.OrderFlag,
-		OpenType:       "paperwallet",
-		CreatedAt:      p.lastCandle[pair].Time,
-		UpdatedAt:      p.lastCandle[pair].Time,
-		Pair:           pair,
-		Side:           side,
-		PositionSide:   positionSide,
-		Type:           model.OrderTypeStopMarket,
-		Status:         model.OrderStatusTypeNew,
-		Price:          currentPrice,
-		Quantity:       currentQuantity,
-		Leverage:       extra.Leverage,
-		LongShortRatio: extra.LongShortRatio,
-		MatchStrategy:  extra.MatchStrategy,
+		ExchangeID:           p.ID(),
+		ClientOrderId:        clientOrderId,
+		OrderFlag:            extra.OrderFlag,
+		OpenType:             "paperwallet",
+		CreatedAt:            p.lastCandle[pair].Time,
+		UpdatedAt:            p.lastCandle[pair].Time,
+		Pair:                 pair,
+		Side:                 side,
+		PositionSide:         positionSide,
+		Type:                 model.OrderTypeStopMarket,
+		Status:               model.OrderStatusTypeNew,
+		Price:                currentPrice,
+		Quantity:             currentQuantity,
+		Leverage:             extra.Leverage,
+		LongShortRatio:       extra.LongShortRatio,
+		GuiderPositionRate:   extra.GuiderPositionRate,
+		MatcherStrategyCount: extra.MatcherStrategyCount,
+		MatcherStrategy:      extra.MatcherStrategy,
 	}
 
 	p.orders = append(p.orders, order)
@@ -896,11 +904,11 @@ func (p *PaperWallet) GetOrdersForPostionLossUnfilled(_ string) ([]*model.Order,
 	//TODO implement me
 	panic("implement me")
 }
-func (b *PaperWallet) GetOrdersForUnfilled() ([]*model.Order, error) {
+func (b *PaperWallet) GetOrdersForUnfilled() (map[string]map[string][]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }
-func (b *PaperWallet) GetOrdersForPairUnfilled(pair string) ([]*model.Order, error) {
+func (b *PaperWallet) GetOrdersForPairUnfilled(pair string) (map[string]map[string][]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }

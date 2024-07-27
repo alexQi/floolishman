@@ -36,13 +36,14 @@ var (
 )
 
 type OrderExtra struct {
-	OrderFlag          string
-	LongShortRatio     float64
-	Leverage           int
-	GuiderPositionRate float64
-	GuiderOrigin       string
-	PositionAmount     float64
-	MatchStrategy      map[string]int
+	OrderFlag            string
+	LongShortRatio       float64
+	Leverage             int
+	GuiderPositionRate   float64
+	GuiderOrigin         string
+	PositionAmount       float64
+	MatcherStrategyCount map[string]int
+	MatcherStrategy      []Strategy
 }
 
 type Order struct {
@@ -63,13 +64,12 @@ type Order struct {
 	LongShortRatio     float64          `db:"long_short_ratio" json:"long_short_ratio"`
 	GuiderPositionRate float64          `db:"guider_position_rate" json:"guider_position_rate"`
 	GuiderOrigin       string           `db:"guider_origin" json:"guider_origin"`
+	ChaseMode          int              `db:"chase_mode" json:"chase_mode"`
 	CreatedAt          time.Time        `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time        `db:"updated_at" json:"updated_at"`
-	Profit             float64          `json:"profit" gorm:"profit"`
-	ProfitValue        float64          `json:"profit_value" gorm:"profit_value"`
 
-	Candle        Candle         `json:"-" gorm:"-"`
-	MatchStrategy map[string]int `json:"-" gorm:"-"`
+	MatcherStrategyCount map[string]int `json:"-" gorm:"-"`
+	MatcherStrategy      []Strategy     `json:"-" gorm:"-"`
 }
 
 func (o Order) String() string {
