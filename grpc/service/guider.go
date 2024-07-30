@@ -16,7 +16,6 @@ import (
 type ServiceGuider struct {
 	mu                  sync.Mutex
 	ctx                 context.Context
-	guiderWatcherHost   string
 	guiderWatcherClient guider.GuiderWatcherClient
 }
 

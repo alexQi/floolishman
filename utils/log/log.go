@@ -62,6 +62,7 @@ func NewSimpleLogger(log *logrus.Logger, logPath string, save uint) {
 		logrus.PanicLevel: writer(logPath, "panic", save),
 	}, &logrus.TextFormatter{
 		FullTimestamp:   true,
+		DisableQuote:    true,
 		TimestampFormat: "2006-01-02 15:04:05",
 	})
 	log.AddHook(lfHook)

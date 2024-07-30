@@ -2,7 +2,7 @@
     "mode": "online",
     "pairs": {
         "ETHUSDT": {
-            "leverage": 20,
+            "leverage": 100,
             "marginType": "CROSSED"
         }
     },
@@ -18,7 +18,7 @@
         "Kc15m"
     ],
     "trading": {
-        "checkMode": "frequency",
+        "checkMode": "candle",
         "followSymbol": false,
         "lossTimeDuration": 40,
         "fullSpaceRadio": 0.15,

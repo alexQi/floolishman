@@ -19,23 +19,20 @@ type PositionJudger struct {
 }
 
 type CallerFrequency struct {
-	CallerBase
 	CallerCommon
 }
 
-func (c *CallerFrequency) Start(options map[string]model.PairOption, setting CallerSetting) {
-	c.pairOptions = options
-	c.setting = setting
+func (c *CallerFrequency) Start() {
 	tickerCheck := time.NewTicker(CheckStrategyInterval * time.Second)
 	tickerReset := time.NewTicker(ResetStrategyInterval * time.Second)
 	for {
 		select {
 		case <-tickerCheck.C:
-			for _, option := range options {
+			for _, option := range c.pairOptions {
 				go c.checkPosition(option.Pair)
 			}
 		case <-tickerReset.C:
-			for _, option := range options {
+			for _, option := range c.pairOptions {
 				utils.Log.Infof("[JUDGE RESET] Pair: %s | TendencyCount: %v", option.Pair, c.positionJudgers[option.Pair].TendencyCount)
 				c.ResetJudger(option.Pair)
 			}
@@ -48,7 +45,7 @@ func (c *CallerFrequency) checkPosition(pair string) {
 	finalTendency := c.Process(pair)
 	// 获取多空比
 	longShortRatio, matcherStrategy := c.getStrategyLongShortRatio(finalTendency, c.positionJudgers[pair].Matchers)
-	if c.backtest == false && len(c.positionJudgers[pair].Matchers) > 0 {
+	if c.setting.Backtest == false && len(c.positionJudgers[pair].Matchers) > 0 {
 		utils.Log.Infof(
 			"[JUDGE] Pair: %s | LongShortRatio: %.2f | TendencyCount: %v | MatcherStrategy:【%v】",
 			pair,

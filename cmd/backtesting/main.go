@@ -56,7 +56,8 @@ func main() {
 	tradingSetting.CheckMode = "candle"
 
 	settings := model.Settings{
-		PairOptions: []model.PairOption{},
+		GuiderGrpcHost: viper.GetString("watchdog.host"),
+		PairOptions:    []model.PairOption{},
 		Telegram: model.TelegramSettings{
 			Enabled: false,
 			Token:   telegramToken,
@@ -143,13 +144,10 @@ func main() {
 		exchange.WithPaperAsset("USDT", 10000),
 		exchange.WithDataFeed(csvFeed),
 	)
-	guiderConfigs := map[string]map[string]string{}
-
 	b, err := bot.NewBot(
 		ctx,
 		settings,
 		wallet,
-		guiderConfigs,
 		tradingSetting,
 		compositesStrategy,
 		bot.WithBacktest(wallet),

@@ -7,6 +7,7 @@ import (
 	"floolishman/reference"
 	"floolishman/types"
 	"floolishman/utils"
+	"reflect"
 	"sync"
 	"time"
 )
@@ -32,48 +33,106 @@ func init() {
 	Loc, _ = time.LoadLocation("Asia/Shanghai")
 }
 
-type CallerSetting struct {
-	checkMode    string
-	followSymbol bool
-	backtest     bool
-}
-
-type CallerBaseInterface interface {
-	Start(map[string]model.PairOption, CallerSetting)
-	Listen()
+var ConstCallers = map[string]reference.Caller{
+	"candle":    &CallerCandle{},
+	"interval":  &CallerInterval{},
+	"frequency": &CallerFrequency{},
+	"watchdog":  &CallerWatchdog{},
 }
 
 type CallerBase struct {
-	ctx         context.Context
-	mu          sync.Mutex
-	strategy    types.CompositesStrategy
-	broker      reference.Broker
-	exchange    reference.Exchange
-	guider      *service.ServiceGuider
-	pairOptions map[string]model.PairOption
-	pairPrices  map[string]float64
-	lastUpdate  time.Time
-	setting     CallerSetting
+	ctx              context.Context
+	mu               sync.Mutex
+	strategy         types.CompositesStrategy
+	setting          types.CallerSetting
+	broker           reference.Broker
+	exchange         reference.Exchange
+	guider           *service.ServiceGuider
+	pairOptions      map[string]model.PairOption
+	samples          map[string]map[string]map[string]*model.Dataframe
+	profitRatioLimit map[string]float64
+	pairPrices       map[string]float64
+	lastUpdate       map[string]time.Time
+	lossLimitTimes   map[string]time.Time
+	positionJudgers  map[string]*PositionJudger
 }
 
-func NewCaller(ctx context.Context, strategy types.CompositesStrategy, broker reference.Broker) {
-
+func NewCaller(
+	ctx context.Context,
+	strategy types.CompositesStrategy,
+	broker reference.Broker,
+	exchange reference.Exchange,
+	setting types.CallerSetting,
+) reference.Caller {
+	realCaller := ConstCallers[setting.CheckMode]
+	realCaller.Init(ctx, strategy, broker, exchange, setting)
+	return realCaller
 }
 
-func (s *CallerBase) tickCheckOrderTimeout() {
-	for {
-		select {
-		// 定时查询当前是否有仓位
-		case <-time.After(CheckTimeoutInterval * time.Millisecond):
-			s.checkOrderTimeout()
+func (c *CallerBase) Init(
+	ctx context.Context,
+	strategy types.CompositesStrategy,
+	broker reference.Broker,
+	exchange reference.Exchange,
+	setting types.CallerSetting,
+) {
+	c.ctx = ctx
+	c.strategy = strategy
+	c.broker = broker
+	c.exchange = exchange
+	c.setting = setting
+	c.pairOptions = make(map[string]model.PairOption)
+	c.pairPrices = make(map[string]float64)
+	c.lastUpdate = make(map[string]time.Time)
+	c.lossLimitTimes = make(map[string]time.Time)
+	c.profitRatioLimit = make(map[string]float64)
+	c.samples = make(map[string]map[string]map[string]*model.Dataframe)
+	c.positionJudgers = make(map[string]*PositionJudger)
+	c.guider = service.NewServiceGuider(ctx, setting.GuiderHost)
+}
+
+func (c *CallerBase) SetPair(option model.PairOption) {
+	c.pairOptions[option.Pair] = option
+	c.pairPrices[option.Pair] = 0
+	c.profitRatioLimit[option.Pair] = 0
+	if c.samples[option.Pair] == nil {
+		c.samples[option.Pair] = make(map[string]map[string]*model.Dataframe)
+	}
+	// 初始化不同时间周期的dataframe 及 samples
+	for _, strategy := range c.strategy.Strategies {
+		if _, ok := c.samples[option.Pair][strategy.Timeframe()]; !ok {
+			c.samples[option.Pair][strategy.Timeframe()] = make(map[string]*model.Dataframe)
+		}
+		c.samples[option.Pair][strategy.Timeframe()][reflect.TypeOf(strategy).Elem().Name()] = &model.Dataframe{
+			Pair:     option.Pair,
+			Metadata: make(map[string]model.Series[float64]),
 		}
 	}
 }
 
-func (bc *CallerBase) checkOrderTimeout() {
-	bc.mu.Lock()         // 加锁
-	defer bc.mu.Unlock() // 解锁
-	existOrderMap, err := bc.broker.GetOrdersForUnfilled()
+func (c *CallerBase) SetSample(pair string, timeframe string, strategyName string, dataframe *model.Dataframe) {
+	c.samples[pair][timeframe][strategyName] = dataframe
+}
+
+func (c *CallerBase) UpdatePairInfo(pair string, price float64, updatedAt time.Time) {
+	c.pairPrices[pair] = price
+	c.lastUpdate[pair] = updatedAt
+}
+
+func (c *CallerBase) tickCheckOrderTimeout() {
+	for {
+		select {
+		// 定时查询当前是否有仓位
+		case <-time.After(CheckTimeoutInterval * time.Millisecond):
+			c.CheckOrderTimeout()
+		}
+	}
+}
+
+func (c *CallerBase) CheckOrderTimeout() {
+	c.mu.Lock()         // 加锁
+	defer c.mu.Unlock() // 解锁
+	existOrderMap, err := c.broker.GetOrdersForUnfilled()
 	if err != nil {
 		utils.Log.Error(err)
 		return
@@ -86,8 +145,8 @@ func (bc *CallerBase) checkOrderTimeout() {
 		for _, positionOrder := range positionOrders {
 			// 获取当前时间使用
 			currentTime := time.Now()
-			if bc.setting.checkMode == "candle" {
-				currentTime = bc.lastUpdate
+			if c.setting.CheckMode == "candle" {
+				currentTime = c.lastUpdate[positionOrder.Pair]
 			}
 			// 获取挂单时间是否超长
 			cancelLimitTime := positionOrder.UpdatedAt.Add(CancelLimitDuration * time.Second)
@@ -96,7 +155,7 @@ func (bc *CallerBase) checkOrderTimeout() {
 				continue
 			}
 			// 取消之前的未成交的限价单
-			err = bc.broker.Cancel(*positionOrder)
+			err = c.broker.Cancel(*positionOrder)
 			if err != nil {
 				utils.Log.Error(err)
 				continue
@@ -118,7 +177,7 @@ func (bc *CallerBase) checkOrderTimeout() {
 			}
 			for _, lossLimitOrder := range lossLimitOrders {
 				// 取消之前的止损单
-				err = bc.broker.Cancel(*lossLimitOrder)
+				err = c.broker.Cancel(*lossLimitOrder)
 				if err != nil {
 					utils.Log.Error(err)
 					return

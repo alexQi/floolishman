@@ -3,6 +3,7 @@ package bot
 import (
 	"bytes"
 	"context"
+	"floolishman/caller"
 	"floolishman/exchange"
 	"floolishman/model"
 	"floolishman/notification"
@@ -30,19 +31,17 @@ type CandleSubscriber interface {
 }
 
 type Bot struct {
-	backtest        bool
-	storage         storage.Storage
-	settings        model.Settings
-	proxyOption     types.ProxyOption
-	guiderSetting   map[string]map[string]string
-	strategySetting service.StrategySetting
-	exchange        reference.Exchange
-	notifier        reference.Notifier
-	telegram        reference.Telegram
-	strategy        types.CompositesStrategy
-	paperWallet     *exchange.PaperWallet
-
-	serviceGuider        *service.ServiceGuider
+	backtest             bool
+	storage              storage.Storage
+	settings             model.Settings
+	proxyOption          types.ProxyOption
+	strategySetting      service.StrategySetting
+	caller               reference.Caller
+	exchange             reference.Exchange
+	notifier             reference.Notifier
+	telegram             reference.Telegram
+	strategy             types.CompositesStrategy
+	paperWallet          *exchange.PaperWallet
 	serviceOrder         *service.ServiceOrder
 	serviceStrategy      *service.ServiceStrategy
 	priorityQueueCandles map[string]map[string]*model.PriorityQueue // [pair] [] queue
@@ -53,7 +52,7 @@ type Bot struct {
 
 type Option func(*Bot)
 
-func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, guiderSetting map[string]map[string]string, strategySetting service.StrategySetting, strategy types.CompositesStrategy,
+func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, strategySetting service.StrategySetting, strategy types.CompositesStrategy,
 	options ...Option) (*Bot, error) {
 	// 初始化bot参数
 	bot := &Bot{
@@ -71,10 +70,25 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 	}
 	// 加载订单服务
 	bot.serviceOrder = service.NewServiceOrder(ctx, exch, bot.storage, bot.orderFeed)
-	// 家在领航员服务
-	bot.serviceGuider = service.NewServiceGuider(ctx, settings.GuiderGrpcHost)
+	// 加载caller
+	bot.caller = caller.NewCaller(
+		ctx, strategy,
+		bot.serviceOrder,
+		bot.exchange,
+		types.CallerSetting{
+			GuiderHost:           settings.GuiderGrpcHost,
+			CheckMode:            strategySetting.CheckMode,
+			FollowSymbol:         strategySetting.FollowSymbol,
+			Backtest:             bot.backtest,
+			LossTimeDuration:     strategySetting.LossTimeDuration,
+			FullSpaceRadio:       strategySetting.FullSpaceRadio,
+			BaseLossRatio:        strategySetting.BaseLossRatio,
+			ProfitableScale:      strategySetting.ProfitableScale,
+			InitProfitRatioLimit: strategySetting.InitProfitRatioLimit,
+		},
+	)
 	// 加载策略服务
-	bot.serviceStrategy = service.NewServiceStrategy(ctx, strategySetting, strategy, bot.serviceOrder, bot.exchange, bot.serviceGuider, bot.backtest)
+	bot.serviceStrategy = service.NewServiceStrategy(ctx, strategySetting, strategy, bot.caller)
 	// 加载通知服务
 	if settings.Telegram.Enabled {
 		var err error
@@ -383,6 +397,8 @@ func (n *Bot) Run(ctx context.Context) {
 	n.SettingPairs(ctx)
 
 	n.serviceStrategy.Start()
+
+	n.caller.Start()
 
 	// start data feed and receives new candles
 	n.dataFeed.Start(n.backtest)

@@ -8,7 +8,6 @@ import (
 	"floolishman/utils/calc"
 	"floolishman/utils/strutil"
 	"fmt"
-	"github.com/adshao/go-binance/v2/common"
 	"math"
 	"strconv"
 	"strings"
@@ -61,8 +60,8 @@ func (p *PaperWallet) AssetsInfo(pair string) model.AssetInfo {
 		QuoteAsset:         quote,
 		MaxPrice:           math.MaxFloat64,
 		MaxQuantity:        math.MaxFloat64,
-		StepSize:           0.00000001,
-		TickSize:           0.00000001,
+		StepSize:           0.001,
+		TickSize:           0.001,
 		QuotePrecision:     8,
 		BaseAssetPrecision: 8,
 	}
@@ -923,27 +922,27 @@ func (b *PaperWallet) GetPositionsForOpened() ([]*model.Position, error) {
 
 func (p *PaperWallet) FormatPriceFloat(pair string, value float64) float64 {
 	info := p.AssetsInfo(pair)
-	return common.AmountToLotSize(info.TickSize, info.QuotePrecision, value)
+	return calc.FormatAmountToSize(value, info.TickSize)
 }
 
 func (p *PaperWallet) FormatQuantityFloat(pair string, value float64, toLot bool) float64 {
 	if toLot {
 		info := p.AssetsInfo(pair)
-		value = common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
+		value = calc.FormatAmountToSize(value, info.StepSize)
 	}
 	return value
 }
 
 func (p *PaperWallet) FormatPrice(pair string, value float64) string {
 	info := p.AssetsInfo(pair)
-	value = common.AmountToLotSize(info.TickSize, info.QuotePrecision, value)
+	value = calc.FormatAmountToSize(value, info.TickSize)
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
 func (p *PaperWallet) FormatQuantity(pair string, value float64, toLot bool) string {
 	if toLot {
 		info := p.AssetsInfo(pair)
-		value = common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, value)
+		value = calc.FormatAmountToSize(value, info.StepSize)
 	}
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }

@@ -2,7 +2,6 @@ package types
 
 import (
 	"floolishman/model"
-	"floolishman/reference"
 	"floolishman/utils"
 	"reflect"
 )
@@ -17,10 +16,6 @@ type StrategyPosition struct {
 	Tendency     string
 	LastAtr      float64
 }
-
-type OpenPositionFunc func(option model.PairOption, broker reference.Broker)
-
-type ClosePositionFunc func(option model.PairOption, broker reference.Broker)
 
 type Strategy interface {
 	// 策略排序得分
@@ -63,6 +58,7 @@ func (cs *CompositesStrategy) TimeWarmupMap() map[string]int {
 	return timeFrames
 }
 
+// TODO 解决并发读写sample map的问题
 func (cs *CompositesStrategy) CallMatchers(dataframes map[string]map[string]*model.Dataframe) []model.Strategy {
 	var strategyName string
 	matchers := []model.Strategy{}

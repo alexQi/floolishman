@@ -9,39 +9,39 @@ import (
 )
 
 type CallerWatchdog struct {
-	CallerBase
 	CallerCommon
 }
 
-func (c *CallerWatchdog) Start(options map[string]model.PairOption, setting CallerSetting) {
-	c.pairOptions = options
-	c.setting = setting
-	tickerCheck := time.NewTicker(CheckStrategyInterval * time.Second)
-	tickerClose := time.NewTicker(CheckCloseInterval * time.Millisecond)
-	tickerLeverage := time.NewTicker(CheckLeverageInterval * time.Millisecond)
-	for {
-		select {
-		case <-tickerCheck.C:
-			c.checkPosition()
-		case <-tickerClose.C:
-			if c.setting.followSymbol {
-				c.checkPositionClose()
+func (c *CallerWatchdog) Start() {
+	go func() {
+		tickerCheck := time.NewTicker(CheckStrategyInterval * time.Second)
+		tickerClose := time.NewTicker(CheckCloseInterval * time.Millisecond)
+		tickerLeverage := time.NewTicker(CheckLeverageInterval * time.Millisecond)
+		for {
+			select {
+			case <-tickerCheck.C:
+				c.checkPosition()
+			case <-tickerClose.C:
+				if c.setting.FollowSymbol {
+					c.checkPositionClose()
+				}
+			case <-tickerLeverage.C:
+				if c.setting.FollowSymbol {
+					c.checkPositionLeverage()
+				}
+			default:
+				time.Sleep(1 * time.Second)
 			}
-		case <-tickerLeverage.C:
-			if c.setting.followSymbol {
-				c.checkPositionLeverage()
-			}
-		default:
-			time.Sleep(1 * time.Second)
 		}
-	}
+	}()
+	c.Listen()
 }
 
 func (cc *CallerWatchdog) Listen() {
 	// 执行超时检查
 	go cc.tickCheckOrderTimeout()
 	// 非回溯测试模式且不是看门狗方式下监听平仓
-	if cc.setting.followSymbol == false {
+	if cc.setting.FollowSymbol == false {
 		go cc.tickerCheckForClose(cc.pairOptions)
 	}
 }
@@ -56,8 +56,9 @@ func (c *CallerWatchdog) checkPosition() {
 		return
 	}
 	// 跟随模式下，开仓平仓都跟随看门狗，多跟模式下开仓保持不变
+	// todo 对冲仓位时如何处理
 	var currentUserPosition model.GuiderPosition
-	if c.setting.followSymbol {
+	if c.setting.FollowSymbol {
 		for _, userPosition := range userPositions {
 			if len(userPosition) > 1 {
 				continue
@@ -114,15 +115,6 @@ func (s *CallerWatchdog) openWatchdogPosition(guiderPosition model.GuiderPositio
 	s.mu.Lock()         // 加锁
 	defer s.mu.Unlock() // 解锁
 	currentPrice := s.pairPrices[guiderPosition.Symbol]
-	utils.Log.Infof(
-		"[GUIDER POSITION] Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v ｜ PortfolioId: %s",
-		guiderPosition.Symbol,
-		guiderPosition.PositionSide,
-		guiderPosition.PositionAmount,
-		guiderPosition.EntryPrice,
-		currentPrice,
-		guiderPosition.PortfolioId,
-	)
 	// 判断当前资产
 	assetPosition, quotePosition, err := s.broker.PairAsset(guiderPosition.Symbol)
 	if err != nil {
@@ -192,6 +184,15 @@ func (s *CallerWatchdog) openWatchdogPosition(guiderPosition model.GuiderPositio
 		//	return
 		//}
 	}
+	utils.Log.Infof(
+		"[GUIDER POSITION] Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v ｜ PortfolioId: %s",
+		guiderPosition.Symbol,
+		guiderPosition.PositionSide,
+		guiderPosition.PositionAmount,
+		guiderPosition.EntryPrice,
+		currentPrice,
+		guiderPosition.PortfolioId,
+	)
 	openedPositions, err := s.broker.GetPositionsForPair(guiderPosition.Symbol)
 	if err != nil {
 		utils.Log.Error(err)
