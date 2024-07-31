@@ -47,7 +47,8 @@ func main() {
 		tradingSetting = service.StrategySetting{
 			CheckMode:            viper.GetString("trading.checkMode"),
 			FollowSymbol:         viper.GetBool("trading.followSymbol"),
-			FullSpaceRadio:       viper.GetFloat64("trading.fullSpaceRadio"),
+			FullSpaceRatio:       viper.GetFloat64("trading.fullSapceRatio"),
+			StopSpaceRatio:       viper.GetFloat64("trading.stopSapceRatio"),
 			LossTimeDuration:     viper.GetInt("trading.lossTimeDuration"),
 			BaseLossRatio:        viper.GetFloat64("trading.baseLossRatio"),
 			ProfitableScale:      viper.GetFloat64("trading.profitableScale"),

@@ -38,6 +38,7 @@ var ConstCallers = map[string]reference.Caller{
 	"interval":  &CallerInterval{},
 	"frequency": &CallerFrequency{},
 	"watchdog":  &CallerWatchdog{},
+	"dual":      &CallerDual{},
 }
 
 type CallerBase struct {
@@ -127,6 +128,42 @@ func (c *CallerBase) tickCheckOrderTimeout() {
 			c.CheckOrderTimeout()
 		}
 	}
+}
+
+func (c *CallerBase) CheckHasUnfilledPositionOrders(pair string, side model.SideType, positionSide model.PositionSideType) (bool, error) {
+	// 判断当前是否已有同向挂单未成交，有则不在开单
+	existUnfilledOrderMap, err := c.broker.GetOrdersForPairUnfilled(pair)
+	if err != nil {
+		return false, err
+	}
+	var exsitOrder *model.Order
+	for _, existUnfilledOrder := range existUnfilledOrderMap {
+		positionOrders, ok := existUnfilledOrder["position"]
+		if !ok {
+			continue
+		}
+		for _, positionOrder := range positionOrders {
+			// 判断当前是否有同向挂单
+			if positionOrder.Side == side && positionOrder.PositionSide == positionSide {
+				exsitOrder = positionOrder
+				break
+			}
+		}
+	}
+	// 判断当前是否已有同向挂单
+	if exsitOrder != nil {
+		utils.Log.Infof(
+			"[POSITION - EXSIT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v | (UNFILLED)",
+			exsitOrder.OrderFlag,
+			exsitOrder.Pair,
+			exsitOrder.PositionSide,
+			exsitOrder.Quantity,
+			exsitOrder.Price,
+			c.pairPrices[exsitOrder.Pair],
+		)
+		return true, nil
+	}
+	return false, nil
 }
 
 func (c *CallerBase) CheckOrderTimeout() {

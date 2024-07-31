@@ -41,6 +41,7 @@ func NewServiceGuider(ctx context.Context, clientHost string) *ServiceGuider {
 	}
 
 	client := guider.NewGuiderWatcherClient(conn)
+	utils.Log.Infof("Guider Service Connected")
 	return &ServiceGuider{
 		ctx:                 ctx,
 		guiderWatcherClient: client,

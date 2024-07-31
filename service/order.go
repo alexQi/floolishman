@@ -447,6 +447,42 @@ func (c *ServiceOrder) GetOrdersForPostionLossUnfilled(orderFlag string) ([]*mod
 	}), nil
 }
 
+func (c *ServiceOrder) GetPositionOrdersForPairUnfilled(pair string) (map[string]map[model.PositionSideType]*model.Order, error) {
+	unfilledOrders := map[string]map[model.PositionSideType]*model.Order{}
+	positionOrders, err := c.storage.Orders(
+		storage.OrderFilterParams{
+			Pair: pair,
+			Statuses: []model.OrderStatusType{
+				model.OrderStatusTypeNew, // 未成交订单
+				model.OrderStatusTypePartiallyFilled,
+			},
+		},
+	)
+	if err != nil {
+		return unfilledOrders, err
+	}
+	if len(positionOrders) == 0 {
+		return unfilledOrders, err
+	}
+	for _, order := range positionOrders {
+		// 获取所有平仓单子
+		if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong) {
+			if _, ok := unfilledOrders["lossLimit"]; !ok {
+				unfilledOrders["lossLimit"] = make(map[model.PositionSideType]*model.Order)
+			}
+			unfilledOrders["lossLimit"][order.PositionSide] = order
+		}
+		// 获取所有开仓单子
+		if (order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong) || (order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort) {
+			if _, ok := unfilledOrders["position"]; !ok {
+				unfilledOrders["position"] = make(map[model.PositionSideType]*model.Order)
+			}
+			unfilledOrders["position"][order.PositionSide] = order
+		}
+	}
+	return unfilledOrders, nil
+}
+
 func (c *ServiceOrder) GetOrdersForPairUnfilled(pair string) (map[string]map[string][]*model.Order, error) {
 	unfilledOrders := map[string]map[string][]*model.Order{}
 	positionOrders, err := c.storage.Orders(
@@ -606,9 +642,11 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		}
 		// 判断当前订单在数据库中是否有仓位
 		position, err := c.storage.GetPosition(storage.PositionFilterParams{
-			Pair:      o.Pair,
-			OrderFlag: o.OrderFlag,
-			Status:    0,
+			Pair:         o.Pair,
+			OrderFlag:    o.OrderFlag,
+			PositionSide: string(o.PositionSide),
+			Side:         string(o.Side),
+			Status:       0,
 		})
 		if err != nil {
 			utils.Log.Error(err)
@@ -820,6 +858,58 @@ func (c *ServiceOrder) LastQuote(pair string) (float64, error) {
 
 func (c *ServiceOrder) Order(pair string, id int64) (model.Order, error) {
 	return c.exchange.Order(pair, id)
+}
+
+func (c *ServiceOrder) BatchCreateOrderLimit(params []*model.OrderParam) ([]model.Order, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	for _, param := range params {
+		utils.Log.Infof("[BATCH ORDER LIMIT] Creating | %s order for: %s,  %v x %v", param.Side, param.Pair, param.Limit, param.Quantity)
+	}
+
+	orders, err := c.exchange.BatchCreateOrderLimit(params)
+	if err != nil {
+		c.notifyError(err)
+		return []model.Order{}, err
+	}
+	for _, order := range orders {
+		err = c.storage.CreateOrder(&order)
+		if err != nil {
+			c.notifyError(err)
+			return []model.Order{}, err
+		}
+		go c.orderFeed.Publish(order, true)
+		utils.Log.Infof("[ORDER CREATED] %s", order)
+	}
+
+	return orders, nil
+}
+
+func (c *ServiceOrder) BatchCreateOrderMarket(params []*model.OrderParam) ([]model.Order, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	for _, param := range params {
+		utils.Log.Infof("[BATCH ORDER MARKET] Creating | %s order for: %s,  %v x %v", param.Side, param.Pair, param.Limit, param.Quantity)
+	}
+
+	orders, err := c.exchange.BatchCreateOrderMarket(params)
+	if err != nil {
+		c.notifyError(err)
+		return []model.Order{}, err
+	}
+	for _, order := range orders {
+		err = c.storage.CreateOrder(&order)
+		if err != nil {
+			c.notifyError(err)
+			return []model.Order{}, err
+		}
+		go c.orderFeed.Publish(order, true)
+		utils.Log.Infof("[ORDER CREATED] %s", order)
+	}
+
+	return orders, nil
 }
 
 func (c *ServiceOrder) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string, size, limit float64, extra model.OrderExtra) (model.Order, error) {

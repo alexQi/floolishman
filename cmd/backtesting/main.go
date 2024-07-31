@@ -42,7 +42,8 @@ func main() {
 		telegramUser   = viper.GetInt("telegram.user")
 		tradingSetting = service.StrategySetting{
 			CheckMode:            viper.GetString("trading.checkMode"),
-			FullSpaceRadio:       viper.GetFloat64("trading.fullSpaceRadio"),
+			FullSpaceRatio:       viper.GetFloat64("trading.fullSapceRatio"),
+			StopSpaceRatio:       viper.GetFloat64("trading.stopSapceRatio"),
 			BaseLossRatio:        viper.GetFloat64("trading.baseLossRatio"),
 			LossTimeDuration:     viper.GetInt("trading.lossTimeDuration"),
 			ProfitableScale:      viper.GetFloat64("trading.profitableScale"),

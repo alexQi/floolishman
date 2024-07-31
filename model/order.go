@@ -72,6 +72,15 @@ type Order struct {
 	MatcherStrategy      []Strategy     `json:"-" gorm:"-"`
 }
 
+type OrderParam struct {
+	Side         SideType
+	PositionSide PositionSideType
+	Pair         string
+	Quantity     float64
+	Limit        float64
+	Extra        OrderExtra
+}
+
 func (o Order) String() string {
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {

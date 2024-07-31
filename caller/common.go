@@ -19,6 +19,12 @@ type CallerCommon struct {
 	CallerBase
 }
 
+//"lossTimeDuration": 40,
+//"fullSapceRatio": 0.15,
+//"baseLossRatio": 0.0047,
+//"profitableScale": 0.08,
+//"initProfitRatioLimit": 0.12
+
 func (cc *CallerCommon) Listen() {
 	// 监听仓位关闭信号重置judger
 	go cc.RegisterOrderSignal()
@@ -69,6 +75,15 @@ func (cc *CallerCommon) ResetJudger(pair string) {
 func (s *CallerCommon) EventCallOpen(pair string) {
 	assetPosition, quotePosition, longShortRatio, currentMatchers, matcherStrategy := s.checkPosition(s.pairOptions[pair])
 	if longShortRatio >= 0 {
+		// todo 反向明灯
+		//if len(currentMatchers) < 2 {
+		//	return
+		//}
+		//if longShortRatio > 0.5 {
+		//	longShortRatio = 0
+		//} else {
+		//	longShortRatio = 1
+		//}
 		s.openPosition(s.pairOptions[pair], assetPosition, quotePosition, longShortRatio, matcherStrategy, currentMatchers)
 	}
 }
@@ -81,6 +96,8 @@ func (s *CallerCommon) EventCallClose(pair string) {
 }
 
 func (s *CallerCommon) checkPosition(option model.PairOption) (float64, float64, float64, []model.Strategy, map[string]int) {
+	s.mu.Lock()         // 加锁
+	defer s.mu.Unlock() // 解锁
 	if _, ok := s.samples[option.Pair]; !ok {
 		return 0, 0, -1, []model.Strategy{}, map[string]int{}
 	}
@@ -193,17 +210,25 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 			}
 		}
 	}
-
 	// 获取最新仓位positionSide
 	if finalSide == model.SideTypeBuy {
 		postionSide = model.PositionSideTypeLong
 	} else {
 		postionSide = model.PositionSideTypeShort
 	}
+	// 判断是否有当前方向未成交的订单
+	hasOrder, err := cc.CheckHasUnfilledPositionOrders(option.Pair, finalSide, postionSide)
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	if hasOrder {
+		return
+	}
 	// ******************* 执行反手开仓操作 *****************//
 	// 根据多空比动态计算仓位大小
 	scoreRadio := calc.Abs(0.5-longShortRatio) / 0.5
-	amount := calc.OpenPositionSize(quotePosition, float64(cc.pairOptions[option.Pair].Leverage), currentPrice, scoreRadio, cc.setting.FullSpaceRadio)
+	amount := calc.OpenPositionSize(quotePosition, float64(cc.pairOptions[option.Pair].Leverage), currentPrice, scoreRadio, cc.setting.FullSpaceRatio)
 	if cc.setting.Backtest == false {
 		utils.Log.Infof(
 			"[POSITION OPENING] Pair: %s | P.Side: %s | Quantity: %v | Price: %v",

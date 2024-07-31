@@ -55,7 +55,7 @@ func (c *CallerWatchdog) checkPosition() {
 	if len(userPositions) == 0 {
 		return
 	}
-	// 跟随模式下，开仓平仓都跟随看门狗，多跟模式下开仓保持不变
+	// 跟随模式下，开仓平仓都跟随看门狗，多跟模式下开仓保持不变什么
 	// todo 对冲仓位时如何处理
 	var currentUserPosition model.GuiderPosition
 	if c.setting.FollowSymbol {
@@ -218,37 +218,12 @@ func (s *CallerWatchdog) openWatchdogPosition(guiderPosition model.GuiderPositio
 		)
 		return
 	}
-	// 判断当前是否已有同向挂单未成交，有则不在开单
-	existUnfilledOrderMap, err := s.broker.GetOrdersForPairUnfilled(guiderPosition.Symbol)
+	hasOrder, err := s.CheckHasUnfilledPositionOrders(guiderPosition.Symbol, finalSide, model.PositionSideType(guiderPosition.PositionSide))
 	if err != nil {
 		utils.Log.Error(err)
 		return
 	}
-	var exsitOrder *model.Order
-	for _, existUnfilledOrder := range existUnfilledOrderMap {
-		positionOrders, ok := existUnfilledOrder["position"]
-		if !ok {
-			continue
-		}
-		for _, positionOrder := range positionOrders {
-			// 判断当前是否有同向挂单
-			if positionOrder.Side == finalSide && positionOrder.PositionSide == model.PositionSideType(guiderPosition.PositionSide) {
-				exsitOrder = positionOrder
-				break
-			}
-		}
-	}
-	// 判断当前是否已有同向挂单
-	if exsitOrder != nil {
-		utils.Log.Infof(
-			"[WATCHDOG POSITION - EXSIT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v | (UNFILLED)",
-			existPosition.OrderFlag,
-			existPosition.Pair,
-			existPosition.PositionSide,
-			existPosition.Quantity,
-			existPosition.AvgPrice,
-			currentPrice,
-		)
+	if hasOrder {
 		return
 	}
 	// 设置当前交易对信息
@@ -452,7 +427,7 @@ func (s *CallerWatchdog) checkPositionClose() {
 				} else {
 					// 判断是否已有加仓订单
 					if _, ok := existUnfilledOrderMap[openedPosition.OrderFlag]; ok {
-						positionOrders, ok := existUnfilledOrderMap[openedPosition.OrderFlag]["lossLimit"]
+						positionOrders, ok := existUnfilledOrderMap[openedPosition.OrderFlag]["position"]
 						if ok {
 							// 判断当前是否有同向挂单
 							for _, positionOrder := range positionOrders {

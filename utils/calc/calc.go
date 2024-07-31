@@ -125,16 +125,21 @@ func PositionSize(balance, leverage, currentPrice float64) float64 {
 	return (balance * leverage) / currentPrice
 }
 
-func OpenPositionSize(balance, leverage, currentPrice float64, scoreRadio float64, fullSpaceRadio float64) float64 {
+func StopPositionSizeRatio(balance, leverage, price, positionQuantity float64) float64 {
+	originPositionSize := PositionSize(balance, leverage, price)
+	return positionQuantity / originPositionSize
+}
+
+func OpenPositionSize(balance, leverage, currentPrice float64, scoreRadio float64, fullSapceRatio float64) float64 {
 	var amount float64
 	fullPositionSize := PositionSize(balance, leverage, currentPrice)
 	if scoreRadio >= 0.5 {
-		amount = fullPositionSize * fullSpaceRadio
+		amount = fullPositionSize * fullSapceRatio
 	} else {
 		if scoreRadio < 0.2 {
-			amount = fullPositionSize * fullSpaceRadio * 0.4
+			amount = fullPositionSize * fullSapceRatio * 0.4
 		} else {
-			amount = fullPositionSize * fullSpaceRadio * scoreRadio * 2
+			amount = fullPositionSize * fullSapceRatio * scoreRadio * 2
 		}
 	}
 	return amount
@@ -151,6 +156,20 @@ func ProfitRatio(side model.SideType, entryPrice float64, currentPrice float64, 
 		profit = (currentPrice - entryPrice) * quantity
 	}
 
+	// 计算利润比
+	return profit / margin
+}
+
+func CalculateDualProfitRatio(mainSide model.SideType, mainQuantity, mainPrice, subQuantity, subPrice, leverage float64) float64 {
+	// 计算保证金
+	margin := (mainQuantity*mainPrice - subQuantity*subPrice) / leverage
+	// 根据当前价格计算利润
+	var profit float64
+	if mainSide == model.SideTypeSell {
+		profit = (mainPrice - subPrice) * (mainQuantity - subQuantity)
+	} else {
+		profit = (subPrice - mainPrice) * (mainQuantity - subQuantity)
+	}
 	// 计算利润比
 	return profit / margin
 }

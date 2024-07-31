@@ -404,7 +404,17 @@ func (b *Binance) Order(pair string, id int64) (model.Order, error) {
 	return newOrder(order), nil
 }
 
-func (p *Binance) ListenOrders() {
+func (b *Binance) BatchCreateOrderLimit(params []*model.OrderParam) ([]model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *Binance) BatchCreateOrderMarket(params []*model.OrderParam) ([]model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *Binance) ListenOrders() {
 	//TODO implement me
 	panic("implement me")
 }
@@ -420,6 +430,11 @@ func (b *Binance) GetOrdersForUnfilled() (map[string]map[string][]*model.Order, 
 }
 
 func (b *Binance) GetOrdersForPairUnfilled(pair string) (map[string]map[string][]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *Binance) GetPositionOrdersForPairUnfilled(pair string) (map[string]map[model.PositionSideType]*model.Order, error) {
 	//TODO implement me
 	panic("implement me")
 }

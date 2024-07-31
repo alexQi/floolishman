@@ -15,7 +15,8 @@ type StrategySetting struct {
 	CheckMode            string
 	FollowSymbol         bool
 	LossTimeDuration     int
-	FullSpaceRadio       float64
+	FullSpaceRatio       float64
+	StopSpaceRatio       float64
 	BaseLossRatio        float64
 	ProfitableScale      float64
 	InitProfitRatioLimit float64
@@ -108,6 +109,7 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle) {
 	}
 	s.realCandles[candle.Pair][timeframe] = &candle
 
+	// 更新交易对信息
 	s.caller.UpdatePairInfo(candle.Pair, candle.Close, candle.UpdatedAt)
 	// 采样数据转换指标
 	for _, str := range s.strategy.Strategies {
@@ -121,6 +123,7 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle) {
 		str.Indicators(&sample)
 		// 在向samples添加之前，确保对应的键存在
 		if timeframe == str.Timeframe() {
+			// 采样数据
 			s.caller.SetSample(candle.Pair, timeframe, reflect.TypeOf(str).Elem().Name(), &sample)
 		}
 	}

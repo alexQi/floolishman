@@ -11,20 +11,21 @@
     },
     "strategies": [
         "Range15m",
+        "Momentum15m",
         "MomentumVolume15m",
         "Rsi15m",
         "Emacross15m",
-        "Vibrate15m",
-        "Kc15m"
+        "Vibrate15m"
     ],
     "trading": {
-        "checkMode": "candle",
+        "checkMode": "dual",
         "followSymbol": false,
         "lossTimeDuration": 40,
-        "fullSpaceRadio": 0.15,
-        "baseLossRatio": 0.0047,
-        "profitableScale": 0.08,
-        "initProfitRatioLimit": 0.12
+        "fullSapceRatio": 0.08,
+        "stopSpaceRatio": 0.20,
+        "baseLossRatio": 0.002,
+        "profitableScale": 0.12,
+        "initProfitRatioLimit": 0.20
     },
     "storage": {
         "driver": "sqlite",

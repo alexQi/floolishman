@@ -199,6 +199,126 @@ func (b *BinanceFuture) FormatQuantity(pair string, value float64, toLot bool) s
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
+func (b *BinanceFuture) BatchCreateOrderLimit(params []*model.OrderParam) ([]model.Order, error) {
+	var clientOrderId string
+	var tempOrder *futures.CreateOrderService
+	var createOrders []*futures.CreateOrderService
+	for _, param := range params {
+		err := b.validate(param.Pair, param.Quantity)
+		if err != nil {
+			return []model.Order{}, err
+		}
+		clientOrderId = strutil.RandomString(12)
+		tempOrder = &futures.CreateOrderService{}
+		createOrders = append(createOrders, tempOrder.Symbol(param.Pair).
+			NewClientOrderID(clientOrderId).
+			Type(futures.OrderTypeLimit).
+			TimeInForce(futures.TimeInForceTypeGTC).
+			Side(futures.SideType(param.Side)).
+			PositionSide(futures.PositionSideType(param.PositionSide)).
+			Quantity(b.FormatQuantity(param.Pair, param.Quantity, true)).
+			Price(b.FormatPrice(param.Pair, param.Limit)),
+		)
+	}
+	futuresOrders, err := b.client.NewCreateBatchOrdersService().OrderList(createOrders).Do(b.ctx)
+	if err != nil {
+		return []model.Order{}, err
+	}
+	var quantity float64
+	var orderFlag string
+	orders := []model.Order{}
+	for _, futuresOrder := range futuresOrders.Orders {
+		orderFlag = strutil.RandomString(6)
+
+		price, err := strconv.ParseFloat(futuresOrder.Price, 64)
+		if err != nil {
+			return []model.Order{}, err
+		}
+
+		quantity, err = strconv.ParseFloat(futuresOrder.OrigQuantity, 64)
+		if err != nil {
+			return []model.Order{}, err
+		}
+
+		orders = append(orders, model.Order{
+			ExchangeID:    futuresOrder.OrderID,
+			ClientOrderId: futuresOrder.ClientOrderID,
+			OrderFlag:     orderFlag,
+			OpenType:      "binance_futures",
+			CreatedAt:     time.Unix(0, futuresOrder.UpdateTime*int64(time.Millisecond)),
+			UpdatedAt:     time.Unix(0, futuresOrder.UpdateTime*int64(time.Millisecond)),
+			Pair:          futuresOrder.Symbol,
+			Side:          model.SideType(futuresOrder.Side),
+			PositionSide:  model.PositionSideType(futuresOrder.PositionSide),
+			Type:          model.OrderType(futuresOrder.Type),
+			Status:        model.OrderStatusType(futuresOrder.Status),
+			Price:         price,
+			Quantity:      quantity,
+			Leverage:      params[0].Extra.Leverage,
+		})
+	}
+	return orders, nil
+}
+
+func (b *BinanceFuture) BatchCreateOrderMarket(params []*model.OrderParam) ([]model.Order, error) {
+	var clientOrderId string
+	var tempOrder *futures.CreateOrderService
+	var createOrders []*futures.CreateOrderService
+	for _, param := range params {
+		err := b.validate(param.Pair, param.Quantity)
+		if err != nil {
+			return []model.Order{}, err
+		}
+		clientOrderId = strutil.RandomString(12)
+		tempOrder = &futures.CreateOrderService{}
+		createOrders = append(createOrders, tempOrder.Symbol(param.Pair).
+			NewClientOrderID(clientOrderId).
+			Type(futures.OrderTypeMarket).
+			Side(futures.SideType(param.Side)).
+			PositionSide(futures.PositionSideType(param.PositionSide)).
+			Quantity(b.FormatQuantity(param.Pair, param.Quantity, true)),
+		)
+	}
+	futuresOrders, err := b.client.NewCreateBatchOrdersService().OrderList(createOrders).Do(b.ctx)
+	if err != nil {
+		return []model.Order{}, err
+	}
+	var quantity float64
+	var orderFlag string
+	orders := []model.Order{}
+	for _, futuresOrder := range futuresOrders.Orders {
+		orderFlag = strutil.RandomString(6)
+
+		price, err := strconv.ParseFloat(futuresOrder.Price, 64)
+		if err != nil {
+			return []model.Order{}, err
+		}
+
+		quantity, err = strconv.ParseFloat(futuresOrder.OrigQuantity, 64)
+		if err != nil {
+			return []model.Order{}, err
+		}
+
+		orders = append(orders, model.Order{
+			ExchangeID:    futuresOrder.OrderID,
+			ClientOrderId: futuresOrder.ClientOrderID,
+			OrderFlag:     orderFlag,
+			OpenType:      "binance_futures",
+			CreatedAt:     time.Unix(0, futuresOrder.UpdateTime*int64(time.Millisecond)),
+			UpdatedAt:     time.Unix(0, futuresOrder.UpdateTime*int64(time.Millisecond)),
+			Pair:          futuresOrder.Symbol,
+			Side:          model.SideType(futuresOrder.Side),
+			PositionSide:  model.PositionSideType(futuresOrder.PositionSide),
+			Type:          model.OrderType(futuresOrder.Type),
+			Status:        model.OrderStatusType(futuresOrder.Status),
+			Price:         price,
+			Quantity:      quantity,
+			Leverage:      params[0].Extra.Leverage,
+		})
+	}
+	return orders, nil
+}
+
 func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model.PositionSideType, pair string,
 	quantity float64, limit float64, extra model.OrderExtra) (model.Order, error) {
 
@@ -208,7 +328,6 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 	}
 
 	clientOrderId := strutil.RandomString(12)
-	orderFlag := strutil.RandomString(6)
 	order, err := b.client.NewCreateOrderService().
 		Symbol(pair).
 		NewClientOrderID(clientOrderId).
@@ -221,6 +340,10 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		Do(b.ctx)
 	if err != nil {
 		return model.Order{}, err
+	}
+	orderFlag := extra.OrderFlag
+	if orderFlag == "" {
+		orderFlag = strutil.RandomString(6)
 	}
 
 	price, err := strconv.ParseFloat(order.Price, 64)
@@ -487,6 +610,10 @@ func (b *BinanceFuture) GetOrdersForPairUnfilled(pair string) (map[string]map[st
 	panic("implement me")
 }
 
+func (b *BinanceFuture) GetPositionOrdersForPairUnfilled(pair string) (map[string]map[model.PositionSideType]*model.Order, error) {
+	//TODO implement me
+	panic("implement me")
+}
 func (b *BinanceFuture) GetPositionsForPair(pair string) ([]*model.Position, error) {
 	//TODO implement me
 	panic("implement me")

@@ -16,10 +16,13 @@ func InitLogger() *logrus.Logger {
 
 	logLevel := viper.GetString("log.level")
 	Log := logrus.New()
-	Log.SetFormatter(&logrus.TextFormatter{
+
+	formatter := &logrus.TextFormatter{
 		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02 15:04:05",
-	})
+		DisableQuote:    true,
+		TimestampFormat: "15:04:05",
+	}
+	Log.SetFormatter(formatter)
 	Log.Out = os.Stdout
 
 	err := loglevel.UnmarshalText([]byte(logLevel))
@@ -40,7 +43,7 @@ func InitLogger() *logrus.Logger {
 				Log.Panicf("mkdir error : %s", err.Error())
 			}
 		}
-		NewSimpleLogger(Log, dataPath, 30)
+		NewSimpleLogger(Log, dataPath, 30, formatter)
 	}
 	return Log
 }
@@ -50,7 +53,7 @@ func InitLogger() *logrus.Logger {
 
 	文件日志
 */
-func NewSimpleLogger(log *logrus.Logger, logPath string, save uint) {
+func NewSimpleLogger(log *logrus.Logger, logPath string, save uint, formatter logrus.Formatter) {
 
 	lfHook := lfshook.NewHook(lfshook.WriterMap{
 		logrus.DebugLevel: writer(logPath, "debug", save),
@@ -60,11 +63,7 @@ func NewSimpleLogger(log *logrus.Logger, logPath string, save uint) {
 		logrus.ErrorLevel: writer(logPath, "error", save),
 		logrus.FatalLevel: writer(logPath, "fatal", save),
 		logrus.PanicLevel: writer(logPath, "panic", save),
-	}, &logrus.TextFormatter{
-		FullTimestamp:   true,
-		DisableQuote:    true,
-		TimestampFormat: "2006-01-02 15:04:05",
-	})
+	}, formatter)
 	log.AddHook(lfHook)
 }
 

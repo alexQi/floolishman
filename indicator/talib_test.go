@@ -19,16 +19,16 @@ func TestEma8(t *testing.T) {
 }
 
 func Bac(balance, leverage, currentPrice float64, scoreRadio float64) float64 {
-	fullSpaceRadio := 0.1
+	fullSapceRatio := 0.1
 	var amount float64
 	fullPositionSize := (balance * leverage) / currentPrice
 	if scoreRadio >= 0.5 {
-		amount = fullPositionSize * fullSpaceRadio
+		amount = fullPositionSize * fullSapceRatio
 	} else {
 		if scoreRadio < 0.2 {
-			amount = fullPositionSize * fullSpaceRadio * 0.4
+			amount = fullPositionSize * fullSapceRatio * 0.4
 		} else {
-			amount = fullPositionSize * fullSpaceRadio * scoreRadio * 2
+			amount = fullPositionSize * fullSapceRatio * scoreRadio * 2
 		}
 	}
 	return amount

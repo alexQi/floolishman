@@ -59,6 +59,9 @@ func (c *CallerFrequency) checkPosition(pair string) {
 	if longShortRatio < 0 {
 		return
 	}
+	if len(matcherStrategy) < 2 {
+		return
+	}
 	// 计算当前方向通过总数
 	passCount := 0
 	for _, i := range matcherStrategy {
