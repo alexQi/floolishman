@@ -153,14 +153,15 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 		gridItems := c.positionGridMap[option.Pair].GridItems
 		// 判断仓位加仓次数是否达到上线
 		if sampleSidePosition.MoreCount >= MoreCountLimit {
-			if c.positionGridIndex[option.Pair] > 0 &&
-				(c.positionGridIndex[option.Pair]+1 >= len(gridItems) ||
-					(openPositionGrid.PositionSide == model.PositionSideTypeLong &&
-						c.positionGridIndex[option.Pair]+1 < len(gridItems) &&
-						gridItems[c.positionGridIndex[option.Pair]+1].Price > currentPrice) ||
+			if c.positionGridIndex[option.Pair] >= 0 &&
+				// 多单
+				((openPositionGrid.PositionSide == model.PositionSideTypeLong &&
+					(((c.positionGridIndex[option.Pair]-1) >= 0 && gridItems[c.positionGridIndex[option.Pair]-1].Price >= currentPrice) ||
+						(c.positionGridIndex[option.Pair]-1) < 0)) ||
+					// 空单
 					(openPositionGrid.PositionSide == model.PositionSideTypeShort &&
-						c.positionGridIndex[option.Pair]+1 < len(gridItems) &&
-						gridItems[c.positionGridIndex[option.Pair]+1].Price < currentPrice)) {
+						(((c.positionGridIndex[option.Pair]+1) < len(gridItems) && gridItems[c.positionGridIndex[option.Pair]+1].Price <= currentPrice) ||
+							c.positionGridIndex[option.Pair]+1 >= len(gridItems)))) {
 				// 当前价格达到指定上下后再次触达下一个网格
 				c.GridMode = constants.GridModeHedge
 				utils.Log.Infof(
@@ -302,7 +303,7 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 			} else {
 				c.ResetGrid(option.Pair)
 			}
-			c.positionGridIndex[option.Pair] = 0
+			c.positionGridIndex[option.Pair] = -1
 			// 重置当前交易对止损比例
 			c.profitRatioLimit[option.Pair] = 0
 			return
@@ -396,7 +397,7 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 				delete(c.positionGridMap, option.Pair)
 				// 重置当前交易对止损比例
 				c.profitRatioLimit[option.Pair] = 0
-				c.positionGridIndex[option.Pair] = 0
+				c.positionGridIndex[option.Pair] = -1
 			} else {
 				utils.Log.Infof(
 					"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < LossRatio: %s",

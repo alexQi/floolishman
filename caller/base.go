@@ -412,7 +412,7 @@ func (c *CallerGrid) ResetGrid(pair string) {
 }
 
 func (c *CallerGrid) getOpenGrid(pair string, currentPrice float64) (int, error) {
-	openGridIndex := 0
+	openGridIndex := -1
 	if currentPrice == c.positionGridMap[pair].BasePrice {
 		return openGridIndex, errors.New("Pair price at base line")
 	}
