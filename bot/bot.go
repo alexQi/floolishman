@@ -89,7 +89,7 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 		},
 	)
 	// 加载策略服务
-	bot.serviceStrategy = service.NewServiceStrategy(ctx, strategySetting, strategy, bot.caller)
+	bot.serviceStrategy = service.NewServiceStrategy(ctx, strategySetting, strategy, bot.caller, bot.backtest)
 	// 加载通知服务
 	if settings.Telegram.Enabled {
 		var err error
@@ -295,7 +295,7 @@ func (n *Bot) processCandle(timeframe string, candle model.Candle) {
 		n.serviceStrategy.OnCandle(timeframe, candle)
 		n.serviceOrder.OnCandle(candle)
 	} else {
-		n.serviceStrategy.OnRealCandle(timeframe, candle)
+		n.serviceStrategy.OnRealCandle(timeframe, candle, false)
 	}
 }
 
@@ -321,7 +321,7 @@ func (n *Bot) backtestCandles(pair string, timeframe string) {
 		n.serviceOrder.ListenOrders()
 		// 处理开仓策略相关
 		if candle.Complete {
-			n.serviceStrategy.OnCandleForBacktest(timeframe, candle)
+			n.serviceStrategy.OnCandle(timeframe, candle)
 		}
 	}
 }
@@ -352,14 +352,14 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 		if n.strategySetting.FollowSymbol == false {
 			err = n.exchange.SetPairOption(ctx, option)
 			if err != nil {
-				utils.Log.Error(err)
+				utils.Log.Panic(err)
 				return
 			}
 		}
 
 		n.serviceStrategy.SetPairDataframe(option)
 
-		if n.priorityQueueCandles[option.Pair] == nil {
+		if _, ok := n.priorityQueueCandles[option.Pair]; !ok {
 			n.priorityQueueCandles[option.Pair] = make(map[string]*model.PriorityQueue)
 		}
 		// init loading data by http api
@@ -367,11 +367,13 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 		for timeframe, period := range timeframaMap {
 			// link to ninja bot controller
 			n.priorityQueueCandles[option.Pair][timeframe] = model.NewPriorityQueue(nil)
-			// preload candles for warmup perio
-			err = n.preload(ctx, option.Pair, timeframe, period)
-			if err != nil {
-				utils.Log.Error(err)
-				return
+			// preload candles for warmup perio 排除跟随模式和双向持仓模式
+			if n.strategySetting.FollowSymbol == false && n.strategySetting.CheckMode != "dual" {
+				err = n.preload(ctx, option.Pair, timeframe, period)
+				if err != nil {
+					utils.Log.Error(err)
+					return
+				}
 			}
 			// link to ninja bot controller
 			n.dataFeed.Subscribe(option.Pair, timeframe, n.onCandle, false)
@@ -382,7 +384,7 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 // Run will initialize the strategy controller, order controller, preload data and start the bot
 func (n *Bot) Run(ctx context.Context) {
 	// 输出策略详情
-	if n.strategySetting.FollowSymbol == false {
+	if n.strategySetting.FollowSymbol == false || n.strategySetting.CheckMode != "dual" {
 		n.strategy.Stdout()
 	}
 	n.orderFeed.Start()

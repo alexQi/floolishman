@@ -15,6 +15,8 @@ type Position struct {
 	ClosePrice           float64        `db:"close_price" json:"close_price"`
 	Quantity             float64        `db:"quantity" json:"quantity"`
 	TotalQuantity        float64        `db:"total_quantity" json:"total_quantity"`
+	UnitQuantity         float64        `db:"unit_quantity" json:"unit_quantity"`
+	MoreCount            int64          `db:"more_count" json:"more_count"`
 	Profit               float64        `json:"profit" gorm:"profit"`
 	ProfitValue          float64        `json:"profit_value" gorm:"profit_value"`
 	MarginType           string         `db:"margin_type" json:"margin_type"`

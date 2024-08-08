@@ -2,11 +2,13 @@ package caller
 
 import (
 	"context"
+	"errors"
 	"floolishman/grpc/service"
 	"floolishman/model"
 	"floolishman/reference"
 	"floolishman/types"
 	"floolishman/utils"
+	"github.com/jpillora/backoff"
 	"reflect"
 	"sync"
 	"time"
@@ -19,6 +21,11 @@ type SeasonType string
 var (
 	SeasonTypeReverse SeasonType = "REVERSE"
 	SeasonTypeTimeout SeasonType = "TIMEOUT"
+)
+
+var (
+	StepMoreRatio        = 0.08
+	ProfitMoreHedgeRatio = 0.04
 )
 
 var (
@@ -39,23 +46,27 @@ var ConstCallers = map[string]reference.Caller{
 	"frequency": &CallerFrequency{},
 	"watchdog":  &CallerWatchdog{},
 	"dual":      &CallerDual{},
+	"grid":      &CallerGrid{},
 }
 
 type CallerBase struct {
-	ctx              context.Context
-	mu               sync.Mutex
-	strategy         types.CompositesStrategy
-	setting          types.CallerSetting
-	broker           reference.Broker
-	exchange         reference.Exchange
-	guider           *service.ServiceGuider
-	pairOptions      map[string]model.PairOption
-	samples          map[string]map[string]map[string]*model.Dataframe
-	profitRatioLimit map[string]float64
-	pairPrices       map[string]float64
-	lastUpdate       map[string]time.Time
-	lossLimitTimes   map[string]time.Time
-	positionJudgers  map[string]*PositionJudger
+	ctx               context.Context
+	mu                sync.Mutex
+	strategy          types.CompositesStrategy
+	setting           types.CallerSetting
+	ba                *backoff.Backoff
+	broker            reference.Broker
+	exchange          reference.Exchange
+	guider            *service.ServiceGuider
+	pairOptions       map[string]model.PairOption
+	samples           map[string]map[string]map[string]*model.Dataframe
+	profitRatioLimit  map[string]float64
+	pairPrices        map[string]float64
+	lastUpdate        map[string]time.Time
+	lossLimitTimes    map[string]time.Time
+	positionJudgers   map[string]*PositionJudger
+	positionGridMap   map[string]*model.PositionGrid
+	positionGridIndex map[string]int
 }
 
 func NewCaller(
@@ -89,7 +100,13 @@ func (c *CallerBase) Init(
 	c.profitRatioLimit = make(map[string]float64)
 	c.samples = make(map[string]map[string]map[string]*model.Dataframe)
 	c.positionJudgers = make(map[string]*PositionJudger)
+	c.positionGridMap = make(map[string]*model.PositionGrid)
+	c.positionGridIndex = make(map[string]int)
 	c.guider = service.NewServiceGuider(ctx, setting.GuiderHost)
+	c.ba = &backoff.Backoff{
+		Min: 100 * time.Millisecond,
+		Max: 1 * time.Second,
+	}
 }
 
 func (c *CallerBase) SetPair(option model.PairOption) {
@@ -118,6 +135,10 @@ func (c *CallerBase) SetSample(pair string, timeframe string, strategyName strin
 func (c *CallerBase) UpdatePairInfo(pair string, price float64, updatedAt time.Time) {
 	c.pairPrices[pair] = price
 	c.lastUpdate[pair] = updatedAt
+}
+
+func (c *CallerBase) BuildGird(_ string, _ string, _ bool) {
+
 }
 
 func (c *CallerBase) tickCheckOrderTimeout() {
@@ -197,6 +218,11 @@ func (c *CallerBase) CheckOrderTimeout() {
 				utils.Log.Error(err)
 				continue
 			}
+
+			// 取消订单时将该订单锁定的网格重置回去
+			if _, ok := c.positionGridMap[positionOrder.Pair]; ok {
+				c.positionGridMap[positionOrder.Pair].GridItems[c.positionGridIndex[positionOrder.Pair]].Lock = false
+			}
 			utils.Log.Infof(
 				"[ORDER - %s] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v | Create: %s",
 				SeasonTypeTimeout,
@@ -222,4 +248,195 @@ func (c *CallerBase) CheckOrderTimeout() {
 			}
 		}
 	}
+}
+
+func (c *CallerBase) finishAllPosition(mainPosition *model.Position, subPosition *model.Position) {
+	// 批量下单
+	orderParams := []*model.OrderParam{}
+	// 平掉副仓位
+	if subPosition.Quantity > 0 {
+		orderParams = append(orderParams, &model.OrderParam{
+			Side:         model.SideType(mainPosition.Side),
+			PositionSide: model.PositionSideType(subPosition.PositionSide),
+			Pair:         subPosition.Pair,
+			Quantity:     subPosition.Quantity,
+			Extra: model.OrderExtra{
+				Leverage:  subPosition.Leverage,
+				OrderFlag: subPosition.OrderFlag,
+			},
+		})
+	}
+	// 平掉主仓位
+	if mainPosition.Quantity > 0 {
+		orderParams = append(orderParams, &model.OrderParam{
+			Side:         model.SideType(subPosition.Side),
+			PositionSide: model.PositionSideType(mainPosition.PositionSide),
+			Pair:         mainPosition.Pair,
+			Quantity:     mainPosition.Quantity,
+			Extra: model.OrderExtra{
+				Leverage:  mainPosition.Leverage,
+				OrderFlag: mainPosition.OrderFlag,
+			},
+		})
+	}
+	_, err := c.broker.BatchCreateOrderMarket(orderParams)
+	if err != nil {
+		utils.Log.Error(err)
+	}
+}
+
+func (c *CallerGrid) BuildGird(pair string, timeframe string, isForce bool) {
+	if isForce == false {
+		if _, ok := c.positionGridMap[pair]; ok {
+			return
+		}
+	}
+	// 获取当前已存在的仓位,保持原有网格
+	openedPositions, err := c.broker.GetPositionsForPair(pair)
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	if len(openedPositions) > 0 {
+		utils.Log.Infof("[Init Grid] Position has exsit, wating...")
+		return
+	}
+
+	dataframe := c.samples[pair][timeframe]["Grid1h"]
+	if len(dataframe.Close) == 0 {
+		return
+	}
+
+	// 获取当前价格区间的中间位置作为网格基线
+	//midPrice := c.pairPrices[pair]
+	//midPrice := dataframe.Metadata["bb_middle"].Last(1)
+	//midPrice := dataframe.Close.Last(1)
+	midPrice := dataframe.Metadata["ema8"].Last(1)
+	bbUpper := dataframe.Metadata["bb_upper"].Last(1)
+	bbLower := dataframe.Metadata["bb_lower"].Last(1)
+	bbWidth := dataframe.Metadata["bb_width"].Last(1)
+	avgVolume := dataframe.Metadata["avgVolume"].Last(0)
+	volume := dataframe.Metadata["volume"].Last(0)
+	// 上一根蜡烛线已经破线，不在初始化网格
+	if c.pairPrices[pair] > bbUpper || c.pairPrices[pair] < bbLower {
+		utils.Log.Infof("[Init Grid] Bolling has cross limit, wating...")
+		delete(c.positionGridMap, pair)
+		return
+	}
+	if (volume / avgVolume) > 1.6 {
+		utils.Log.Infof("[Init Grid] Volume bigger than avgVolume, wating...")
+		delete(c.positionGridMap, pair)
+		return
+	}
+	// 计算网格数量
+	numGrids := bbWidth / c.pairOptions[pair].GridStep
+	if numGrids <= 0 {
+		utils.Log.Infof("[Init Grid] Grid spacing too large for the given price width, wating...")
+		return
+	}
+
+	if _, ok := c.positionGridMap[pair]; ok {
+		if c.positionGridMap[pair].BasePrice == midPrice {
+			utils.Log.Infof("[Init Grid] Grid has no change, wating...")
+			return
+		}
+	}
+
+	// 初始化网格
+	grid := model.PositionGrid{
+		BasePrice:     midPrice,
+		CreatedAt:     time.Now(),
+		CountGrid:     int64(numGrids),
+		BoundaryUpper: bbUpper,
+		BoundaryLower: bbLower,
+		GridItems:     []model.PositionGridItem{},
+	}
+
+	var longPrice, shortPrice float64
+	// 计算网格上下限
+	for i := 1; i <= int(numGrids/2); i++ {
+		if i == 1 {
+			continue
+		}
+		longPrice = midPrice + float64(i)*c.pairOptions[pair].GridStep
+		if longPrice > grid.BoundaryUpper {
+			break
+		}
+		grid.GridItems = append(grid.GridItems, model.PositionGridItem{
+			Side:         model.SideTypeSell,
+			PositionSide: model.PositionSideTypeShort,
+			Price:        longPrice,
+			Lock:         false,
+		})
+	}
+	for i := 1; i <= int(numGrids/2); i++ {
+		if i == 1 {
+			continue
+		}
+		// 下方网格
+		shortPrice = midPrice - float64(i)*c.pairOptions[pair].GridStep
+		if shortPrice < grid.BoundaryLower {
+			break
+		}
+		grid.GridItems = append(grid.GridItems, model.PositionGridItem{
+			Side:         model.SideTypeBuy,
+			PositionSide: model.PositionSideTypeLong,
+			Price:        shortPrice,
+			Lock:         false,
+		})
+	}
+	utils.Log.Infof(
+		"Grid Build: BasePrice: %v | Upper: %v | Lower: %v | Count: %v | CreatedAt: %s",
+		grid.BasePrice,
+		grid.BoundaryUpper,
+		grid.BoundaryLower,
+		grid.CountGrid,
+		grid.CreatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+	)
+	grid.SortGridItemsByPrice(true)
+	// 将网格添加到网格映射中
+	c.positionGridMap[pair] = &grid
+}
+
+func (c *CallerGrid) ResetGrid(pair string) {
+	if _, ok := c.positionGridMap[pair]; !ok {
+		return
+	}
+	if len(c.positionGridMap[pair].GridItems) == 0 {
+		return
+	}
+	// 修改网格锁定状态
+	for i := range c.positionGridMap[pair].GridItems {
+		c.positionGridMap[pair].GridItems[i].Lock = false
+	}
+}
+
+func (c *CallerGrid) getOpenGrid(pair string, currentPrice float64) (int, error) {
+	openGridIndex := 0
+	if currentPrice == c.positionGridMap[pair].BasePrice {
+		return openGridIndex, errors.New("Pair price at base line")
+	}
+	if currentPrice > c.positionGridMap[pair].BasePrice {
+		for i, item := range c.positionGridMap[pair].GridItems {
+			if item.PositionSide == model.PositionSideTypeLong {
+				continue
+			}
+			if currentPrice < item.Price && item.Lock == false {
+				openGridIndex = i
+				break
+			}
+		}
+	} else {
+		for i := len(c.positionGridMap[pair].GridItems) - 1; i >= 0; i-- {
+			item := c.positionGridMap[pair].GridItems[i]
+			if item.PositionSide == model.PositionSideTypeShort {
+				continue
+			}
+			if currentPrice > item.Price && item.Lock == false {
+				openGridIndex = i
+				break
+			}
+		}
+	}
+	return openGridIndex, nil
 }

@@ -29,6 +29,7 @@ var ConstStraties = map[string]types.Strategy{
 	"Rsi15m":            &strategies.Rsi15m{},
 	"Vibrate15m":        &strategies.Vibrate15m{},
 	"Kc15m":             &strategies.Kc15m{},
+	"Grid1h":            &strategies.Grid1h{},
 }
 
 func main() {
@@ -47,8 +48,8 @@ func main() {
 		tradingSetting = service.StrategySetting{
 			CheckMode:            viper.GetString("trading.checkMode"),
 			FollowSymbol:         viper.GetBool("trading.followSymbol"),
-			FullSpaceRatio:       viper.GetFloat64("trading.fullSapceRatio"),
-			StopSpaceRatio:       viper.GetFloat64("trading.stopSapceRatio"),
+			FullSpaceRatio:       viper.GetFloat64("trading.fullSpaceRatio"),
+			StopSpaceRatio:       viper.GetFloat64("trading.stopSpaceRatio"),
 			LossTimeDuration:     viper.GetInt("trading.lossTimeDuration"),
 			BaseLossRatio:        viper.GetFloat64("trading.baseLossRatio"),
 			ProfitableScale:      viper.GetFloat64("trading.profitableScale"),
@@ -75,6 +76,11 @@ func main() {
 		if !ok {
 			log.Fatalf("Invalid leverage format for pair %s: %v", pair, valMap["leverage"])
 		}
+		// 检查并处理 leverage
+		gridStep, ok := valMap["gridstep"].(float64)
+		if !ok {
+			log.Fatalf("Invalid gridStep format for pair %s: %v", pair, valMap["gridStep"])
+		}
 
 		marginType, ok := valMap["margintype"].(string)
 		if !ok {
@@ -87,6 +93,7 @@ func main() {
 		settings.PairOptions = append(settings.PairOptions, model.PairOption{
 			Pair:       strings.ToUpper(pair),
 			Leverage:   leverage,
+			GridStep:   gridStep,
 			MarginType: futures.MarginType(strings.ToUpper(marginType)), // 假设 futures.MarginType 是一个类型别名
 		})
 	}
@@ -101,6 +108,7 @@ func main() {
 
 	exhangeOptions := []exchange.BinanceFutureOption{
 		exchange.WithBinanceFutureCredentials(apiKey, secretKey, apiKeyType),
+		//exchange.WithBinanceFuturesDebugMode(),
 	}
 	if mode == "test" {
 		exhangeOptions = append(

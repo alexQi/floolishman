@@ -9,6 +9,7 @@ type PairOption struct {
 	Pair       string             `json:"pair"`
 	Leverage   int                `json:"leverage"`
 	MarginType futures.MarginType `json:"marginType"`
+	GridStep   float64            `json:"grid_step"`
 }
 
 func (o PairOption) String() string {

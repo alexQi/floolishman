@@ -25,7 +25,7 @@
 {
     "trading": {
         // 开仓大小 0.1表示10%的仓位
-        "fullSapceRatio": 0.1,
+        "fullSpaceRatio": 0.1,
         // 初始止损亏损比例
         "initLossRatio": 0.5,5
         // 移动止损利润网格比例 10%

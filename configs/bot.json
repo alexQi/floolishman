@@ -3,28 +3,24 @@
     "pairs": {
         "ETHUSDT": {
             "leverage": 100,
-            "marginType": "CROSSED"
+            "marginType": "CROSSED",
+            "gridStep": 8
         }
     },
     "watchdog": {
         "host": "127.0.0.1:9999"
     },
     "strategies": [
-        "Range15m",
-        "Momentum15m",
-        "MomentumVolume15m",
-        "Rsi15m",
-        "Emacross15m",
-        "Vibrate15m"
+        "Grid1h"
     ],
     "trading": {
-        "checkMode": "dual",
+        "checkMode": "grid",
         "followSymbol": false,
         "lossTimeDuration": 40,
-        "fullSapceRatio": 0.08,
-        "stopSpaceRatio": 0.20,
-        "baseLossRatio": 0.002,
-        "profitableScale": 0.12,
+        "fullSpaceRatio": 0.04,
+        "stopSpaceRatio": 0.40,
+        "baseLossRatio": 0.0035,
+        "profitableScale": 0.02,
         "initProfitRatioLimit": 0.20
     },
     "storage": {

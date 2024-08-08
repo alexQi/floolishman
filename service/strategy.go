@@ -28,18 +28,20 @@ type ServiceStrategy struct {
 	dataframes  map[string]map[string]*model.Dataframe
 	realCandles map[string]map[string]*model.Candle
 	caller      reference.Caller
+	backtest    bool
 	started     bool
 	checkMode   string
 	mu          sync.Mutex
 }
 
-func NewServiceStrategy(ctx context.Context, strategySetting StrategySetting, strategy types.CompositesStrategy, caller reference.Caller) *ServiceStrategy {
+func NewServiceStrategy(ctx context.Context, strategySetting StrategySetting, strategy types.CompositesStrategy, caller reference.Caller, backtest bool) *ServiceStrategy {
 	return &ServiceStrategy{
 		ctx:         ctx,
 		dataframes:  make(map[string]map[string]*model.Dataframe),
 		realCandles: make(map[string]map[string]*model.Candle),
 		strategy:    strategy,
 		checkMode:   strategySetting.CheckMode,
+		backtest:    backtest,
 		caller:      caller,
 	}
 }
@@ -100,7 +102,7 @@ func (s *ServiceStrategy) updateDataFrame(timeframe string, candle model.Candle)
 	s.dataframes[candle.Pair][timeframe] = &tempDataframe
 }
 
-func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle) {
+func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, isComplate bool) {
 	s.mu.Lock()         // 加锁
 	defer s.mu.Unlock() // 解锁
 	oldCandle, ok := s.realCandles[candle.Pair][timeframe]
@@ -127,6 +129,28 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle) {
 			s.caller.SetSample(candle.Pair, timeframe, reflect.TypeOf(str).Elem().Name(), &sample)
 		}
 	}
+	// 未开始时
+	if s.started == false {
+		if s.checkMode == "grid" {
+			s.caller.BuildGird(candle.Pair, timeframe, false)
+		}
+	} else {
+		if isComplate == true {
+			// 回溯测试模式
+			if s.backtest {
+				s.caller.EventCallOpen(candle.Pair)
+				s.caller.EventCallClose(candle.Pair)
+				s.caller.CheckOrderTimeout()
+			} else {
+				if s.checkMode == "grid" {
+					s.caller.BuildGird(candle.Pair, timeframe, true)
+				}
+				if s.checkMode == "candle" {
+					s.caller.EventCallOpen(candle.Pair)
+				}
+			}
+		}
+	}
 }
 
 func (s *ServiceStrategy) OnCandle(timeframe string, candle model.Candle) {
@@ -136,23 +160,5 @@ func (s *ServiceStrategy) OnCandle(timeframe string, candle model.Candle) {
 	}
 	// 更新Dataframe
 	s.updateDataFrame(timeframe, candle)
-	s.OnRealCandle(timeframe, candle)
-	if s.started && s.checkMode == "candle" {
-		s.caller.EventCallOpen(candle.Pair)
-	}
-}
-
-func (s *ServiceStrategy) OnCandleForBacktest(timeframe string, candle model.Candle) {
-	if len(s.dataframes[candle.Pair][timeframe].Time) > 0 && candle.Time.Before(s.dataframes[candle.Pair][timeframe].Time[len(s.dataframes[candle.Pair][timeframe].Time)-1]) {
-		utils.Log.Errorf("Late candle received: %#v", candle)
-		return
-	}
-	// 更新Dataframe
-	s.updateDataFrame(timeframe, candle)
-	s.OnRealCandle(timeframe, candle)
-	if s.started {
-		s.caller.EventCallOpen(candle.Pair)
-		s.caller.EventCallClose(candle.Pair)
-		s.caller.CheckOrderTimeout()
-	}
+	s.OnRealCandle(timeframe, candle, true)
 }

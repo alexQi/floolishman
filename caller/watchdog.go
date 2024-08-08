@@ -20,7 +20,7 @@ func (c *CallerWatchdog) Start() {
 		for {
 			select {
 			case <-tickerCheck.C:
-				c.checkPosition()
+				c.checkPositionOpen()
 			case <-tickerClose.C:
 				if c.setting.FollowSymbol {
 					c.checkPositionClose()
@@ -34,7 +34,7 @@ func (c *CallerWatchdog) Start() {
 			}
 		}
 	}()
-	c.Listen()
+	go c.Listen()
 }
 
 func (cc *CallerWatchdog) Listen() {
@@ -46,77 +46,52 @@ func (cc *CallerWatchdog) Listen() {
 	}
 }
 
-func (c *CallerWatchdog) checkPosition() {
-	userPositions, err := c.guider.GetAllPositions()
+func (c *CallerWatchdog) checkPositionOpen() {
+	guiderPairPositionsMap, err := c.guider.GetAllPositions()
 	if err != nil {
 		utils.Log.Error(err)
 		return
 	}
-	if len(userPositions) == 0 {
+	if len(guiderPairPositionsMap) == 0 {
 		return
 	}
 	// 跟随模式下，开仓平仓都跟随看门狗，多跟模式下开仓保持不变什么
-	// todo 对冲仓位时如何处理
-	var currentUserPosition model.GuiderPosition
 	if c.setting.FollowSymbol {
-		for _, userPosition := range userPositions {
-			if len(userPosition) > 1 {
-				continue
-			}
-			if _, ok := userPosition[model.PositionSideTypeLong]; !ok {
-				currentUserPosition = userPosition[model.PositionSideTypeShort][0]
-			}
-			if _, ok := userPosition[model.PositionSideTypeShort]; !ok {
-				currentUserPosition = userPosition[model.PositionSideTypeLong][0]
-			}
+		for pair, guiderPositionsMap := range guiderPairPositionsMap {
 			// 屏蔽未配置的交易对
-			if _, ok := c.pairOptions[currentUserPosition.Symbol]; !ok {
+			if _, ok := c.pairOptions[pair]; !ok {
 				continue
 			}
-			go c.openWatchdogPosition(currentUserPosition)
+			go c.openWithFollowSymbol(pair, guiderPositionsMap)
 		}
 	} else {
 		var longShortRatio float64
 		for _, option := range c.pairOptions {
-			if _, ok := userPositions[option.Pair]; !ok {
+			if _, ok := guiderPairPositionsMap[option.Pair]; !ok {
 				continue
 			}
-			if _, ok := userPositions[option.Pair][model.PositionSideTypeLong]; !ok {
+			if _, ok := guiderPairPositionsMap[option.Pair][model.PositionSideTypeLong]; !ok {
 				longShortRatio = 0
 			}
-			if _, ok := userPositions[option.Pair][model.PositionSideTypeShort]; !ok {
+			if _, ok := guiderPairPositionsMap[option.Pair][model.PositionSideTypeShort]; !ok {
 				longShortRatio = 1
 			}
-			if len(userPositions[option.Pair][model.PositionSideTypeLong]) == len(userPositions[option.Pair][model.PositionSideTypeShort]) {
+			if len(guiderPairPositionsMap[option.Pair][model.PositionSideTypeLong]) == len(guiderPairPositionsMap[option.Pair][model.PositionSideTypeShort]) {
 				continue
 			}
-			if len(userPositions[option.Pair][model.PositionSideTypeLong]) > len(userPositions[option.Pair][model.PositionSideTypeShort]) {
+			if len(guiderPairPositionsMap[option.Pair][model.PositionSideTypeLong]) > len(guiderPairPositionsMap[option.Pair][model.PositionSideTypeShort]) {
 				longShortRatio = 1
 			} else {
 				longShortRatio = 0
 			}
-			assetPosition, quotePosition, err := c.broker.PairAsset(option.Pair)
-			if err != nil {
-				utils.Log.Error(err)
-			}
-			c.openPosition(
-				option,
-				assetPosition,
-				quotePosition,
-				longShortRatio,
-				map[string]int{"watchdog": 1},
-				[]model.Strategy{},
-			)
+			go c.openWithLongShortRatio(option, longShortRatio)
 		}
 	}
 }
 
-func (s *CallerWatchdog) openWatchdogPosition(guiderPosition model.GuiderPosition) {
-	s.mu.Lock()         // 加锁
-	defer s.mu.Unlock() // 解锁
-	currentPrice := s.pairPrices[guiderPosition.Symbol]
+func (c *CallerWatchdog) openWithFollowSymbol(pair string, positionMap map[model.PositionSideType][]model.GuiderPosition) {
 	// 判断当前资产
-	assetPosition, quotePosition, err := s.broker.PairAsset(guiderPosition.Symbol)
+	assetPosition, quotePosition, err := c.broker.PairAsset(pair)
 	if err != nil {
 		utils.Log.Error(err)
 		return
@@ -126,6 +101,36 @@ func (s *CallerWatchdog) openWatchdogPosition(guiderPosition model.GuiderPositio
 		utils.Log.Errorf("Balance is not enough to create order")
 		return
 	}
+	// 当前没有仓位时，查询到对冲仓位，不开仓
+	if assetPosition == 0 && len(positionMap) > 1 {
+		utils.Log.Warnf("Dual postion detected, ignore this pair:%s position", pair)
+		return
+	}
+	// 依靠循环查询多个方向的仓位
+	for _, positions := range positionMap {
+		c.openWatchdogPosition(positions[0], assetPosition, quotePosition)
+	}
+}
+
+func (c *CallerWatchdog) openWithLongShortRatio(option model.PairOption, longShortRatio float64) {
+	assetPosition, quotePosition, err := c.broker.PairAsset(option.Pair)
+	if err != nil {
+		utils.Log.Error(err)
+	}
+	c.openPosition(
+		option,
+		assetPosition,
+		quotePosition,
+		longShortRatio,
+		map[string]int{"watchdog": 1},
+		[]model.Strategy{},
+	)
+}
+
+func (s *CallerWatchdog) openWatchdogPosition(guiderPosition model.GuiderPosition, assetPosition, quotePosition float64) {
+	s.mu.Lock()         // 加锁
+	defer s.mu.Unlock() // 解锁
+	currentPrice := s.pairPrices[guiderPosition.Symbol]
 	// 当前仓位为多，最近策略为多，保持仓位
 	// 当前仓位为空，最近策略为空，保持仓位
 	if (assetPosition > 0 && model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeLong) ||
@@ -170,6 +175,7 @@ func (s *CallerWatchdog) openWatchdogPosition(guiderPosition model.GuiderPositio
 			currentPrice,
 		)
 		return
+		// 激进模式 点位比guider差距不大时也跟进去
 		//profitRatio := calc.ProfitRatio(finalSide, guiderPosition.EntryPrice, currentPrice, float64(config.Leverage), amount)
 		//if profitRatio > 0.12/100*float64(config.Leverage) {
 		//	utils.Log.Infof(

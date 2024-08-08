@@ -20,5 +20,5 @@ func (c *CallerInterval) Start() {
 			}
 		}
 	}()
-	c.Listen()
+	go c.Listen()
 }

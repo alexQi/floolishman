@@ -19,16 +19,16 @@ func TestEma8(t *testing.T) {
 }
 
 func Bac(balance, leverage, currentPrice float64, scoreRadio float64) float64 {
-	fullSapceRatio := 0.1
+	fullSpaceRatio := 0.1
 	var amount float64
 	fullPositionSize := (balance * leverage) / currentPrice
 	if scoreRadio >= 0.5 {
-		amount = fullPositionSize * fullSapceRatio
+		amount = fullPositionSize * fullSpaceRatio
 	} else {
 		if scoreRadio < 0.2 {
-			amount = fullPositionSize * fullSapceRatio * 0.4
+			amount = fullPositionSize * fullSpaceRatio * 0.4
 		} else {
-			amount = fullPositionSize * fullSapceRatio * scoreRadio * 2
+			amount = fullPositionSize * fullSpaceRatio * scoreRadio * 2
 		}
 	}
 	return amount
@@ -78,7 +78,7 @@ func CalculateAngle(sequence []float64) float64 {
 }
 
 func TestA(t *testing.T) {
-	a := 4.749
+	a := 0.51
 	stepSize := 0.001
 	val := calc.FormatAmountToSize(a, stepSize)
 	value := common.AmountToLotSize(stepSize, 8, a)

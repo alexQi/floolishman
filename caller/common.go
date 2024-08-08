@@ -20,7 +20,7 @@ type CallerCommon struct {
 }
 
 //"lossTimeDuration": 40,
-//"fullSapceRatio": 0.15,
+//"fullSpaceRatio": 0.15,
 //"baseLossRatio": 0.0047,
 //"profitableScale": 0.08,
 //"initProfitRatioLimit": 0.12

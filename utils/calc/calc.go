@@ -130,16 +130,16 @@ func StopPositionSizeRatio(balance, leverage, price, positionQuantity float64) f
 	return positionQuantity / originPositionSize
 }
 
-func OpenPositionSize(balance, leverage, currentPrice float64, scoreRadio float64, fullSapceRatio float64) float64 {
+func OpenPositionSize(balance, leverage, currentPrice float64, scoreRadio float64, fullSpaceRatio float64) float64 {
 	var amount float64
 	fullPositionSize := PositionSize(balance, leverage, currentPrice)
 	if scoreRadio >= 0.5 {
-		amount = fullPositionSize * fullSapceRatio
+		amount = fullPositionSize * fullSpaceRatio
 	} else {
 		if scoreRadio < 0.2 {
-			amount = fullPositionSize * fullSapceRatio * 0.4
+			amount = fullPositionSize * fullSpaceRatio * 0.4
 		} else {
-			amount = fullPositionSize * fullSapceRatio * scoreRadio * 2
+			amount = fullPositionSize * fullSpaceRatio * scoreRadio * 2
 		}
 	}
 	return amount
@@ -160,18 +160,29 @@ func ProfitRatio(side model.SideType, entryPrice float64, currentPrice float64, 
 	return profit / margin
 }
 
-func CalculateDualProfitRatio(mainSide model.SideType, mainQuantity, mainPrice, subQuantity, subPrice, leverage float64) float64 {
+func CalculateDualProfitRatio(mainSide model.SideType, mainQuantity, mainPrice, subQuantity, subPrice, currentPrice, leverage float64) float64 {
 	// 计算保证金
 	margin := (mainQuantity*mainPrice - subQuantity*subPrice) / leverage
 	// 根据当前价格计算利润
 	var profit float64
 	if mainSide == model.SideTypeSell {
-		profit = (mainPrice - subPrice) * (mainQuantity - subQuantity)
+		profit = (mainPrice-currentPrice)*mainQuantity + (currentPrice-subPrice)*subQuantity
 	} else {
-		profit = (subPrice - mainPrice) * (mainQuantity - subQuantity)
+		profit = (currentPrice-mainPrice)*mainQuantity + (subPrice-currentPrice)*subQuantity
 	}
 	// 计算利润比
 	return profit / margin
+}
+
+// 根据亏损比例计算加仓数量
+func CalculateAddQuantity(mainSide model.SideType, mainQuantity, mainPrice, subQuantity, subPrice, currentPrice, leverage, limitProfitRatio float64) float64 {
+	var addAmount float64
+	if mainSide == model.SideTypeSell {
+		addAmount = (leverage*(currentPrice*subQuantity-subPrice*subQuantity+(mainPrice-currentPrice)*mainQuantity)/(0-limitProfitRatio) + mainPrice*mainQuantity - subPrice*subQuantity) / currentPrice
+	} else {
+		addAmount = (leverage*(subPrice*subQuantity-currentPrice*subQuantity+(currentPrice-mainPrice)*mainQuantity)/(0-limitProfitRatio) + mainPrice*mainQuantity - subPrice*subQuantity) / currentPrice
+	}
+	return addAmount
 }
 
 func StopLossDistance(profitRatio float64, entryPrice float64, leverage float64, quantity float64) float64 {

@@ -15,3 +15,55 @@ go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 4h --futures --outpu
 
 go run cmd/tools/cmd.go download --pair BTCUSDT --timeframe 1h --futures --days 7 --output ./testdata/btc-1h.csv
 go run cmd/tools/cmd.go download --pair BTCUSDT --timeframe 15m --futures --days 7 --output ./testdata/btc-15m.csv
+
+空单方向
+
+// 主副换位
+newMargin = ((subPrice*subQuantity+currentPrice*n)/(subQuantity+n)*(subQuantity+n) - mainPrice*mainQuantity)/leverage
+
+// （当前价格减去新的反向方向（多单价格）* 新的多单方向总数）- 原始方向（空）价格减去现价*原始空方向数量
+newProfitValue = (currentPrice - (subPrice*subQuantity+currentPrice*n)/(subQuantity+n))*(subQuantity+n) + (mainPrice-currentPrice)*mainQuantity
+
+limitProfitRatio = newProfitValue/newMargin
+
+
+limitProfitRatio*((subPrice*subQuantity+currentPrice*n)/(subQuantity+n)*(subQuantity+n) - mainPrice*mainQuantity)
+--- limitProfitRatio*(subPrice*subQuantity+currentPrice*n - mainPrice*mainQuantity)
+--- subPrice*subQuantity+currentPrice*n - mainPrice*mainQuantity
+--- subPrice*subQuantity+currentPrice*n
+--- currentPrice*n
+--- n
+=
+leverage*((currentPrice - (subPrice*subQuantity+currentPrice*n)/(subQuantity+n))*(subQuantity+n) + (mainPrice-currentPrice)*mainQuantity)
+--- leverage*(currentPrice*(subQuantity+n) - (subPrice*subQuantity+currentPrice*n) + (mainPrice-currentPrice)*mainQuantity)
+--- leverage*(currentPrice*subQuantity + currentPrice*n - subPrice*subQuantity-currentPrice*n + (mainPrice-currentPrice)*mainQuantity)
+--- leverage*(currentPrice*subQuantity - subPrice*subQuantity + (mainPrice-currentPrice)*mainQuantity)
+--- leverage*(currentPrice*subQuantity - subPrice*subQuantity + (mainPrice-currentPrice)*mainQuantity)/limitProfitRatio
+--- leverage*(currentPrice*subQuantity - subPrice*subQuantity + (mainPrice-currentPrice)*mainQuantity)/limitProfitRatio+mainPrice*mainQuantity
+--- leverage*(currentPrice*subQuantity - subPrice*subQuantity - (mainPrice-currentPrice)*mainQuantity)/limitProfitRatio+mainPrice*mainQuantity - subPrice*subQuantity
+--- (leverage*(currentPrice*subQuantity - subPrice*subQuantity - (mainPrice-currentPrice)*mainQuantity)/limitProfitRatio+mainPrice*mainQuantity - subPrice*subQuantity)/currentPrice
+
+
+
+
+多单方向
+
+// 主副换位
+newMargin = ((subPrice*subQuantity+currentPrice*n)/(subQuantity+n)*(subQuantity+n) - mainPrice*mainQuantity)/leverage
+
+// （新的反向方向（空单价格）减去当前价格* 新的空单方向总数）- 现价减去原始方向（多）价格*原始空方向数量
+newProfitValue = ((subPrice*subQuantity+currentPrice*n)/(subQuantity+n) - currentPrice)*(subQuantity+n) + (currentPrice-mainPrice)*mainQuantity
+
+limitProfitRatio = newProfitValue/newMargin
+
+limitProfitRatio*((subPrice*subQuantity+currentPrice*n)/(subQuantity+n)*(subQuantity+n) - mainPrice*mainQuantity)
+--- limitProfitRatio*(subPrice*subQuantity+currentPrice*n - mainPrice*mainQuantity)
+--- subPrice*subQuantity+currentPrice*n - mainPrice*mainQuantity
+--- subPrice*subQuantity+currentPrice*n
+--- currentPrice*n
+
+=
+leverage*(((subPrice*subQuantity+currentPrice*n)/(subQuantity+n) - currentPrice)*(subQuantity+n) + (currentPrice-mainPrice)*mainQuantity)
+--- leverage*(subPrice*subQuantity - currentPrice*subQuantity + (currentPrice-mainPrice)*mainQuantity)
+--- leverage*(subPrice*subQuantity - currentPrice*subQuantity + (currentPrice-mainPrice)*mainQuantity)/limitProfitRatio+mainPrice*mainQuantity
+--- (leverage*(subPrice*subQuantity - currentPrice*subQuantity + (currentPrice-mainPrice)*mainQuantity)/limitProfitRatio+mainPrice*mainQuantity-subPrice*subQuantity)/currentPrice

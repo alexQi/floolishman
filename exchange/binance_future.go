@@ -697,7 +697,7 @@ func (b *BinanceFuture) Account() (model.Account, error) {
 	}
 
 	for _, asset := range acc.Assets {
-		free, err := strconv.ParseFloat(asset.WalletBalance, 64)
+		free, err := strconv.ParseFloat(asset.AvailableBalance, 64)
 		if err != nil {
 			return model.Account{}, err
 		}

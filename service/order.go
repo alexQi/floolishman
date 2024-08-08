@@ -568,6 +568,7 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 		p.AvgPrice = (p.AvgPrice*p.Quantity + price*order.Quantity) / (p.Quantity + order.Quantity)
 		p.Quantity = calc.AccurateAdd(p.Quantity, order.Quantity)
 		p.TotalQuantity = calc.AccurateAdd(p.TotalQuantity, order.Quantity)
+		p.MoreCount += 1
 	} else {
 		if p.PositionSide == string(model.PositionSideTypeLong) {
 			// 平多单
@@ -662,6 +663,8 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 				AvgPrice:             o.Price,
 				Quantity:             o.Quantity,
 				TotalQuantity:        o.Quantity,
+				UnitQuantity:         o.Quantity,
+				MoreCount:            1,
 				Leverage:             o.Leverage,
 				LongShortRatio:       o.LongShortRatio,
 				GuiderPositionRate:   o.GuiderPositionRate,

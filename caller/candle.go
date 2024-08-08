@@ -5,5 +5,5 @@ type CallerCandle struct {
 }
 
 func (c *CallerCandle) Start() {
-	c.Listen()
+	go c.Listen()
 }
