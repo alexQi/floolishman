@@ -13,5 +13,5 @@ type PairOption struct {
 }
 
 func (o PairOption) String() string {
-	return fmt.Sprintf("Loading Pair: %s, Leverage: %d, MarginType: %s", o.Pair, o.Leverage, o.MarginType)
+	return fmt.Sprintf("[STRATEGY] Loading Pair: %s, Leverage: %d, MarginType: %s", o.Pair, o.Leverage, o.MarginType)
 }

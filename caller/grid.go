@@ -64,7 +64,7 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 		return
 	}
 	if c.positionGridMap[option.Pair].GridItems[openIndex].PositionSide == "" {
-		utils.Log.Errorf("Price out of grid, waiting....")
+		utils.Log.Errorf("[POSITION] Price out of grid, switch mode to OUT ....")
 		c.GridMode = constants.GridModeOut
 		return
 	}
@@ -116,7 +116,7 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 	}
 	// 无资产
 	if quotePosition <= 0 {
-		utils.Log.Errorf("Balance is not enough to create order")
+		utils.Log.Errorf("[EXCHANGE] Balance is not enough to create order")
 		return
 	}
 	orderExtra := model.OrderExtra{
@@ -352,24 +352,21 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 			return
 		}
 		lossRatio := c.setting.BaseLossRatio * float64(option.Leverage)
+		// 超出网格后判断当前亏损是否超过比例，超过后改为对冲模式
 		if c.GridMode == constants.GridModeOut {
+			utils.Log.Infof(
+				"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < LossStepRatio: %s (OUT GRID)",
+				mainPosition.Pair,
+				mainPosition.OrderFlag,
+				mainPosition.Quantity,
+				mainPosition.AvgPrice,
+				mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				currentPrice,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
+				fmt.Sprintf("%.2f%%", StepMoreRatio*100),
+			)
 			// 超出网格后判断是否要加对冲仓
 			if calc.Abs(profitRatio) < StepMoreRatio {
-				utils.Log.Infof(
-					"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < LossStepRatio: %s",
-					mainPosition.Pair,
-					mainPosition.OrderFlag,
-					mainPosition.Quantity,
-					mainPosition.AvgPrice,
-					mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-					subPosition.OrderFlag,
-					subPosition.Quantity,
-					subPosition.AvgPrice,
-					subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-					currentPrice,
-					fmt.Sprintf("%.2f%%", profitRatio*100),
-					fmt.Sprintf("%.2f%%", StepMoreRatio*100),
-				)
 				return
 			}
 			c.GridMode = constants.GridModeHedge

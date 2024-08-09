@@ -137,10 +137,6 @@ func (c *CallerBase) UpdatePairInfo(pair string, price float64, updatedAt time.T
 	c.lastUpdate[pair] = updatedAt
 }
 
-func (c *CallerBase) BuildGird(_ string, _ string, _ bool) {
-
-}
-
 func (c *CallerBase) tickCheckOrderTimeout() {
 	for {
 		select {
@@ -285,7 +281,7 @@ func (c *CallerBase) finishAllPosition(mainPosition *model.Position, subPosition
 	}
 }
 
-func (c *CallerGrid) BuildGird(pair string, timeframe string, isForce bool) {
+func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	if isForce == false {
 		if _, ok := c.positionGridMap[pair]; ok {
 			return
@@ -298,7 +294,7 @@ func (c *CallerGrid) BuildGird(pair string, timeframe string, isForce bool) {
 		return
 	}
 	if len(openedPositions) > 0 {
-		utils.Log.Infof("[Init Grid] Position has exsit, wating...")
+		utils.Log.Infof("[GRID] Build - Position has exsit, wating...")
 		return
 	}
 
@@ -319,25 +315,25 @@ func (c *CallerGrid) BuildGird(pair string, timeframe string, isForce bool) {
 	volume := dataframe.Metadata["volume"].Last(0)
 	// 上一根蜡烛线已经破线，不在初始化网格
 	if c.pairPrices[pair] > bbUpper || c.pairPrices[pair] < bbLower {
-		utils.Log.Infof("[Init Grid] Bolling has cross limit, wating...")
+		utils.Log.Infof("[Grid] Build - Bolling has cross limit, wating...")
 		delete(c.positionGridMap, pair)
 		return
 	}
 	if (volume / avgVolume) > 1.6 {
-		utils.Log.Infof("[Init Grid] Volume bigger than avgVolume, wating...")
+		utils.Log.Infof("[GRID] Build - Volume bigger than avgVolume, wating...")
 		delete(c.positionGridMap, pair)
 		return
 	}
 	// 计算网格数量
 	numGrids := bbWidth / c.pairOptions[pair].GridStep
 	if numGrids <= 0 {
-		utils.Log.Infof("[Init Grid] Grid spacing too large for the given price width, wating...")
+		utils.Log.Infof("[GRID] Build - Grid spacing too large for the given price width, wating...")
 		return
 	}
 
 	if _, ok := c.positionGridMap[pair]; ok {
 		if c.positionGridMap[pair].BasePrice == midPrice {
-			utils.Log.Infof("[Init Grid] Grid has no change, wating...")
+			utils.Log.Infof("[GRID] Build - Grid has no change, wating...")
 			return
 		}
 	}
@@ -353,12 +349,13 @@ func (c *CallerGrid) BuildGird(pair string, timeframe string, isForce bool) {
 	}
 
 	var longPrice, shortPrice float64
+	halfGridStep := c.pairOptions[pair].GridStep / 2
 	// 计算网格上下限
 	for i := 1; i <= int(numGrids/2); i++ {
 		if i == 1 {
 			continue
 		}
-		longPrice = midPrice + float64(i)*c.pairOptions[pair].GridStep
+		longPrice = midPrice + float64(i)*c.pairOptions[pair].GridStep + halfGridStep
 		if longPrice > grid.BoundaryUpper {
 			break
 		}
@@ -374,7 +371,7 @@ func (c *CallerGrid) BuildGird(pair string, timeframe string, isForce bool) {
 			continue
 		}
 		// 下方网格
-		shortPrice = midPrice - float64(i)*c.pairOptions[pair].GridStep
+		shortPrice = midPrice - float64(i)*c.pairOptions[pair].GridStep - halfGridStep
 		if shortPrice < grid.BoundaryLower {
 			break
 		}
@@ -386,7 +383,7 @@ func (c *CallerGrid) BuildGird(pair string, timeframe string, isForce bool) {
 		})
 	}
 	utils.Log.Infof(
-		"Grid Build: BasePrice: %v | Upper: %v | Lower: %v | Count: %v | CreatedAt: %s",
+		"[GRID] Build - BasePrice: %v | Upper: %v | Lower: %v | Count: %v | CreatedAt: %s",
 		grid.BasePrice,
 		grid.BoundaryUpper,
 		grid.BoundaryLower,
@@ -398,7 +395,7 @@ func (c *CallerGrid) BuildGird(pair string, timeframe string, isForce bool) {
 	c.positionGridMap[pair] = &grid
 }
 
-func (c *CallerGrid) ResetGrid(pair string) {
+func (c *CallerBase) ResetGrid(pair string) {
 	if _, ok := c.positionGridMap[pair]; !ok {
 		return
 	}
@@ -411,7 +408,7 @@ func (c *CallerGrid) ResetGrid(pair string) {
 	}
 }
 
-func (c *CallerGrid) getOpenGrid(pair string, currentPrice float64) (int, error) {
+func (c *CallerBase) getOpenGrid(pair string, currentPrice float64) (int, error) {
 	openGridIndex := -1
 	if currentPrice == c.positionGridMap[pair].BasePrice {
 		return openGridIndex, errors.New("Pair price at base line")

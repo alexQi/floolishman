@@ -3,7 +3,6 @@ package indicator
 import (
 	"floolishman/utils/calc"
 	"fmt"
-	"github.com/adshao/go-binance/v2/common"
 	"math"
 	"strconv"
 	"testing"
@@ -78,12 +77,12 @@ func CalculateAngle(sequence []float64) float64 {
 }
 
 func TestA(t *testing.T) {
-	a := 0.51
+	a := 0.033
 	stepSize := 0.001
-	val := calc.FormatAmountToSize(a, stepSize)
-	value := common.AmountToLotSize(stepSize, 8, a)
+	//
+	//a := 0.53
+	//stepSize := 0.001
 
-	fmt.Print(strconv.FormatFloat(value, 'f', -1, 64))
-	fmt.Printf("\n")
+	val := calc.FormatAmountToSize(a, stepSize)
 	fmt.Print(strconv.FormatFloat(val, 'f', -1, 64))
 }

@@ -39,7 +39,7 @@ type CompositesStrategy struct {
 
 func (cs *CompositesStrategy) Stdout() {
 	for _, strategy := range cs.Strategies {
-		utils.Log.Infof("Loaded Strategy: %s, Timeframe: %s", reflect.TypeOf(strategy).Elem().Name(), strategy.Timeframe())
+		utils.Log.Infof("[STRATEGY] Loaded Strategy: %s, Timeframe: %s", reflect.TypeOf(strategy).Elem().Name(), strategy.Timeframe())
 	}
 }
 

@@ -265,7 +265,7 @@ func (c *ServiceOrder) Start() {
 				}
 			}
 		}()
-		utils.Log.Info("Bot started.")
+		utils.Log.Info("[FLOOLISHMAN] Bot started.")
 	}
 }
 

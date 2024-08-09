@@ -2,6 +2,7 @@ package calc
 
 import (
 	"floolishman/model"
+	"fmt"
 	"math"
 	"math/big"
 	"strconv"
@@ -36,8 +37,19 @@ func FormatAmountToSize(amount, unit float64) float64 {
 	// 计算精度（小数位数）
 	precision := int(math.Round(-math.Log10(unit)))
 
+	// 使用 big.Float 进行精确除法
+	amountFormat := new(big.Float).SetFloat64(amount)
+	unitFormat := new(big.Float).SetFloat64(unit)
+
+	formattedAmountStr := new(big.Float).Quo(amountFormat, unitFormat).String()
+	// 将字符串转换为 float64
+	amountFloat, err := strconv.ParseFloat(formattedAmountStr, 64)
+	if err != nil {
+		fmt.Println("转换错误:", err)
+		return 0
+	}
 	// 格式化金额
-	formattedAmount := math.Trunc(amount/unit) * unit
+	formattedAmount := math.Trunc(amountFloat) * unit
 
 	// 返回格式化后的金额，保留指定的精度
 	return math.Round(formattedAmount*math.Pow10(precision)) / math.Pow10(precision)
