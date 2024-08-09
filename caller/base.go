@@ -349,13 +349,9 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	}
 
 	var longPrice, shortPrice float64
-	halfGridStep := c.pairOptions[pair].GridStep / 2
 	// 计算网格上下限
 	for i := 1; i <= int(numGrids/2); i++ {
-		if i == 1 {
-			continue
-		}
-		longPrice = midPrice + float64(i)*c.pairOptions[pair].GridStep + halfGridStep
+		longPrice = midPrice + float64(i)*c.pairOptions[pair].GridStep + c.setting.WindowPeriod
 		if longPrice > grid.BoundaryUpper {
 			break
 		}
@@ -367,11 +363,8 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 		})
 	}
 	for i := 1; i <= int(numGrids/2); i++ {
-		if i == 1 {
-			continue
-		}
 		// 下方网格
-		shortPrice = midPrice - float64(i)*c.pairOptions[pair].GridStep - halfGridStep
+		shortPrice = midPrice - float64(i)*c.pairOptions[pair].GridStep - c.setting.WindowPeriod
 		if shortPrice < grid.BoundaryLower {
 			break
 		}

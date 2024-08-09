@@ -5,7 +5,6 @@ import (
 	"floolishman/bot"
 	"floolishman/exchange"
 	"floolishman/model"
-	"floolishman/service"
 	"floolishman/storage"
 	"floolishman/strategies"
 	"floolishman/types"
@@ -32,29 +31,34 @@ var ConstStraties = map[string]types.Strategy{
 	"Vibrate15m":        &strategies.Vibrate15m{},
 	"Kc15m":             &strategies.Kc15m{},
 	"Macd4h":            &strategies.Macd4h{},
+	"Grid1h":            &strategies.Grid1h{},
 }
 
 func main() {
 	// 获取基础配置
 	var (
-		ctx            = context.Background()
-		telegramToken  = viper.GetString("telegram.token")
-		telegramUser   = viper.GetInt("telegram.user")
-		tradingSetting = service.StrategySetting{
-			CheckMode:            viper.GetString("trading.checkMode"),
-			FullSpaceRatio:       viper.GetFloat64("trading.fullSpaceRatio"),
-			StopSpaceRatio:       viper.GetFloat64("trading.stopSpaceRatio"),
-			BaseLossRatio:        viper.GetFloat64("trading.baseLossRatio"),
-			LossTimeDuration:     viper.GetInt("trading.lossTimeDuration"),
-			ProfitableScale:      viper.GetFloat64("trading.profitableScale"),
-			InitProfitRatioLimit: viper.GetFloat64("trading.initProfitRatioLimit"),
+		ctx           = context.Background()
+		telegramToken = viper.GetString("telegram.token")
+		telegramUser  = viper.GetInt("telegram.user")
+		callerSetting = types.CallerSetting{
+			CheckMode:            viper.GetString("caller.checkMode"),
+			LossTimeDuration:     viper.GetInt("caller.lossTimeDuration"),
+			MaxAddPostion:        viper.GetInt64("caller.maxAddPostion"),          // 最大加仓次数
+			MaxPositionHedge:     viper.GetBool("caller.maxPositionHedge"),        // 最大仓位后是否开启对冲
+			MaxPositionLossRatio: viper.GetFloat64("caller.maxPositionLossRatio"), // 加仓后最大亏损比例
+			WindowPeriod:         viper.GetFloat64("caller.windowPeriod"),         // 空窗期点数
+			FullSpaceRatio:       viper.GetFloat64("caller.fullSpaceRatio"),
+			StopSpaceRatio:       viper.GetFloat64("caller.stopSpaceRatio"),
+			BaseLossRatio:        viper.GetFloat64("caller.baseLossRatio"),
+			ProfitableScale:      viper.GetFloat64("caller.profitableScale"),
+			InitProfitRatioLimit: viper.GetFloat64("caller.initProfitRatioLimit"),
 		}
 		pairsSetting      = viper.GetStringMap("pairs")
 		strategiesSetting = viper.GetStringSlice("strategies")
 	)
 
 	utils.Log.SetLevel(6)
-	tradingSetting.CheckMode = "candle"
+	callerSetting.CheckMode = "candle"
 
 	settings := model.Settings{
 		GuiderGrpcHost: viper.GetString("watchdog.host"),
@@ -65,6 +69,7 @@ func main() {
 			Users:   []int{telegramUser},
 		},
 	}
+	callerSetting.GuiderHost = settings.GuiderGrpcHost
 	for pair, val := range pairsSetting {
 		valMap := val.(map[string]interface{})
 
@@ -149,7 +154,7 @@ func main() {
 		ctx,
 		settings,
 		wallet,
-		tradingSetting,
+		callerSetting,
 		compositesStrategy,
 		bot.WithBacktest(wallet),
 		bot.WithStorage(st),

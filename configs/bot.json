@@ -13,10 +13,14 @@
     "strategies": [
         "Grid1h"
     ],
-    "trading": {
+    "caller": {
         "checkMode": "grid",
         "followSymbol": false,
         "lossTimeDuration": 40,
+        "maxAddPostion": 3,
+        "maxPositionHedge": true,
+        "maxPositionLossRatio": 0.18,
+        "windowPeriod": 10,
         "fullSpaceRatio": 0.04,
         "stopSpaceRatio": 0.40,
         "baseLossRatio": 0.0035,

@@ -11,17 +11,6 @@ import (
 	"sync"
 )
 
-type StrategySetting struct {
-	CheckMode            string
-	FollowSymbol         bool
-	LossTimeDuration     int
-	FullSpaceRatio       float64
-	StopSpaceRatio       float64
-	BaseLossRatio        float64
-	ProfitableScale      float64
-	InitProfitRatioLimit float64
-}
-
 type ServiceStrategy struct {
 	ctx         context.Context
 	strategy    types.CompositesStrategy
@@ -34,13 +23,13 @@ type ServiceStrategy struct {
 	mu          sync.Mutex
 }
 
-func NewServiceStrategy(ctx context.Context, strategySetting StrategySetting, strategy types.CompositesStrategy, caller reference.Caller, backtest bool) *ServiceStrategy {
+func NewServiceStrategy(ctx context.Context, checkMode string, strategy types.CompositesStrategy, caller reference.Caller, backtest bool) *ServiceStrategy {
 	return &ServiceStrategy{
 		ctx:         ctx,
 		dataframes:  make(map[string]map[string]*model.Dataframe),
 		realCandles: make(map[string]map[string]*model.Candle),
 		strategy:    strategy,
-		checkMode:   strategySetting.CheckMode,
+		checkMode:   checkMode,
 		backtest:    backtest,
 		caller:      caller,
 	}

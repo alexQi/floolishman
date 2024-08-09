@@ -5,7 +5,6 @@ import (
 	"floolishman/bot"
 	"floolishman/exchange"
 	"floolishman/model"
-	"floolishman/service"
 	"floolishman/storage"
 	"floolishman/strategies"
 	"floolishman/types"
@@ -35,25 +34,28 @@ var ConstStraties = map[string]types.Strategy{
 func main() {
 	// 获取基础配置
 	var (
-		ctx            = context.Background()
-		mode           = viper.GetString("mode")
-		apiKeyType     = viper.GetString("api.encrypt")
-		apiKey         = viper.GetString("api.key")
-		secretKey      = viper.GetString("api.secret")
-		secretPem      = viper.GetString("api.pem")
-		telegramToken  = viper.GetString("telegram.token")
-		telegramUser   = viper.GetInt("telegram.user")
-		proxyStatus    = viper.GetBool("proxy.status")
-		proxyUrl       = viper.GetString("proxy.url")
-		tradingSetting = service.StrategySetting{
-			CheckMode:            viper.GetString("trading.checkMode"),
-			FollowSymbol:         viper.GetBool("trading.followSymbol"),
-			FullSpaceRatio:       viper.GetFloat64("trading.fullSpaceRatio"),
-			StopSpaceRatio:       viper.GetFloat64("trading.stopSpaceRatio"),
-			LossTimeDuration:     viper.GetInt("trading.lossTimeDuration"),
-			BaseLossRatio:        viper.GetFloat64("trading.baseLossRatio"),
-			ProfitableScale:      viper.GetFloat64("trading.profitableScale"),
-			InitProfitRatioLimit: viper.GetFloat64("trading.initProfitRatioLimit"),
+		ctx           = context.Background()
+		mode          = viper.GetString("mode")
+		apiKeyType    = viper.GetString("api.encrypt")
+		apiKey        = viper.GetString("api.key")
+		secretKey     = viper.GetString("api.secret")
+		secretPem     = viper.GetString("api.pem")
+		telegramToken = viper.GetString("telegram.token")
+		telegramUser  = viper.GetInt("telegram.user")
+		proxyStatus   = viper.GetBool("proxy.status")
+		proxyUrl      = viper.GetString("proxy.url")
+		callerSetting = types.CallerSetting{
+			CheckMode:            viper.GetString("caller.checkMode"),
+			LossTimeDuration:     viper.GetInt("caller.lossTimeDuration"),
+			MaxAddPostion:        viper.GetInt64("caller.maxAddPostion"),          // 最大加仓次数
+			MaxPositionHedge:     viper.GetBool("caller.maxPositionHedge"),        // 最大仓位后是否开启对冲
+			MaxPositionLossRatio: viper.GetFloat64("caller.maxPositionLossRatio"), // 加仓后最大亏损比例
+			WindowPeriod:         viper.GetFloat64("caller.windowPeriod"),         // 空窗期点数
+			FullSpaceRatio:       viper.GetFloat64("caller.fullSpaceRatio"),
+			StopSpaceRatio:       viper.GetFloat64("caller.stopSpaceRatio"),
+			BaseLossRatio:        viper.GetFloat64("caller.baseLossRatio"),
+			ProfitableScale:      viper.GetFloat64("caller.profitableScale"),
+			InitProfitRatioLimit: viper.GetFloat64("caller.initProfitRatioLimit"),
 		}
 		pairsSetting      = viper.GetStringMap("pairs")
 		strategiesSetting = viper.GetStringSlice("strategies")
@@ -68,6 +70,8 @@ func main() {
 			Users:   []int{telegramUser},
 		},
 	}
+	callerSetting.GuiderHost = settings.GuiderGrpcHost
+
 	for pair, val := range pairsSetting {
 		valMap := val.(map[string]interface{})
 
@@ -151,7 +155,7 @@ func main() {
 		ctx,
 		settings,
 		binance,
-		tradingSetting,
+		callerSetting,
 		compositesStrategy,
 		bot.WithStorage(st),
 		bot.WithProxy(types.ProxyOption{

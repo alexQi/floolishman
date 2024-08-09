@@ -35,7 +35,7 @@ type Bot struct {
 	storage              storage.Storage
 	settings             model.Settings
 	proxyOption          types.ProxyOption
-	strategySetting      service.StrategySetting
+	callerSetting        types.CallerSetting
 	caller               reference.Caller
 	exchange             reference.Exchange
 	notifier             reference.Notifier
@@ -52,7 +52,7 @@ type Bot struct {
 
 type Option func(*Bot)
 
-func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, strategySetting service.StrategySetting, strategy types.CompositesStrategy,
+func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, callerSetting types.CallerSetting, strategy types.CompositesStrategy,
 	options ...Option) (*Bot, error) {
 	// 初始化bot参数
 	bot := &Bot{
@@ -61,7 +61,7 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 		strategy:             strategy,
 		orderFeed:            model.NewOrderFeed(),
 		dataFeed:             exchange.NewDataFeed(exch),
-		strategySetting:      strategySetting,
+		callerSetting:        callerSetting,
 		priorityQueueCandles: map[string]map[string]*model.PriorityQueue{},
 	}
 	// 加载用户配置
@@ -71,25 +71,9 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 	// 加载订单服务
 	bot.serviceOrder = service.NewServiceOrder(ctx, exch, bot.storage, bot.orderFeed)
 	// 加载caller
-	bot.caller = caller.NewCaller(
-		ctx, strategy,
-		bot.serviceOrder,
-		bot.exchange,
-		types.CallerSetting{
-			GuiderHost:           settings.GuiderGrpcHost,
-			CheckMode:            strategySetting.CheckMode,
-			FollowSymbol:         strategySetting.FollowSymbol,
-			Backtest:             bot.backtest,
-			LossTimeDuration:     strategySetting.LossTimeDuration,
-			FullSpaceRatio:       strategySetting.FullSpaceRatio,
-			StopSpaceRatio:       strategySetting.StopSpaceRatio,
-			BaseLossRatio:        strategySetting.BaseLossRatio,
-			ProfitableScale:      strategySetting.ProfitableScale,
-			InitProfitRatioLimit: strategySetting.InitProfitRatioLimit,
-		},
-	)
+	bot.caller = caller.NewCaller(ctx, strategy, bot.serviceOrder, bot.exchange, callerSetting)
 	// 加载策略服务
-	bot.serviceStrategy = service.NewServiceStrategy(ctx, strategySetting, strategy, bot.caller, bot.backtest)
+	bot.serviceStrategy = service.NewServiceStrategy(ctx, callerSetting.CheckMode, strategy, bot.caller, bot.backtest)
 	// 加载通知服务
 	if settings.Telegram.Enabled {
 		var err error
@@ -349,7 +333,7 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 	var err error
 	for _, option := range n.settings.PairOptions {
 		utils.Log.Info(option.String())
-		if n.strategySetting.FollowSymbol == false {
+		if n.callerSetting.FollowSymbol == false {
 			err = n.exchange.SetPairOption(ctx, option)
 			if err != nil {
 				utils.Log.Panic(err)
@@ -368,7 +352,7 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 			// link to ninja bot controller
 			n.priorityQueueCandles[option.Pair][timeframe] = model.NewPriorityQueue(nil)
 			// preload candles for warmup perio 排除跟随模式和双向持仓模式
-			if n.strategySetting.FollowSymbol == false && n.strategySetting.CheckMode != "dual" {
+			if n.callerSetting.FollowSymbol == false && n.callerSetting.CheckMode != "dual" {
 				err = n.preload(ctx, option.Pair, timeframe, period)
 				if err != nil {
 					utils.Log.Error(err)
@@ -384,7 +368,7 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 // Run will initialize the strategy controller, order controller, preload data and start the bot
 func (n *Bot) Run(ctx context.Context) {
 	// 输出策略详情
-	if n.strategySetting.FollowSymbol == false || n.strategySetting.CheckMode != "dual" {
+	if n.callerSetting.FollowSymbol == false || n.callerSetting.CheckMode != "dual" {
 		n.strategy.Stdout()
 	}
 	n.orderFeed.Start()

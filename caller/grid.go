@@ -9,11 +9,6 @@ import (
 	"time"
 )
 
-var (
-	MoreCountLimit     int64 = 3
-	MoreLimitLossRatio       = 0.18
-)
-
 type CallerGrid struct {
 	CallerCommon
 	GridMode constants.GridMode
@@ -152,7 +147,7 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 		// 判断加仓次数已达上线，不在加仓
 		gridItems := c.positionGridMap[option.Pair].GridItems
 		// 判断仓位加仓次数是否达到上线
-		if sampleSidePosition.MoreCount >= MoreCountLimit {
+		if sampleSidePosition.MoreCount >= c.setting.MaxAddPostion {
 			if c.positionGridIndex[option.Pair] >= 0 &&
 				// 多单
 				((openPositionGrid.PositionSide == model.PositionSideTypeLong &&
@@ -352,6 +347,26 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 			return
 		}
 		lossRatio := c.setting.BaseLossRatio * float64(option.Leverage)
+		if c.setting.MaxPositionHedge == false {
+			utils.Log.Infof(
+				"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > MaxLoseRatio %s",
+				mainPosition.Pair,
+				mainPosition.OrderFlag,
+				mainPosition.Quantity,
+				mainPosition.AvgPrice,
+				mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				currentPrice,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
+				fmt.Sprintf("%.2f%%", lossRatio*100),
+			)
+			c.finishAllPosition(mainPosition, subPosition)
+			delete(c.positionGridMap, option.Pair)
+			// 重置当前交易对止损比例
+			c.profitRatioLimit[option.Pair] = 0
+			c.positionGridIndex[option.Pair] = -1
+			return
+		}
+
 		// 超出网格后判断当前亏损是否超过比例，超过后改为对冲模式
 		if c.GridMode == constants.GridModeOut {
 			utils.Log.Infof(
@@ -441,7 +456,7 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 			subPosition.AvgPrice,
 			currentPrice,
 			float64(option.Leverage),
-			MoreLimitLossRatio,
+			c.setting.MaxPositionLossRatio,
 		)
 		utils.Log.Infof(
 			"[POSITION - MORE] Pair: %s | Main OrderFlag: %s, Quantity: %v ( +%v ), Price: %v | Current: %v | PR.%%: %s",
