@@ -48,7 +48,7 @@ func main() {
 			CheckMode:            viper.GetString("caller.checkMode"),
 			LossTimeDuration:     viper.GetInt("caller.lossTimeDuration"),
 			MaxAddPostion:        viper.GetInt64("caller.maxAddPostion"),          // 最大加仓次数
-			MaxPositionHedge:     viper.GetBool("caller.maxPositionHedge"),        // 最大仓位后是否开启对冲
+			MinAddPostion:        viper.GetInt64("caller.minAddPostion"),          // 最小加仓次数
 			MaxPositionLossRatio: viper.GetFloat64("caller.maxPositionLossRatio"), // 加仓后最大亏损比例
 			WindowPeriod:         viper.GetFloat64("caller.windowPeriod"),         // 空窗期点数
 			FullSpaceRatio:       viper.GetFloat64("caller.fullSpaceRatio"),
@@ -81,9 +81,17 @@ func main() {
 			log.Fatalf("Invalid leverage format for pair %s: %v", pair, valMap["leverage"])
 		}
 		// 检查并处理 leverage
-		gridStep, ok := valMap["gridstep"].(float64)
+		maxGridStep, ok := valMap["maxgridstep"].(float64)
 		if !ok {
-			log.Fatalf("Invalid gridStep format for pair %s: %v", pair, valMap["gridStep"])
+			log.Fatalf("Invalid maxGridStep format for pair %s: %v", pair, valMap["maxGridStep"])
+		}
+		minGridStep, ok := valMap["mingridstep"].(float64)
+		if !ok {
+			log.Fatalf("Invalid minGridStep format for pair %s: %v", pair, valMap["minGridStep"])
+		}
+		undulatePriceLimit, ok := valMap["undulatepricelimit"].(float64)
+		if !ok {
+			log.Fatalf("Invalid undulatePriceLimit format for pair %s: %v", pair, valMap["undulatePriceLimit"])
 		}
 
 		marginType, ok := valMap["margintype"].(string)
@@ -95,10 +103,12 @@ func main() {
 		leverage := int(leverageFloat)
 
 		settings.PairOptions = append(settings.PairOptions, model.PairOption{
-			Pair:       strings.ToUpper(pair),
-			Leverage:   leverage,
-			GridStep:   gridStep,
-			MarginType: futures.MarginType(strings.ToUpper(marginType)), // 假设 futures.MarginType 是一个类型别名
+			Pair:               strings.ToUpper(pair),
+			Leverage:           leverage,
+			MaxGridStep:        maxGridStep,
+			MinGridStep:        minGridStep,
+			UndulatePriceLimit: undulatePriceLimit,
+			MarginType:         futures.MarginType(strings.ToUpper(marginType)), // 假设 futures.MarginType 是一个类型别名
 		})
 	}
 

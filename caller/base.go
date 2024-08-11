@@ -3,7 +3,9 @@ package caller
 import (
 	"context"
 	"errors"
+	"floolishman/constants"
 	"floolishman/grpc/service"
+	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/reference"
 	"floolishman/types"
@@ -24,16 +26,21 @@ var (
 )
 
 var (
+	PriceChangeRingCount = 20
+	AmplitudeStopRatio   = 0.5
+	AmplitudeMinRatio    = 1.0
+	AmplitudeMaxRatio    = 3.0
 	StepMoreRatio        = 0.08
 	ProfitMoreHedgeRatio = 0.04
 )
 
 var (
-	CancelLimitDuration   time.Duration = 60
-	CheckCloseInterval    time.Duration = 500
-	CheckLeverageInterval time.Duration = 1000
-	CheckTimeoutInterval  time.Duration = 500
-	CheckStrategyInterval time.Duration = 2
+	CancelLimitDuration        time.Duration = 60
+	CheckCloseInterval         time.Duration = 500
+	CheckLeverageInterval      time.Duration = 1000
+	CheckTimeoutInterval       time.Duration = 500
+	CheckStrategyInterval      time.Duration = 1200
+	CHeckPriceUndulateInterval time.Duration = 1
 )
 
 func init() {
@@ -62,6 +69,10 @@ type CallerBase struct {
 	samples           map[string]map[string]map[string]*model.Dataframe
 	profitRatioLimit  map[string]float64
 	pairPrices        map[string]float64
+	pairOriginPrices  map[string]*model.RingBuffer
+	pairChangeRatio   map[string]float64
+	pairHedgeMode     map[string]bool
+	pairGirdStatus    map[string]constants.GridStatus
 	lastUpdate        map[string]time.Time
 	lossLimitTimes    map[string]time.Time
 	positionJudgers   map[string]*PositionJudger
@@ -95,6 +106,10 @@ func (c *CallerBase) Init(
 	c.setting = setting
 	c.pairOptions = make(map[string]model.PairOption)
 	c.pairPrices = make(map[string]float64)
+	c.pairOriginPrices = make(map[string]*model.RingBuffer)
+	c.pairChangeRatio = make(map[string]float64)
+	c.pairHedgeMode = make(map[string]bool)
+	c.pairGirdStatus = make(map[string]constants.GridStatus)
 	c.lastUpdate = make(map[string]time.Time)
 	c.lossLimitTimes = make(map[string]time.Time)
 	c.profitRatioLimit = make(map[string]float64)
@@ -112,7 +127,13 @@ func (c *CallerBase) Init(
 func (c *CallerBase) SetPair(option model.PairOption) {
 	c.pairOptions[option.Pair] = option
 	c.pairPrices[option.Pair] = 0
+	c.pairOriginPrices[option.Pair] = model.NewRingBuffer(PriceChangeRingCount)
+	c.pairChangeRatio[option.Pair] = 0
+	c.pairHedgeMode[option.Pair] = false
 	c.profitRatioLimit[option.Pair] = 0
+	c.positionGridIndex[option.Pair] = -1
+	c.pairGirdStatus[option.Pair] = constants.GridStatusInside
+
 	if c.samples[option.Pair] == nil {
 		c.samples[option.Pair] = make(map[string]map[string]*model.Dataframe)
 	}
@@ -217,7 +238,11 @@ func (c *CallerBase) CheckOrderTimeout() {
 
 			// 取消订单时将该订单锁定的网格重置回去
 			if _, ok := c.positionGridMap[positionOrder.Pair]; ok {
+				if c.positionGridIndex[positionOrder.Pair] < 0 {
+					continue
+				}
 				c.positionGridMap[positionOrder.Pair].GridItems[c.positionGridIndex[positionOrder.Pair]].Lock = false
+				c.positionGridIndex[positionOrder.Pair] = -1
 			}
 			utils.Log.Infof(
 				"[ORDER - %s] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v | Create: %s",
@@ -282,10 +307,9 @@ func (c *CallerBase) finishAllPosition(mainPosition *model.Position, subPosition
 }
 
 func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
-	if isForce == false {
-		if _, ok := c.positionGridMap[pair]; ok {
-			return
-		}
+	_, gridExsit := c.positionGridMap[pair]
+	if isForce == false && gridExsit {
+		return
 	}
 	// 获取当前已存在的仓位,保持原有网格
 	openedPositions, err := c.broker.GetPositionsForPair(pair)
@@ -293,7 +317,7 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 		utils.Log.Error(err)
 		return
 	}
-	if len(openedPositions) > 0 {
+	if len(openedPositions) > 0 && gridExsit == true {
 		utils.Log.Infof("[GRID] Build - Position has exsit, wating...")
 		return
 	}
@@ -304,15 +328,14 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	}
 
 	// 获取当前价格区间的中间位置作为网格基线
-	//midPrice := c.pairPrices[pair]
-	//midPrice := dataframe.Metadata["bb_middle"].Last(1)
-	//midPrice := dataframe.Close.Last(1)
-	midPrice := dataframe.Metadata["ema8"].Last(1)
+	midPrice := dataframe.Metadata["ema7"].Last(1)
 	bbUpper := dataframe.Metadata["bb_upper"].Last(1)
 	bbLower := dataframe.Metadata["bb_lower"].Last(1)
 	bbWidth := dataframe.Metadata["bb_width"].Last(1)
 	avgVolume := dataframe.Metadata["avgVolume"].Last(0)
 	volume := dataframe.Metadata["volume"].Last(0)
+	// 计算振幅
+	amplitude := indicator.AMP(dataframe.Open.Last(1), dataframe.High.Last(1), dataframe.Low.Last(1))
 	// 上一根蜡烛线已经破线，不在初始化网格
 	if c.pairPrices[pair] > bbUpper || c.pairPrices[pair] < bbLower {
 		utils.Log.Infof("[Grid] Build - Bolling has cross limit, wating...")
@@ -324,8 +347,22 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 		delete(c.positionGridMap, pair)
 		return
 	}
+	if amplitude < AmplitudeStopRatio {
+		utils.Log.Infof("[GRID] Build - Amplitude less than %v, wating...", AmplitudeStopRatio)
+		delete(c.positionGridMap, pair)
+		return
+	}
+	// 根据振幅动态计算网格大小
+	var gridStep float64
+	if amplitude <= AmplitudeMinRatio {
+		gridStep = c.pairOptions[pair].MinGridStep
+	} else if amplitude >= AmplitudeMaxRatio {
+		gridStep = c.pairOptions[pair].MaxGridStep
+	} else {
+		gridStep = float64(c.pairOptions[pair].MinGridStep) + (amplitude-AmplitudeMinRatio)*(float64(c.pairOptions[pair].MaxGridStep-c.pairOptions[pair].MinGridStep)/(AmplitudeMaxRatio-AmplitudeMinRatio))
+	}
 	// 计算网格数量
-	numGrids := bbWidth / c.pairOptions[pair].GridStep
+	numGrids := bbWidth / gridStep
 	if numGrids <= 0 {
 		utils.Log.Infof("[GRID] Build - Grid spacing too large for the given price width, wating...")
 		return
@@ -333,7 +370,6 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 
 	if _, ok := c.positionGridMap[pair]; ok {
 		if c.positionGridMap[pair].BasePrice == midPrice {
-			utils.Log.Infof("[GRID] Build - Grid has no change, wating...")
 			return
 		}
 	}
@@ -349,32 +385,46 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	}
 
 	var longPrice, shortPrice float64
+	var longGridItems, shortGridItems []model.PositionGridItem
 	// 计算网格上下限
-	for i := 1; i <= int(numGrids/2); i++ {
-		longPrice = midPrice + float64(i)*c.pairOptions[pair].GridStep + c.setting.WindowPeriod
-		if longPrice > grid.BoundaryUpper {
-			break
-		}
-		grid.GridItems = append(grid.GridItems, model.PositionGridItem{
+	for i := 0; i <= int(numGrids/2); i++ {
+		longPrice = midPrice + float64(i)*gridStep + c.setting.WindowPeriod
+		longGridItems = append(longGridItems, model.PositionGridItem{
 			Side:         model.SideTypeSell,
 			PositionSide: model.PositionSideTypeShort,
 			Price:        longPrice,
 			Lock:         false,
 		})
-	}
-	for i := 1; i <= int(numGrids/2); i++ {
-		// 下方网格
-		shortPrice = midPrice - float64(i)*c.pairOptions[pair].GridStep - c.setting.WindowPeriod
-		if shortPrice < grid.BoundaryLower {
+		// 突破线后多给一个网格
+		if longPrice > grid.BoundaryUpper {
 			break
 		}
-		grid.GridItems = append(grid.GridItems, model.PositionGridItem{
+	}
+	for i := 0; i <= int(numGrids/2); i++ {
+		shortPrice = midPrice - float64(i)*gridStep - c.setting.WindowPeriod
+		shortGridItems = append(shortGridItems, model.PositionGridItem{
 			Side:         model.SideTypeBuy,
 			PositionSide: model.PositionSideTypeLong,
 			Price:        shortPrice,
 			Lock:         false,
 		})
+		// 突破线后多给一个网格
+		if shortPrice < grid.BoundaryLower {
+			break
+		}
 	}
+	if len(longGridItems) < int(c.setting.MaxAddPostion) || len(shortGridItems) < int(c.setting.MaxAddPostion) {
+		utils.Log.Infof(
+			"[GRID] Build - Too few grids (Max Add Position: %v ),Long:%v, Short:%v, wating...",
+			c.setting.MaxAddPostion,
+			len(longGridItems),
+			len(shortGridItems),
+		)
+		delete(c.positionGridMap, pair)
+		return
+	}
+	grid.GridItems = append(grid.GridItems, longGridItems...)
+	grid.GridItems = append(grid.GridItems, shortGridItems...)
 	utils.Log.Infof(
 		"[GRID] Build - BasePrice: %v | Upper: %v | Lower: %v | Count: %v | CreatedAt: %s",
 		grid.BasePrice,

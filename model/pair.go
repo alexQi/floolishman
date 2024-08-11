@@ -6,10 +6,12 @@ import (
 )
 
 type PairOption struct {
-	Pair       string             `json:"pair"`
-	Leverage   int                `json:"leverage"`
-	MarginType futures.MarginType `json:"marginType"`
-	GridStep   float64            `json:"grid_step"`
+	Pair               string             `json:"pair"`
+	Leverage           int                `json:"leverage"`
+	MarginType         futures.MarginType `json:"marginType"`
+	MaxGridStep        float64            `json:"max_grid_step"`
+	MinGridStep        float64            `json:"min_grid_step"`
+	UndulatePriceLimit float64            `json:"undulate_price_limit"`
 }
 
 func (o PairOption) String() string {

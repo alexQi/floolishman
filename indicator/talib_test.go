@@ -77,6 +77,9 @@ func CalculateAngle(sequence []float64) float64 {
 }
 
 func TestA(t *testing.T) {
+	b := AMP(2597.89, 2644.63, 2574.54)
+	fmt.Print(b)
+	return
 	a := 0.033
 	stepSize := 0.001
 	//

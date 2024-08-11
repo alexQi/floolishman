@@ -44,7 +44,7 @@ func main() {
 			CheckMode:            viper.GetString("caller.checkMode"),
 			LossTimeDuration:     viper.GetInt("caller.lossTimeDuration"),
 			MaxAddPostion:        viper.GetInt64("caller.maxAddPostion"),          // 最大加仓次数
-			MaxPositionHedge:     viper.GetBool("caller.maxPositionHedge"),        // 最大仓位后是否开启对冲
+			MinAddPostion:        viper.GetInt64("caller.minAddPostion"),          // 最小加仓次数
 			MaxPositionLossRatio: viper.GetFloat64("caller.maxPositionLossRatio"), // 加仓后最大亏损比例
 			WindowPeriod:         viper.GetFloat64("caller.windowPeriod"),         // 空窗期点数
 			FullSpaceRatio:       viper.GetFloat64("caller.fullSpaceRatio"),

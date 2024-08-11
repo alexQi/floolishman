@@ -4,7 +4,9 @@
         "ETHUSDT": {
             "leverage": 100,
             "marginType": "CROSSED",
-            "gridStep": 8
+            "maxGridStep": 8.5,
+            "minGridStep": 7,
+            "undulatePriceLimit": 10
         }
     },
     "watchdog": {
@@ -18,7 +20,6 @@
         "followSymbol": false,
         "lossTimeDuration": 40,
         "maxAddPostion": 3,
-        "maxPositionHedge": true,
         "maxPositionLossRatio": 0.18,
         "windowPeriod": 10,
         "fullSpaceRatio": 0.04,

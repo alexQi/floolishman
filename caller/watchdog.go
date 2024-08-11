@@ -14,7 +14,7 @@ type CallerWatchdog struct {
 
 func (c *CallerWatchdog) Start() {
 	go func() {
-		tickerCheck := time.NewTicker(CheckStrategyInterval * time.Second)
+		tickerCheck := time.NewTicker(CheckStrategyInterval * time.Millisecond)
 		tickerClose := time.NewTicker(CheckCloseInterval * time.Millisecond)
 		tickerLeverage := time.NewTicker(CheckLeverageInterval * time.Millisecond)
 		for {

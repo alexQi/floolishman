@@ -7,7 +7,7 @@ type CallerSetting struct {
 	Backtest             bool
 	LossTimeDuration     int
 	MaxAddPostion        int64   // 最大加仓次数
-	MaxPositionHedge     bool    // 最大仓位后是否开启对冲
+	MinAddPostion        int64   // 最小加仓次数
 	MaxPositionLossRatio float64 // 最大仓位后最大止损
 	WindowPeriod         float64 // 空窗期
 	FullSpaceRatio       float64 // 仓位最大比例

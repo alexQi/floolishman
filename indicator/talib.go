@@ -1,6 +1,8 @@
 package indicator
 
-import "github.com/markcheno/go-talib"
+import (
+	"github.com/markcheno/go-talib"
+)
 
 type MaType = talib.MaType
 
@@ -16,6 +18,20 @@ const (
 	TypeMAMA  = talib.MAMA
 	TypeT3MA  = talib.T3MA
 )
+
+func AMP(open, high, low float64) float64 {
+	// 计算日内振幅
+	dailyAmplitude := high - low
+
+	// 计算相对振幅
+	var relativeAmplitude float64
+	if open != 0 {
+		relativeAmplitude = (dailyAmplitude / open) * 100
+	} else {
+		relativeAmplitude = 0
+	}
+	return relativeAmplitude
+}
 
 // BB - Bollinger Bands
 func BB(input []float64, period int, deviation float64, maType MaType) ([]float64, []float64, []float64) {

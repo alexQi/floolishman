@@ -20,8 +20,12 @@ type Config struct {
 
 func LoadConf() {
 	// 读取默认配置
-	if err := setJsonConfig(); err != nil {
-		log.Fatalln("初始化配置文件出错", err.Error())
+	//if err := setJsonConfig(); err != nil {
+	//	log.Fatalln("初始化配置文件出错", err.Error())
+	//}
+	// 读取默认配置
+	if err := setYamlConfig(); err != nil {
+		log.Fatalln("初始化YAML配置文件出错", err.Error())
 	}
 	// 读取环境变量
 	if err := setEnvConfig(); err != nil {

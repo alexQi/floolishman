@@ -23,7 +23,7 @@ type CallerFrequency struct {
 }
 
 func (c *CallerFrequency) Start() {
-	tickerCheck := time.NewTicker(CheckStrategyInterval * time.Second)
+	tickerCheck := time.NewTicker(CheckStrategyInterval * time.Millisecond)
 	tickerReset := time.NewTicker(ResetStrategyInterval * time.Second)
 	for {
 		select {

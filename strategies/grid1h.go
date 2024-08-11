@@ -28,6 +28,7 @@ func (s Grid1h) Indicators(df *model.Dataframe) {
 	for i := 0; i < len(bbUpper); i++ {
 		bbWidth[i] = bbUpper[i] - bbLower[i]
 	}
+
 	df.Metadata["bb_upper"] = bbUpper
 	df.Metadata["bb_middle"] = bbMiddle
 	df.Metadata["bb_lower"] = bbLower
@@ -35,7 +36,7 @@ func (s Grid1h) Indicators(df *model.Dataframe) {
 
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
-	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
+	df.Metadata["ema7"] = indicator.EMA(df.Close, 7)
 }
 
 func (s *Grid1h) OnCandle(df *model.Dataframe) model.Strategy {

@@ -1,0 +1,52 @@
+# 服务监听端口地址
+listen:
+  # http 服务监听端口地址
+  http: "0.0.0.0:8080"
+  # grpc 服务监听端口地址
+  grpc: "0.0.0.0:9999"
+# 代理配置
+proxy:
+  status: true
+  url: "http://127.0.0.1:7890"
+# 日志配置
+log:
+  level: info
+  flag: floolishman
+  path: runtime/logs
+  suffix: log
+  stdout: true
+# 存储配置
+ses:
+  path: storage/
+# httpClient相关配置
+http:
+  Timeout: 0
+  Transport:
+    IdleConnTimeout: 90
+    ResponseHeaderTimeout: 90
+    ExpectContinueTimeout: 1
+    TLSHandshakeTimeout: 5
+    DialContext:
+      Timeout: 30
+      KeepAlive: 30
+# 跨域配置
+cors:
+  AllowedOrigins:
+    - "*"
+  AllowCredentials: true
+  AllowedHeaders:
+    - "Origin"
+    - "Content-Type"
+    - "Cookie"
+    - "X-CSRF-TOKEN"
+    - "Accept"
+    - "Authorization"
+    - "X-XSRF-TOKEN"
+  ExposedHeaders: [ ]
+  AllowedMethods:
+    - "GET"
+    - "POST"
+    - "PATCH"
+    - "PUT"
+    - "OPTIONS"
+  Debug: false

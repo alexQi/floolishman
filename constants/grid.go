@@ -1,9 +1,9 @@
 package constants
 
-type GridMode string
+type GridStatus string
 
 var (
-	GridModeOut    GridMode = "OUT"
-	GridModeInside GridMode = "INSIDE"
-	GridModeHedge  GridMode = "HEDGE"
+	GridStatusOut       GridStatus = "OUT"
+	GridStatusInside    GridStatus = "INSIDE"
+	GridStatusMoreLimit GridStatus = "LIMIT"
 )

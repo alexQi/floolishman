@@ -1,0 +1,62 @@
+# 运行模式
+mode: online
+# 交易对配置
+pairs:
+  # 交易对名称
+  ETHUSDT:
+    # 杠杆倍数 需要带上小数点
+    leverage: 100.0
+    # 仓位模式
+    marginType: CROSSED
+    # 最大网格间距
+    maxGridStep: 10.0
+    # 最小网格间距
+    minGridStep: 6.0
+    # 价格波动触发限制
+    undulatePriceLimit: 10.0
+# 看门狗服务grpc地址
+watchdog:
+  host: "127.0.0.1:9999"
+# 策略配置
+strategies:
+  - "Grid1h"
+# 量化caller配置
+caller:
+  # 执行模式 grid | frequency | dual | candle | interval | watchdog
+  checkMode: grid
+  # watchdog模式下是否是跟随模式，其他模式下都为false
+  followSymbol: false
+  # 时间止损市场 单位分钟
+  lossTimeDuration: 40
+  # 最大加仓次数
+  maxAddPostion: 4
+  # 最大加仓次数
+  minAddPostion: 2
+  # 最大加仓后联合仓位亏损拉回比例
+  maxPositionLossRatio: 0.18
+  # 网格空窗期
+  windowPeriod: 5.0
+  # 开仓占比
+  fullSpaceRatio: 0.04
+  # 最大仓位比例
+  stopSpaceRatio: 0.40
+  # 最大止损比例
+  baseLossRatio: 0.0038
+  # 移动止盈后撤比例
+  profitableScale: 0.02
+  # 触发移动止损比例
+  initProfitRatioLimit: 0.20
+# db存储位置
+storage:
+  driver: sqlite
+  path: "runtime/data/floolishman.db"
+# binance api key 密钥
+api:
+  encrypt: ED25519
+  key: ""
+  secret: ""
+  pem: ""
+# telegram配置
+telegram:
+  token: ""
+  user: ""

@@ -16,7 +16,7 @@ type CallerDual struct {
 func (c *CallerDual) Start() {
 	c.pairTriggerPrice = make(map[string]float64)
 	go func() {
-		tickerCheck := time.NewTicker(CheckStrategyInterval * time.Second)
+		tickerCheck := time.NewTicker(CheckStrategyInterval * time.Millisecond)
 		tickerClose := time.NewTicker(CheckCloseInterval * time.Millisecond)
 		for {
 			select {
