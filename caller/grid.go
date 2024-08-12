@@ -197,7 +197,7 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 				// 当前价格达到指定上下后再次触达下一个网格
 				c.pairGirdStatus[option.Pair] = constants.GridStatusMoreLimit
 				utils.Log.Infof(
-					"[POSITION - MORE LIMIT] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v, MoreCount:%v | Current: %v (start hedge mode)",
+					"[POSITION - MORE LIMIT] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v, MoreCount:%v | Current: %v (start more limit mode)",
 					sampleSidePosition.Pair,
 					sampleSidePosition.Side,
 					sampleSidePosition.PositionSide,
@@ -209,7 +209,7 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 				return
 			}
 			utils.Log.Infof(
-				"[POSITION - MORE LIMIT] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v, MoreCount:%v | Current: %v",
+				"[POSITION - MORE LIMIT] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v, MoreCount:%v | Current: %v (watching ...)",
 				sampleSidePosition.Pair,
 				sampleSidePosition.Side,
 				sampleSidePosition.PositionSide,

@@ -26,8 +26,8 @@ var (
 )
 
 var (
-	PriceChangeRingCount = 20
-	AmplitudeStopRatio   = 0.5
+	PriceChangeRingCount = 5
+	AmplitudeStopRatio   = 0.6
 	AmplitudeMinRatio    = 1.0
 	AmplitudeMaxRatio    = 3.0
 	StepMoreRatio        = 0.08
@@ -328,7 +328,8 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	}
 
 	// 获取当前价格区间的中间位置作为网格基线
-	midPrice := dataframe.Metadata["ema7"].Last(1)
+	lastPrice := dataframe.Close.Last(1)
+	midPrice := dataframe.Metadata["basePrice"].Last(1)
 	bbUpper := dataframe.Metadata["bb_upper"].Last(1)
 	bbLower := dataframe.Metadata["bb_lower"].Last(1)
 	bbWidth := dataframe.Metadata["bb_width"].Last(1)
@@ -337,7 +338,7 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	// 计算振幅
 	amplitude := indicator.AMP(dataframe.Open.Last(1), dataframe.High.Last(1), dataframe.Low.Last(1))
 	// 上一根蜡烛线已经破线，不在初始化网格
-	if c.pairPrices[pair] > bbUpper || c.pairPrices[pair] < bbLower {
+	if lastPrice > bbUpper || lastPrice < bbLower {
 		utils.Log.Infof("[Grid] Build - Bolling has cross limit, wating...")
 		delete(c.positionGridMap, pair)
 		return
