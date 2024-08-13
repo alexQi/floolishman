@@ -26,9 +26,9 @@ func (s Test15m) WarmupPeriod() int {
 func (s Test15m) Indicators(df *model.Dataframe) {
 	// 计算布林带指标
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
-	df.Metadata["bb_upper"] = bbUpper
-	df.Metadata["bb_middle"] = bbMiddle
-	df.Metadata["bb_lower"] = bbLower
+	df.Metadata["bbUpper"] = bbUpper
+	df.Metadata["bbMiddle"] = bbMiddle
+	df.Metadata["bbLower"] = bbLower
 
 	// 计算动量和交易量指标
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)

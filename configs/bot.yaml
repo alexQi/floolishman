@@ -12,8 +12,10 @@ pairs:
     maxGridStep: 10.0
     # 最小网格间距
     minGridStep: 6.0
-    # 价格波动触发限制
-    undulatePriceLimit: 10.0
+    # 价格波动触发限制 eth 3 $/s    btc 30 $/s
+    undulatePriceLimit: 3.0
+    # 价格波动触发限制 eth 100 Vol/s  btc 5 Vol/s
+    undulateVolumeLimit: 100.0
 # 看门狗服务grpc地址
 watchdog:
   host: "127.0.0.1:9999"

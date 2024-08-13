@@ -29,10 +29,10 @@ func (s Momentum15m) Indicators(df *model.Dataframe) {
 	for i := 0; i < len(bbUpper); i++ {
 		bbWidth[i] = bbUpper[i] - bbLower[i]
 	}
-	df.Metadata["bb_upper"] = bbUpper
-	df.Metadata["bb_middle"] = bbMiddle
-	df.Metadata["bb_lower"] = bbLower
-	df.Metadata["bb_width"] = bbWidth
+	df.Metadata["bbUpper"] = bbUpper
+	df.Metadata["bbMiddle"] = bbMiddle
+	df.Metadata["bbLower"] = bbLower
+	df.Metadata["bbWidth"] = bbWidth
 
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)

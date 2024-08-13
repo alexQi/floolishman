@@ -386,7 +386,6 @@ func (n *Bot) Run(ctx context.Context) {
 	n.serviceStrategy.Start()
 
 	n.caller.Start()
-
 	// start data feed and receives new candles
 	n.dataFeed.Start(n.backtest)
 

@@ -101,7 +101,7 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, is
 	s.realCandles[candle.Pair][timeframe] = &candle
 
 	// 更新交易对信息
-	s.caller.UpdatePairInfo(candle.Pair, candle.Close, candle.UpdatedAt)
+	s.caller.UpdatePairInfo(candle.Pair, candle.Close, candle.Volume, candle.UpdatedAt)
 	// 采样数据转换指标
 	for _, str := range s.strategy.Strategies {
 		if len(s.dataframes[candle.Pair][timeframe].Close) < str.WarmupPeriod() {
@@ -119,26 +119,22 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, is
 		}
 	}
 	// 未开始时
-	if s.started == false {
-		if s.checkMode == "grid" {
-			s.caller.BuildGird(candle.Pair, timeframe, false)
-		}
-	} else {
-		if isComplate == true {
-			// 回溯测试模式
-			if s.backtest {
+	if isComplate == true {
+		// 回溯测试模式
+		if s.backtest {
+			s.caller.EventCallOpen(candle.Pair)
+			s.caller.EventCallClose(candle.Pair)
+			s.caller.CloseOrder(true)
+		} else {
+			if s.checkMode == "grid" {
+				s.caller.BuildGird(candle.Pair, timeframe, true)
+			}
+			if s.checkMode == "candle" {
 				s.caller.EventCallOpen(candle.Pair)
-				s.caller.EventCallClose(candle.Pair)
-				s.caller.CheckOrderTimeout()
-			} else {
-				if s.checkMode == "grid" {
-					s.caller.BuildGird(candle.Pair, timeframe, true)
-				}
-				if s.checkMode == "candle" {
-					s.caller.EventCallOpen(candle.Pair)
-				}
 			}
 		}
+	} else {
+		s.caller.OpenTube(candle.Pair)
 	}
 }
 

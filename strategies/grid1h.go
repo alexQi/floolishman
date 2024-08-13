@@ -29,14 +29,14 @@ func (s Grid1h) Indicators(df *model.Dataframe) {
 		bbWidth[i] = bbUpper[i] - bbLower[i]
 	}
 
-	df.Metadata["bb_upper"] = bbUpper
-	df.Metadata["bb_middle"] = bbMiddle
-	df.Metadata["bb_lower"] = bbLower
-	df.Metadata["bb_width"] = bbWidth
+	df.Metadata["bbUpper"] = bbUpper
+	df.Metadata["bbMiddle"] = bbMiddle
+	df.Metadata["bbLower"] = bbLower
+	df.Metadata["bbWidth"] = bbWidth
 
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
-	df.Metadata["basePrice"] = indicator.EMA(df.Close, 1)
+	df.Metadata["basePrice"] = indicator.EMA(df.Close, 2)
 }
 
 func (s *Grid1h) OnCandle(df *model.Dataframe) model.Strategy {

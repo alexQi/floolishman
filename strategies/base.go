@@ -29,18 +29,18 @@ func (bs *BaseStrategy) handleIndicatos(df *model.Dataframe) error {
 	df.Metadata["volume"] = df.Volume
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 
-	df.Metadata["bb_upper"] = bbUpper
-	df.Metadata["bb_middle"] = bbMiddle
-	df.Metadata["bb_lower"] = bbLower
+	df.Metadata["bbUpper"] = bbUpper
+	df.Metadata["bbMiddle"] = bbMiddle
+	df.Metadata["bbLower"] = bbLower
 
-	df.Metadata["bb_width"] = bbWidth
+	df.Metadata["bbWidth"] = bbWidth
 	df.Metadata["bb_change_rate"] = changeRates
 
 	return nil
 }
 
 func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
-	bbMiddles := df.Metadata["bb_middle"]
+	bbMiddles := df.Metadata["bbMiddle"]
 	bbMiddlesNotZero := []float64{}
 	for _, val := range bbMiddles.LastValues(30) {
 		if val > 0 {

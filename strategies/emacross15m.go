@@ -25,9 +25,9 @@ func (s Emacross15m) WarmupPeriod() int {
 func (s Emacross15m) Indicators(df *model.Dataframe) {
 	dif, dea, _ := indicator.MACD(df.Close, 12, 26, 9)
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
-	df.Metadata["bb_upper"] = bbUpper
-	df.Metadata["bb_middle"] = bbMiddle
-	df.Metadata["bb_lower"] = bbLower
+	df.Metadata["bbUpper"] = bbUpper
+	df.Metadata["bbMiddle"] = bbMiddle
+	df.Metadata["bbLower"] = bbLower
 
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["ema21"] = indicator.EMA(df.Close, 21)

@@ -33,10 +33,10 @@ func (s Range15m) Indicators(df *model.Dataframe) {
 	}
 
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
-	df.Metadata["bb_upper"] = bbUpper
-	df.Metadata["bb_middle"] = bbMiddle
-	df.Metadata["bb_lower"] = bbLower
-	df.Metadata["bb_width"] = bbWidth
+	df.Metadata["bbUpper"] = bbUpper
+	df.Metadata["bbMiddle"] = bbMiddle
+	df.Metadata["bbLower"] = bbLower
+	df.Metadata["bbWidth"] = bbWidth
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
@@ -51,8 +51,8 @@ func (s *Range15m) OnCandle(df *model.Dataframe) model.Strategy {
 		Score:        s.SortScore(),
 		LastAtr:      df.Metadata["atr"].Last(1),
 	}
-	bbMiddle := df.Metadata["bb_middle"].Last(0)
-	bbWidth := df.Metadata["bb_width"].Last(0)
+	bbMiddle := df.Metadata["bbMiddle"].Last(0)
+	bbWidth := df.Metadata["bbWidth"].Last(0)
 	volume := df.Metadata["volume"].Last(0)
 	avgVolume := df.Metadata["avgVolume"].Last(0)
 	momentums := df.Metadata["momentum"].LastValues(2)

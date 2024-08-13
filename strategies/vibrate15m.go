@@ -29,10 +29,10 @@ func (s Vibrate15m) Indicators(df *model.Dataframe) {
 	for i := 0; i < len(bbUpper); i++ {
 		bbWidth[i] = bbUpper[i] - bbLower[i]
 	}
-	df.Metadata["bb_upper"] = bbUpper
-	df.Metadata["bb_middle"] = bbMiddle
-	df.Metadata["bb_lower"] = bbLower
-	df.Metadata["bb_width"] = bbWidth
+	df.Metadata["bbUpper"] = bbUpper
+	df.Metadata["bbMiddle"] = bbMiddle
+	df.Metadata["bbLower"] = bbLower
+	df.Metadata["bbWidth"] = bbWidth
 	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
@@ -50,10 +50,10 @@ func (s *Vibrate15m) OnCandle(df *model.Dataframe) model.Strategy {
 	// 使用前一帧的收盘价作为判断依据，避免未完成的K线对策略的影响
 	currentPrice := df.Close.Last(0)
 	previousPrice := df.Close.Last(1)
-	bbUpper := df.Metadata["bb_upper"].Last(1)   // 使用已完成的布林带上轨
-	bbLower := df.Metadata["bb_lower"].Last(1)   // 使用已完成的布林带下轨
-	bbMiddle := df.Metadata["bb_middle"].Last(1) // 使用已完成的布林带中轨
-	bbWidth := df.Metadata["bb_width"].Last(1)
+	bbUpper := df.Metadata["bbUpper"].Last(1)   // 使用已完成的布林带上轨
+	bbLower := df.Metadata["bbLower"].Last(1)   // 使用已完成的布林带下轨
+	bbMiddle := df.Metadata["bbMiddle"].Last(1) // 使用已完成的布林带中轨
+	bbWidth := df.Metadata["bbWidth"].Last(1)
 	rsi := df.Metadata["rsi"].Last(1) // 使用已完成的RSI
 	ema8 := df.Metadata["ema8"].Last(0)
 

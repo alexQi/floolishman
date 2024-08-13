@@ -93,6 +93,10 @@ func main() {
 		if !ok {
 			log.Fatalf("Invalid undulatePriceLimit format for pair %s: %v", pair, valMap["undulatePriceLimit"])
 		}
+		undulateVolumeLimit, ok := valMap["undulatevolumelimit"].(float64)
+		if !ok {
+			log.Fatalf("Invalid undulateVolumeLimit format for pair %s: %v", pair, valMap["undulateVolumeLimit"])
+		}
 
 		marginType, ok := valMap["margintype"].(string)
 		if !ok {
@@ -103,12 +107,13 @@ func main() {
 		leverage := int(leverageFloat)
 
 		settings.PairOptions = append(settings.PairOptions, model.PairOption{
-			Pair:               strings.ToUpper(pair),
-			Leverage:           leverage,
-			MaxGridStep:        maxGridStep,
-			MinGridStep:        minGridStep,
-			UndulatePriceLimit: undulatePriceLimit,
-			MarginType:         futures.MarginType(strings.ToUpper(marginType)), // 假设 futures.MarginType 是一个类型别名
+			Pair:                strings.ToUpper(pair),
+			Leverage:            leverage,
+			MaxGridStep:         maxGridStep,
+			MinGridStep:         minGridStep,
+			UndulatePriceLimit:  undulatePriceLimit,
+			UndulateVolumeLimit: undulateVolumeLimit,
+			MarginType:          futures.MarginType(strings.ToUpper(marginType)), // 假设 futures.MarginType 是一个类型别名
 		})
 	}
 

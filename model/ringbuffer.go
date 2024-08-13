@@ -39,19 +39,26 @@ func (rb *RingBuffer) GetAll() []float64 {
 	return rb.data[:rb.count]
 }
 
-// GetFirst 获取当前数组的开头元素（最旧的元素）
-func (rb *RingBuffer) GetFirst() float64 {
+// First 获取当前数组的开头元素（最旧的元素）
+func (rb *RingBuffer) First() float64 {
 	if rb.count == 0 {
 		return -1 // 表示数组为空
 	}
 	return rb.data[rb.cursor%rb.count]
 }
 
-// GetLast 获取当前数组的结尾元素（最新的元素）
-func (rb *RingBuffer) GetLast() float64 {
-	if rb.count == 0 {
-		return -1 // 表示数组为空
+// GetPrevious 获取当前索引往前指定 n 的值
+func (rb *RingBuffer) Last(n int) float64 {
+	if n < 0 || n >= rb.count {
+		return -1 // 表示索引无效
 	}
-	lastIndex := (rb.cursor - 1 + rb.size) % rb.size
-	return rb.data[lastIndex]
+	index := (rb.cursor - 1 - n + rb.size) % rb.size
+	return rb.data[index]
+}
+
+// Clear 清空循环数组中的所有元素
+func (rb *RingBuffer) Clear() {
+	rb.data = make([]float64, rb.size)
+	rb.cursor = 0
+	rb.count = 0
 }

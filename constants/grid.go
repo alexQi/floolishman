@@ -7,3 +7,4 @@ var (
 	GridStatusInside    GridStatus = "INSIDE"
 	GridStatusMoreLimit GridStatus = "LIMIT"
 )
+
