@@ -26,8 +26,9 @@ var (
 )
 
 var (
-	ChangeRingCount      = 10
-	ChangeDiffInterval   = 2
+	AvgVolumeLimitRatio  = 1.6
+	ChangeRingCount      = 5
+	ChangeDiffInterval   = 1
 	AmplitudeStopRatio   = 0.6
 	AmplitudeMinRatio    = 1.0
 	AmplitudeMaxRatio    = 3.0
@@ -40,7 +41,7 @@ var (
 	CheckCloseInterval         time.Duration = 500
 	CheckLeverageInterval      time.Duration = 1000
 	CheckTimeoutInterval       time.Duration = 500
-	CheckStrategyInterval      time.Duration = 1200
+	CheckStrategyInterval      time.Duration = 500
 	CHeckPriceUndulateInterval time.Duration = 1
 )
 
@@ -79,6 +80,7 @@ type CallerBase struct {
 	pairVolumeGrowRatio   map[string]float64
 	pairHedgeMode         map[string]constants.PositionMode
 	pairGirdStatus        map[string]constants.GridStatus
+	lastAvgVolume         map[string]float64
 	lastUpdate            map[string]time.Time
 	lossLimitTimes        map[string]time.Time
 	positionJudgers       map[string]*PositionJudger
@@ -122,6 +124,7 @@ func (c *CallerBase) Init(
 	c.pairHedgeMode = make(map[string]constants.PositionMode)
 	c.pairGirdStatus = make(map[string]constants.GridStatus)
 	c.lastUpdate = make(map[string]time.Time)
+	c.lastAvgVolume = make(map[string]float64)
 	c.lossLimitTimes = make(map[string]time.Time)
 	c.profitRatioLimit = make(map[string]float64)
 	c.samples = make(map[string]map[string]map[string]*model.Dataframe)
@@ -372,6 +375,8 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	avgVolume := dataframe.Metadata["avgVolume"].Last(dataIndex)
 	volume := dataframe.Metadata["volume"].Last(0)
 
+	c.lastAvgVolume[pair] = avgVolume
+
 	// 计算振幅
 	amplitude := indicator.AMP(openPrice, highPrice, lowPrice)
 	// 上一根蜡烛线已经破线，不在初始化网格
@@ -380,23 +385,22 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 		delete(c.positionGridMap, pair)
 		return
 	}
-	if (volume / avgVolume) > 1.6 {
+	if (volume / avgVolume) > AvgVolumeLimitRatio {
 		utils.Log.Infof("[GRID] Build - Volume bigger than avgVolume, wating...")
-		delete(c.positionGridMap, pair)
-		return
-	}
-	if amplitude < AmplitudeStopRatio {
-		utils.Log.Infof("[GRID] Build - Amplitude less than %v, wating...", AmplitudeStopRatio)
 		delete(c.positionGridMap, pair)
 		return
 	}
 	// 根据振幅动态计算网格大小
 	var gridStep float64
+	var stepRatio float64
 	if amplitude <= AmplitudeMinRatio {
+		stepRatio = 1.5
 		gridStep = c.pairOptions[pair].MinGridStep
 	} else if amplitude >= AmplitudeMaxRatio {
+		stepRatio = 2
 		gridStep = c.pairOptions[pair].MaxGridStep
 	} else {
+		stepRatio = 1.8
 		gridStep = float64(c.pairOptions[pair].MinGridStep) + (amplitude-AmplitudeMinRatio)*(float64(c.pairOptions[pair].MaxGridStep-c.pairOptions[pair].MinGridStep)/(AmplitudeMaxRatio-AmplitudeMinRatio))
 	}
 	// 计算网格数量
@@ -427,7 +431,7 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	// 计算网格上下限
 	for i := 0; i <= int(numGrids/2); i++ {
 		if dataframe.Open.Last(1) < lastPrice {
-			longPrice = midPrice + float64(i)*gridStep + gridStep*1.5
+			longPrice = midPrice + float64(i)*gridStep + gridStep*stepRatio
 		} else {
 			longPrice = midPrice + float64(i)*gridStep + c.setting.WindowPeriod
 		}
@@ -444,7 +448,7 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	}
 	for i := 0; i <= int(numGrids/2); i++ {
 		if dataframe.Open.Last(1) > lastPrice {
-			shortPrice = midPrice - float64(i)*gridStep - gridStep*1.5
+			shortPrice = midPrice - float64(i)*gridStep - gridStep*stepRatio
 		} else {
 			shortPrice = midPrice - float64(i)*gridStep - c.setting.WindowPeriod
 		}

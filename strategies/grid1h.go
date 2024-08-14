@@ -36,7 +36,7 @@ func (s Grid1h) Indicators(df *model.Dataframe) {
 
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
-	df.Metadata["basePrice"] = indicator.EMA(df.Close, 2)
+	df.Metadata["basePrice"] = indicator.EMA(df.Close, 5)
 }
 
 func (s *Grid1h) OnCandle(df *model.Dataframe) model.Strategy {

@@ -11,8 +11,8 @@ import (
 
 var (
 	PriceChangeLimitRatio  = 1.0
-	VolumeChangeLimitRatio = 2.5
-	VolumeGrowLimitRatio   = 2.0
+	VolumeChangeLimitRatio = 5.0
+	VolumeGrowLimitRatio   = 3.0
 )
 
 type CallerGrid struct {
@@ -71,15 +71,15 @@ func (c *CallerGrid) WatchPriceChange() {
 				// 计算价格差异
 				currDiffPrice := c.pairOriginPrices[option.Pair].Last(0) - c.pairOriginPrices[option.Pair].Last(ChangeDiffInterval)
 				// 处理价格变化率
-				c.pairPriceChangeRatio[option.Pair] = currDiffPrice / (option.UndulatePriceLimit * float64(ChangeDiffInterval+1))
+				c.pairPriceChangeRatio[option.Pair] = currDiffPrice / (option.UndulatePriceLimit * float64(ChangeDiffInterval))
 				// 处理量能变化率
-				c.pairVolumeChangeRatio[option.Pair] = currDiffVolume / (option.UndulateVolumeLimit * float64(ChangeDiffInterval+1))
+				c.pairVolumeChangeRatio[option.Pair] = currDiffVolume / (option.UndulateVolumeLimit * float64(ChangeDiffInterval))
 				// 判断当前量能差有没有达到最小限制
-				if currDiffVolume > (option.UndulateVolumeLimit * float64(ChangeDiffInterval+1)) {
+				if currDiffVolume > (option.UndulateVolumeLimit * float64(ChangeDiffInterval)) {
 					// 处理量能每秒增长率
 					c.pairVolumeGrowRatio[option.Pair] = currDiffVolume / prevDiffVolume
 				} else {
-					c.pairVolumeGrowRatio[option.Pair] = 1
+					c.pairVolumeGrowRatio[option.Pair] = 0
 				}
 			}
 		}
@@ -98,6 +98,8 @@ func (c *CallerGrid) Listen() {
 func (c *CallerGrid) openGridPosition(option model.PairOption) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// 当前量能与上个蜡烛的平均量能比例
+	volAvgChangeLimit := c.pairOriginVolumes[option.Pair].Last(0)/c.lastAvgVolume[option.Pair] > AvgVolumeLimitRatio
 	// 量能增长率
 	volGrowHasSurmountLimit := c.pairVolumeGrowRatio[option.Pair] > VolumeGrowLimitRatio
 	// 量能变化率
@@ -315,6 +317,22 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 			c.setting.FullSpaceRatio,
 		)
 	}
+	if volAvgChangeLimit {
+		utils.Log.Infof(
+			"[POSITION IGNORE] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v | Current: %v , %.2f%% (Change) | Volume: %.2f%% (Change), %.2f%% (Grow) (Volume surmount avg volume limit)",
+			option.Pair,
+			openPositionGrid.Side,
+			openPositionGrid.PositionSide,
+			amount,
+			openPositionGrid.Price,
+			currentPrice,
+			c.pairPriceChangeRatio[option.Pair]*100,
+			c.pairVolumeChangeRatio[option.Pair]*100,
+			c.pairVolumeGrowRatio[option.Pair]*100,
+		)
+		go c.CloseOrder(false)
+		return
+	}
 	if volChangeHasSurmountLimit {
 		utils.Log.Infof(
 			"[POSITION IGNORE] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v | Current: %v , %.2f%% (Change) | Volume: %.2f%% (Change), %.2f%% (Grow) (Volume change surmount limit)",
@@ -500,27 +518,46 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 			return
 		}
 		// 判断当前盈亏比是否大于触发盈亏比
-		if profitRatio < c.setting.InitProfitRatioLimit || profitRatio < (c.profitRatioLimit[option.Pair]+c.setting.ProfitableScale+0.01) {
-			utils.Log.Infof(
-				"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < InitProfitRatioLimit: %s",
-				mainPosition.Pair,
-				mainPosition.OrderFlag,
-				mainPosition.Quantity,
-				mainPosition.AvgPrice,
-				mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-				subPosition.OrderFlag,
-				subPosition.Quantity,
-				subPosition.AvgPrice,
-				subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-				currentPrice,
-				fmt.Sprintf("%.2f%%", profitRatio*100),
-				fmt.Sprintf("%.2f%%", c.setting.InitProfitRatioLimit*100),
-			)
-			if subPosition.Quantity > 0 && profitRatio >= c.setting.ProfitableScale {
-				c.profitRatioLimit[option.Pair] = profitRatio - c.setting.ProfitableScale
+		if subPosition.Quantity > 0 {
+			if profitRatio < c.setting.ProfitableScale || profitRatio < (c.profitRatioLimit[option.Pair]+c.setting.ProfitableScale+0.01) {
+				utils.Log.Infof(
+					"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < StopLossRatio: %s",
+					mainPosition.Pair,
+					mainPosition.OrderFlag,
+					mainPosition.Quantity,
+					mainPosition.AvgPrice,
+					mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+					subPosition.OrderFlag,
+					subPosition.Quantity,
+					subPosition.AvgPrice,
+					subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+					currentPrice,
+					fmt.Sprintf("%.2f%%", profitRatio*100),
+					fmt.Sprintf("%.2f%%", c.profitRatioLimit[option.Pair]*100),
+				)
+				return
 			}
-			return
+		} else {
+			if profitRatio < c.setting.InitProfitRatioLimit || profitRatio < (c.profitRatioLimit[option.Pair]+c.setting.ProfitableScale+0.01) {
+				utils.Log.Infof(
+					"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < StopLossRatio: %s",
+					mainPosition.Pair,
+					mainPosition.OrderFlag,
+					mainPosition.Quantity,
+					mainPosition.AvgPrice,
+					mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+					subPosition.OrderFlag,
+					subPosition.Quantity,
+					subPosition.AvgPrice,
+					subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+					currentPrice,
+					fmt.Sprintf("%.2f%%", profitRatio*100),
+					fmt.Sprintf("%.2f%%", c.profitRatioLimit[option.Pair]*100),
+				)
+				return
+			}
 		}
+
 		// 重设利润比
 		c.profitRatioLimit[option.Pair] = profitRatio - c.setting.ProfitableScale
 		utils.Log.Infof(
