@@ -4,18 +4,76 @@ mode: online
 pairs:
   # 交易对名称
   ETHUSDT:
+    # 状态
+    status: true
     # 杠杆倍数 需要带上小数点
     leverage: 100.0
     # 仓位模式
     marginType: CROSSED
+    # 保证金模式 ROLL 滚仓｜STATIC 静态
+    marginMode: ROLL
+    # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量
+    marginSize: 0.04
     # 最大网格间距
-    maxGridStep: 10.0
+    maxGridStep: 9.0
     # 最小网格间距
-    minGridStep: 6.0
-    # 价格波动触发限制 eth 3 $/s    btc 30 $/s
+    minGridStep: 8.0
+    # 网格空窗期
+    windowPeriod: 8.5
+    # 最大加仓次数
+    maxAddPosition: 4
+    # 最小加仓次数
+    minAddPosition: 3
+    # 价格波动触发限制 eth 3 $/s    btc 150 $/s
     undulatePriceLimit: 3.0
-    # 价格波动触发限制 eth 100 Vol/s  btc 5 Vol/s
+    # 价格波动触发限制 eth 100 Vol/s  btc 30 Vol/s
     undulateVolumeLimit: 100.0
+    # 移动止盈后撤比例
+    profitableScale: 0.05
+    # 触发移动止损比例
+    profitableTrigger: 0.185
+    # 最大加仓后联合仓位亏损拉回比例
+    pullMarginLossRatio: 0.18
+    # 最大保证金比例
+    maxMarginRatio: 0.40
+    # 最大止损保证金比例
+    maxMarginLossRatio: 0.0038
+  # 交易对名称
+  BTCUSDT:
+    # 状态
+    status: true
+    # 杠杆倍数 需要带上小数点
+    leverage: 100.0
+    # 仓位模式
+    marginType: CROSSED
+    # 保证金模式 ROLL 滚仓｜STATIC 静态
+    marginMode: ROLL
+    # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量
+    marginSize: 0.04
+    # 最大网格间距
+    maxGridStep: 9.0
+    # 最小网格间距
+    minGridStep: 8.0
+    # 网格空窗期
+    windowPeriod: 8.5
+    # 最大加仓次数
+    maxAddPosition: 4
+    # 最小加仓次数
+    minAddPosition: 3
+    # 价格波动触发限制 eth 3 $/s    btc 150 $/s
+    undulatePriceLimit: 3.0
+    # 价格波动触发限制 eth 100 Vol/s  btc 30 Vol/s
+    undulateVolumeLimit: 100.0
+    # 移动止盈后撤比例
+    profitableScale: 0.05
+    # 触发移动止损比例
+    profitableTrigger: 0.185
+    # 最大加仓后联合仓位亏损拉回比例
+    pullMarginLossRatio: 0.18
+    # 最大保证金比例
+    maxMarginRatio: 0.40
+    # 最大止损保证金比例
+    maxMarginLossRatio: 0.0038
 # 看门狗服务grpc地址
 watchdog:
   host: "127.0.0.1:9999"
@@ -30,24 +88,6 @@ caller:
   followSymbol: false
   # 时间止损市场 单位分钟
   lossTimeDuration: 40
-  # 最大加仓次数
-  maxAddPostion: 4
-  # 最大加仓次数
-  minAddPostion: 2
-  # 最大加仓后联合仓位亏损拉回比例
-  maxPositionLossRatio: 0.18
-  # 网格空窗期
-  windowPeriod: 5.0
-  # 开仓占比
-  fullSpaceRatio: 0.04
-  # 最大仓位比例
-  stopSpaceRatio: 0.40
-  # 最大止损比例
-  baseLossRatio: 0.0038
-  # 移动止盈后撤比例
-  profitableScale: 0.02
-  # 触发移动止损比例
-  initProfitRatioLimit: 0.20
 # db存储位置
 storage:
   driver: sqlite

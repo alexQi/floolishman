@@ -11,7 +11,7 @@ import (
 
 var (
 	PriceChangeLimitRatio  = 1.0
-	VolumeChangeLimitRatio = 5.0
+	VolumeChangeLimitRatio = 10.0
 	VolumeGrowLimitRatio   = 3.0
 )
 
@@ -252,7 +252,7 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 		// 判断加仓次数已达上线，不在加仓
 		gridItems := c.positionGridMap[option.Pair].GridItems
 		// 判断仓位加仓次数是否达到上线
-		if sampleSidePosition.MoreCount >= c.setting.MaxAddPostion {
+		if sampleSidePosition.MoreCount >= option.MaxAddPosition {
 			if c.positionGridIndex[option.Pair] >= 0 &&
 				// 多单
 				((openPositionGrid.PositionSide == model.PositionSideTypeLong &&
@@ -292,10 +292,10 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 		amount = sampleSidePosition.UnitQuantity
 	} else {
 		// 判断开仓时，保证后方有足够的加仓次数才开仓否则，可能会只加一次仓后突破仓位限制导致平仓
-		if (openPositionGrid.PositionSide == model.PositionSideTypeLong && int64(openIndex) < c.setting.MinAddPostion) ||
-			(openPositionGrid.PositionSide == model.PositionSideTypeShort && (int64(len(c.positionGridMap[option.Pair].GridItems))-int64(openIndex)) < c.setting.MinAddPostion) {
+		if (openPositionGrid.PositionSide == model.PositionSideTypeLong && int64(openIndex) < option.MinAddPosition) ||
+			(openPositionGrid.PositionSide == model.PositionSideTypeShort && (int64(len(c.positionGridMap[option.Pair].GridItems))-int64(openIndex)) < option.MinAddPosition) {
 			utils.Log.Infof(
-				"[POSITION - IGNORE] Pair: %s | Side: %v, PositionSide: %s | Grid Count: %v, Price: %v, Min: %v, Max: %v | Current Price: %v, Index: %v",
+				"[POSITION - IGNORE] Pair: %s | Side: %v, PositionSide: %s | Grid Count: %v, Price: %v, Min: %v, Max: %v | Current Price: %v, Index: %v (grid Insufficient)",
 				option.Pair,
 				openPositionGrid.Side,
 				openPositionGrid.PositionSide,
@@ -308,14 +308,17 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 			)
 			return
 		}
-
-		amount = calc.OpenPositionSize(
-			quotePosition,
-			float64(c.pairOptions[option.Pair].Leverage),
-			openPositionGrid.Price,
-			1,
-			c.setting.FullSpaceRatio,
-		)
+		if option.MarginMode == constants.MarginModeRoll {
+			amount = calc.OpenPositionSize(
+				quotePosition,
+				float64(c.pairOptions[option.Pair].Leverage),
+				openPositionGrid.Price,
+				1,
+				option.MarginSize,
+			)
+		} else {
+			amount = option.MarginSize
+		}
 	}
 	if volAvgChangeLimit {
 		utils.Log.Infof(
@@ -487,6 +490,7 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 		go c.CloseOrder(false)
 		return
 	}
+	var stopProfitLimit float64
 	if profitRatio > 0 {
 		// 判断利润比小于等于上次设置的利润比，则平仓 初始时为0
 		if profitRatio <= c.profitRatioLimit[option.Pair] && c.profitRatioLimit[option.Pair] > 0 {
@@ -519,47 +523,31 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 		}
 		// 判断当前盈亏比是否大于触发盈亏比
 		if subPosition.Quantity > 0 {
-			if profitRatio < c.setting.ProfitableScale || profitRatio < (c.profitRatioLimit[option.Pair]+c.setting.ProfitableScale+0.01) {
-				utils.Log.Infof(
-					"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < StopLossRatio: %s",
-					mainPosition.Pair,
-					mainPosition.OrderFlag,
-					mainPosition.Quantity,
-					mainPosition.AvgPrice,
-					mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-					subPosition.OrderFlag,
-					subPosition.Quantity,
-					subPosition.AvgPrice,
-					subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-					currentPrice,
-					fmt.Sprintf("%.2f%%", profitRatio*100),
-					fmt.Sprintf("%.2f%%", c.profitRatioLimit[option.Pair]*100),
-				)
-				return
-			}
+			stopProfitLimit = option.ProfitableScale
 		} else {
-			if profitRatio < c.setting.InitProfitRatioLimit || profitRatio < (c.profitRatioLimit[option.Pair]+c.setting.ProfitableScale+0.01) {
-				utils.Log.Infof(
-					"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < StopLossRatio: %s",
-					mainPosition.Pair,
-					mainPosition.OrderFlag,
-					mainPosition.Quantity,
-					mainPosition.AvgPrice,
-					mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-					subPosition.OrderFlag,
-					subPosition.Quantity,
-					subPosition.AvgPrice,
-					subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-					currentPrice,
-					fmt.Sprintf("%.2f%%", profitRatio*100),
-					fmt.Sprintf("%.2f%%", c.profitRatioLimit[option.Pair]*100),
-				)
-				return
+			if mainPosition.MoreCount >= option.MaxAddPosition {
+				stopProfitLimit = option.ProfitableScale
+			} else {
+				stopProfitLimit = option.ProfitableTrigger
 			}
+		}
+		if profitRatio < stopProfitLimit || profitRatio < (c.profitRatioLimit[option.Pair]+option.ProfitableScale+0.01) {
+			utils.Log.Infof(
+				"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < StopLossRatio: %s",
+				mainPosition.Pair,
+				mainPosition.OrderFlag,
+				mainPosition.Quantity,
+				mainPosition.AvgPrice,
+				mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				currentPrice,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
+				fmt.Sprintf("%.2f%%", c.profitRatioLimit[option.Pair]*100),
+			)
+			return
 		}
 
 		// 重设利润比
-		c.profitRatioLimit[option.Pair] = profitRatio - c.setting.ProfitableScale
+		c.profitRatioLimit[option.Pair] = profitRatio - option.ProfitableScale
 		utils.Log.Infof(
 			"[POSITION - PROFIT] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > NewProfitRatio: %s",
 			mainPosition.Pair,
@@ -576,7 +564,7 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 			fmt.Sprintf("%.2f%%", c.profitRatioLimit[option.Pair]*100),
 		)
 	} else {
-		lossRatio := c.setting.BaseLossRatio * float64(option.Leverage)
+		lossRatio := option.MaxMarginLossRatio * float64(option.Leverage)
 		// 判断是否是普通模式
 		if c.pairHedgeMode[option.Pair] == constants.PositionModeNormal {
 			// 判断在网格内时不做处理
@@ -729,11 +717,11 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 				subPosition.AvgPrice,
 				currentPrice,
 				float64(option.Leverage),
-				c.setting.MaxPositionLossRatio,
+				option.PullMarginLossRatio,
 			)
 		} else {
 			// 判断当前亏损比例是否小于要拉回的亏损比例 类似-18%
-			if calc.Abs(lossRatio) < c.setting.MaxPositionLossRatio {
+			if calc.Abs(lossRatio) < option.PullMarginLossRatio {
 				addAmount = mainPosition.Quantity * c.pairPriceChangeRatio[option.Pair]
 			} else {
 				// 根据当前联合仓位保证金亏损比例计算加仓数量
@@ -745,7 +733,7 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 					subPosition.AvgPrice,
 					currentPrice,
 					float64(option.Leverage),
-					c.setting.MaxPositionLossRatio,
+					option.PullMarginLossRatio,
 				)
 			}
 		}

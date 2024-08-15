@@ -29,7 +29,6 @@ var (
 	AvgVolumeLimitRatio  = 1.6
 	ChangeRingCount      = 5
 	ChangeDiffInterval   = 1
-	AmplitudeStopRatio   = 0.6
 	AmplitudeMinRatio    = 1.0
 	AmplitudeMaxRatio    = 3.0
 	StepMoreRatio        = 0.08
@@ -433,7 +432,7 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 		if dataframe.Open.Last(1) < lastPrice {
 			longPrice = midPrice + float64(i)*gridStep + gridStep*stepRatio
 		} else {
-			longPrice = midPrice + float64(i)*gridStep + c.setting.WindowPeriod
+			longPrice = midPrice + float64(i)*gridStep + c.pairOptions[pair].WindowPeriod
 		}
 		shortGridItems = append(shortGridItems, model.PositionGridItem{
 			Side:         model.SideTypeSell,
@@ -450,7 +449,7 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 		if dataframe.Open.Last(1) > lastPrice {
 			shortPrice = midPrice - float64(i)*gridStep - gridStep*stepRatio
 		} else {
-			shortPrice = midPrice - float64(i)*gridStep - c.setting.WindowPeriod
+			shortPrice = midPrice - float64(i)*gridStep - c.pairOptions[pair].WindowPeriod
 		}
 		longGridItems = append(longGridItems, model.PositionGridItem{
 			Side:         model.SideTypeBuy,
@@ -463,10 +462,10 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 			break
 		}
 	}
-	if len(longGridItems) < int(c.setting.MinAddPostion) || len(shortGridItems) < int(c.setting.MinAddPostion) {
+	if len(longGridItems) < int(c.pairOptions[pair].MinAddPosition) || len(shortGridItems) < int(c.pairOptions[pair].MinAddPosition) {
 		utils.Log.Infof(
 			"[GRID] Build - Too few grids (Min Add Position: %v ),Long:%v, Short:%v, wating...",
-			c.setting.MaxAddPostion,
+			c.pairOptions[pair].MinAddPosition,
 			len(longGridItems),
 			len(shortGridItems),
 		)

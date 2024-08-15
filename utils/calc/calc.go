@@ -142,16 +142,16 @@ func StopPositionSizeRatio(balance, leverage, price, positionQuantity float64) f
 	return positionQuantity / originPositionSize
 }
 
-func OpenPositionSize(balance, leverage, currentPrice float64, scoreRadio float64, fullSpaceRatio float64) float64 {
+func OpenPositionSize(balance, leverage, currentPrice float64, scoreRadio float64, marginRatio float64) float64 {
 	var amount float64
 	fullPositionSize := PositionSize(balance, leverage, currentPrice)
 	if scoreRadio >= 0.5 {
-		amount = fullPositionSize * fullSpaceRatio
+		amount = fullPositionSize * marginRatio
 	} else {
 		if scoreRadio < 0.2 {
-			amount = fullPositionSize * fullSpaceRatio * 0.4
+			amount = fullPositionSize * marginRatio * 0.4
 		} else {
-			amount = fullPositionSize * fullSpaceRatio * scoreRadio * 2
+			amount = fullPositionSize * marginRatio * scoreRadio * 2
 		}
 	}
 	return amount

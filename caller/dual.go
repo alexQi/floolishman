@@ -1,6 +1,7 @@
 package caller
 
 import (
+	"floolishman/constants"
 	"floolishman/model"
 	"floolishman/utils"
 	"floolishman/utils/calc"
@@ -41,11 +42,8 @@ func (cc *CallerDual) Listen() {
 }
 
 // 当前模式下仓位比例
-//"fullSpaceRatio": 0.05,
-//"stopSpaceRatio": 0.20,
-//"baseLossRatio": 0.002,
-//"profitableScale": 0.04,
-//"initProfitRatioLimit": 0.20
+//"MaxMarginRatio": 0.20,
+//"MaxMarginLossRatio": 0.002,
 
 func (s *CallerDual) openDualPosition(option model.PairOption) {
 	s.mu.Lock()         // 加锁
@@ -128,7 +126,12 @@ func (s *CallerDual) openDualPosition(option model.PairOption) {
 	// 重置当前交易对止损比例
 	s.profitRatioLimit[option.Pair] = 0
 	// 计算仓位大小
-	amount := calc.OpenPositionSize(quotePosition, float64(s.pairOptions[option.Pair].Leverage), currentPrice, 1, s.setting.FullSpaceRatio)
+	var amount float64
+	if option.MarginMode == constants.MarginModeRoll {
+		amount = calc.OpenPositionSize(quotePosition, float64(s.pairOptions[option.Pair].Leverage), currentPrice, 1, option.MarginSize)
+	} else {
+		amount = option.MarginSize
+	}
 	utils.Log.Infof(
 		"[POSITION OPENING] Pair: %s | Quantity: %v | Price: %v | CandleTime: %s",
 		option.Pair,
@@ -175,7 +178,7 @@ func (cc *CallerDual) closePosition(option model.PairOption) {
 		openedPositionMap[model.PositionSideType(position.PositionSide)] = position
 	}
 
-	lossRatio := cc.setting.BaseLossRatio * float64(option.Leverage)
+	lossRatio := option.MaxMarginLossRatio * float64(option.Leverage)
 	currentPrice := cc.pairPrices[option.Pair]
 	mainPosition, subPosition := cc.judePosition(option, currentPrice, openedPositionMap)
 
@@ -230,7 +233,7 @@ func (cc *CallerDual) closePosition(option model.PairOption) {
 	)
 	if profitRatio > 0 {
 		// 已经达到最大加仓时，盈利超过设置止盈的一半就平仓防止亏损扩大
-		if stopPositionRatio >= cc.setting.StopSpaceRatio && profitRatio > cc.setting.InitProfitRatioLimit/2 {
+		if stopPositionRatio >= option.MaxMarginRatio && profitRatio > option.ProfitableTrigger/2 {
 			utils.Log.Infof(
 				"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s (Position Size In Max: %s [%s] With Profit)",
 				mainPosition.Pair,
@@ -245,7 +248,7 @@ func (cc *CallerDual) closePosition(option model.PairOption) {
 				currentPrice,
 				fmt.Sprintf("%.2f%%", profitRatio*100),
 				fmt.Sprintf("%.2f%%", stopPositionRatio*100),
-				fmt.Sprintf("%.2f%%", cc.setting.StopSpaceRatio*100),
+				fmt.Sprintf("%.2f%%", option.MaxMarginRatio*100),
 			)
 			cc.finishAllPosition(mainPosition, subPosition)
 			// 当仓位无法增加
@@ -272,9 +275,9 @@ func (cc *CallerDual) closePosition(option model.PairOption) {
 			return
 		}
 		// 判断当前盈亏比是否大于触发盈亏比
-		if profitRatio < cc.setting.InitProfitRatioLimit || profitRatio < (cc.profitRatioLimit[option.Pair]+cc.setting.ProfitableScale+0.01) {
+		if profitRatio < option.ProfitableTrigger || profitRatio < (cc.profitRatioLimit[option.Pair]+option.ProfitableScale+0.01) {
 			utils.Log.Infof(
-				"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < InitProfitRatioLimit: %s",
+				"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < ProfitableTrigger: %s",
 				mainPosition.Pair,
 				mainPosition.OrderFlag,
 				mainPosition.Quantity,
@@ -286,12 +289,12 @@ func (cc *CallerDual) closePosition(option model.PairOption) {
 				subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 				currentPrice,
 				fmt.Sprintf("%.2f%%", profitRatio*100),
-				fmt.Sprintf("%.2f%%", cc.setting.InitProfitRatioLimit*100),
+				fmt.Sprintf("%.2f%%", option.ProfitableTrigger*100),
 			)
 			return
 		}
 		// 重设利润比
-		cc.profitRatioLimit[option.Pair] = profitRatio - cc.setting.ProfitableScale
+		cc.profitRatioLimit[option.Pair] = profitRatio - option.ProfitableScale
 		utils.Log.Infof(
 			"[POSITION - PROFIT] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > NewProfitRatio: %s",
 			mainPosition.Pair,
@@ -348,7 +351,7 @@ func (cc *CallerDual) closePosition(option model.PairOption) {
 			return
 		}
 		// 判断能否加仓
-		if stopPositionRatio >= cc.setting.StopSpaceRatio {
+		if stopPositionRatio >= option.MaxMarginRatio {
 			utils.Log.Infof(
 				"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s (Position Size In Max: %s [%s])",
 				mainPosition.Pair,
@@ -363,7 +366,7 @@ func (cc *CallerDual) closePosition(option model.PairOption) {
 				currentPrice,
 				fmt.Sprintf("%.2f%%", profitRatio*100),
 				fmt.Sprintf("%.2f%%", stopPositionRatio*100),
-				fmt.Sprintf("%.2f%%", cc.setting.StopSpaceRatio*100),
+				fmt.Sprintf("%.2f%%", option.MaxMarginRatio*100),
 			)
 			// 当仓位无法增加
 			return

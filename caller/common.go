@@ -1,6 +1,7 @@
 package caller
 
 import (
+	"floolishman/constants"
 	"floolishman/model"
 	"floolishman/types"
 	"floolishman/utils"
@@ -20,10 +21,6 @@ type CallerCommon struct {
 }
 
 //"lossTimeDuration": 40,
-//"fullSpaceRatio": 0.15,
-//"baseLossRatio": 0.0047,
-//"profitableScale": 0.08,
-//"initProfitRatioLimit": 0.12
 
 func (cc *CallerCommon) Listen() {
 	// 监听仓位关闭信号重置judger
@@ -228,7 +225,12 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 	// ******************* 执行反手开仓操作 *****************//
 	// 根据多空比动态计算仓位大小
 	scoreRadio := calc.Abs(0.5-longShortRatio) / 0.5
-	amount := calc.OpenPositionSize(quotePosition, float64(cc.pairOptions[option.Pair].Leverage), currentPrice, scoreRadio, cc.setting.FullSpaceRatio)
+	var amount float64
+	if option.MarginMode == constants.MarginModeRoll {
+		amount = calc.OpenPositionSize(quotePosition, float64(option.Leverage), currentPrice, scoreRadio, option.MarginSize)
+	} else {
+		amount = option.MarginSize
+	}
 	if cc.setting.Backtest == false {
 		utils.Log.Infof(
 			"[POSITION OPENING] Pair: %s | P.Side: %s | Quantity: %v | Price: %v",
@@ -256,14 +258,14 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 	var stopLimitPrice float64
 	var stopTrigerPrice float64
 
-	var lossRatio = cc.setting.BaseLossRatio * float64(option.Leverage)
+	var lossRatio = option.MaxMarginLossRatio * float64(option.Leverage)
 	if scoreRadio < 0.5 {
 		lossRatio = lossRatio * 0.5
 	} else {
 		lossRatio = lossRatio * scoreRadio
 	}
 	// 计算止损距离
-	stopLossDistance := calc.StopLossDistance(lossRatio, order.Price, float64(cc.pairOptions[option.Pair].Leverage), amount)
+	stopLossDistance := calc.StopLossDistance(lossRatio, order.Price, float64(option.Leverage), amount)
 	if finalSide == model.SideTypeBuy {
 		closeSideType = model.SideTypeSell
 		stopLimitPrice = order.Price - stopLossDistance
@@ -378,7 +380,7 @@ func (cc *CallerCommon) closePosition(option model.PairOption, longShortRatio fl
 		// 小于预设值，判断止损时间
 		// 此处处理时间止损
 		// 获取当前时间使用
-		if profitRatio < cc.setting.InitProfitRatioLimit || profitRatio <= (cc.profitRatioLimit[option.Pair]+cc.setting.ProfitableScale+0.01) {
+		if profitRatio < option.ProfitableTrigger || profitRatio <= (cc.profitRatioLimit[option.Pair]+option.ProfitableScale+0.01) {
 			// 时间未达到新的止损限制时间
 			if currentTime.Before(cc.lossLimitTimes[openedPosition.OrderFlag]) {
 				continue
@@ -390,7 +392,7 @@ func (cc *CallerCommon) closePosition(option model.PairOption, longShortRatio fl
 		// 盈利时更新止损终止时间
 		cc.lossLimitTimes[openedPosition.OrderFlag] = currentTime.Add(time.Duration(cc.setting.LossTimeDuration) * time.Minute)
 		// 递增利润比
-		currentLossLimitProfit := profitRatio - cc.setting.ProfitableScale
+		currentLossLimitProfit := profitRatio - option.ProfitableScale
 		// 使用新的止损利润比计算止损点数
 		stopLossDistance = calc.StopLossDistance(
 			currentLossLimitProfit,
@@ -438,7 +440,7 @@ func (cc *CallerCommon) closePosition(option model.PairOption, longShortRatio fl
 			utils.Log.Error(err)
 			continue
 		}
-		cc.profitRatioLimit[option.Pair] = profitRatio - cc.setting.ProfitableScale
+		cc.profitRatioLimit[option.Pair] = profitRatio - option.ProfitableScale
 		for _, lossOrder := range lossOrders {
 			// 取消之前的止损单
 			err = cc.broker.Cancel(*lossOrder)

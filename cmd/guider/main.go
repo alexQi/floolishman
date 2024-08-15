@@ -7,13 +7,10 @@ import (
 	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/strutil"
-	"github.com/adshao/go-binance/v2/futures"
 	"github.com/glebarez/sqlite"
 	"github.com/spf13/viper"
-	"log"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 func main() {
@@ -30,25 +27,11 @@ func main() {
 	// 获取交易对配置
 	pairOptions := []model.PairOption{}
 	for pair, val := range pairsSetting {
-		valMap := val.(map[string]interface{})
-
-		// 检查并处理 leverage
-		leverageFloat, ok := valMap["leverage"].(float64)
-		if !ok {
-			log.Fatalf("Invalid leverage format for pair %s: %v", pair, valMap["leverage"])
+		pairOption := model.BuildPairOption(pair, val.(map[string]interface{}))
+		if pairOption.Status == false {
+			continue
 		}
-
-		marginType, ok := valMap["margintype"].(string)
-		if !ok {
-			log.Fatalf("Invalid marginType format for pair %s", pair)
-		}
-		// 将 leverage 从 float64 转换为 int
-		leverage := int(leverageFloat)
-		pairOptions = append(pairOptions, model.PairOption{
-			Pair:       strings.ToUpper(pair),
-			Leverage:   leverage,
-			MarginType: futures.MarginType(strings.ToUpper(marginType)), // 假设 futures.MarginType 是一个类型别名
-		})
+		pairOptions = append(pairOptions, pairOption)
 	}
 	storagePath := viper.GetString("storage.path")
 	dir := filepath.Dir(storagePath)

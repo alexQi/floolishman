@@ -9,14 +9,12 @@ import (
 	"floolishman/strategies"
 	"floolishman/types"
 	"floolishman/utils"
-	"github.com/adshao/go-binance/v2/futures"
 	"github.com/glebarez/sqlite"
 	"github.com/spf13/viper"
 	"gorm.io/gorm"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 var ConstStraties = map[string]types.Strategy{
@@ -41,17 +39,8 @@ func main() {
 		telegramToken = viper.GetString("telegram.token")
 		telegramUser  = viper.GetInt("telegram.user")
 		callerSetting = types.CallerSetting{
-			CheckMode:            viper.GetString("caller.checkMode"),
-			LossTimeDuration:     viper.GetInt("caller.lossTimeDuration"),
-			MaxAddPostion:        viper.GetInt64("caller.maxAddPostion"),          // 最大加仓次数
-			MinAddPostion:        viper.GetInt64("caller.minAddPostion"),          // 最小加仓次数
-			MaxPositionLossRatio: viper.GetFloat64("caller.maxPositionLossRatio"), // 加仓后最大亏损比例
-			WindowPeriod:         viper.GetFloat64("caller.windowPeriod"),         // 空窗期点数
-			FullSpaceRatio:       viper.GetFloat64("caller.fullSpaceRatio"),
-			StopSpaceRatio:       viper.GetFloat64("caller.stopSpaceRatio"),
-			BaseLossRatio:        viper.GetFloat64("caller.baseLossRatio"),
-			ProfitableScale:      viper.GetFloat64("caller.profitableScale"),
-			InitProfitRatioLimit: viper.GetFloat64("caller.initProfitRatioLimit"),
+			CheckMode:        viper.GetString("caller.checkMode"),
+			LossTimeDuration: viper.GetInt("caller.lossTimeDuration"),
 		}
 		pairsSetting      = viper.GetStringMap("pairs")
 		strategiesSetting = viper.GetStringSlice("strategies")
@@ -71,27 +60,11 @@ func main() {
 	}
 	callerSetting.GuiderHost = settings.GuiderGrpcHost
 	for pair, val := range pairsSetting {
-		valMap := val.(map[string]interface{})
-
-		// 检查并处理 leverage
-		leverageFloat, ok := valMap["leverage"].(float64)
-		if !ok {
-			log.Fatalf("Invalid leverage format for pair %s: %v", pair, valMap["leverage"])
+		pairOption := model.BuildPairOption(pair, val.(map[string]interface{}))
+		if pairOption.Status == false {
+			continue
 		}
-
-		marginType, ok := valMap["margintype"].(string)
-		if !ok {
-			log.Fatalf("Invalid marginType format for pair %s", pair)
-		}
-
-		// 将 leverage 从 float64 转换为 int
-		leverage := int(leverageFloat)
-
-		settings.PairOptions = append(settings.PairOptions, model.PairOption{
-			Pair:       strings.ToUpper(pair),
-			Leverage:   leverage,
-			MarginType: futures.MarginType(strings.ToUpper(marginType)), // 假设 futures.MarginType 是一个类型别名
-		})
+		settings.PairOptions = append(settings.PairOptions, pairOption)
 	}
 
 	compositesStrategy := types.CompositesStrategy{}
