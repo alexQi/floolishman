@@ -5,6 +5,18 @@ import (
 	"time"
 )
 
+type StopProfitLevel struct {
+	TriggerRatio     float64
+	DrawdownRatio    float64
+	NextTriggerRatio float64
+}
+
+type PairProfit struct {
+	Close    float64
+	Decrease float64
+	Floor    float64
+}
+
 type Position struct {
 	ID                   int64          `db:"id" json:"id" gorm:"primaryKey,autoIncrement"`
 	Pair                 string         `db:"pair" json:"pair"`

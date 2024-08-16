@@ -22,45 +22,45 @@ type CallerCommon struct {
 
 //"lossTimeDuration": 40,
 
-func (cc *CallerCommon) Listen() {
+func (c *CallerCommon) Listen() {
 	// 监听仓位关闭信号重置judger
-	go cc.RegisterOrderSignal()
+	go c.RegisterOrderSignal()
 	// 非回溯测试时，执行检查仓位关闭
-	if cc.setting.Backtest == false {
+	if c.setting.Backtest == false {
 		// 执行超时检查
-		go cc.tickCheckOrderTimeout()
+		go c.tickCheckOrderTimeout()
 		// 非回溯测试模式且不是看门狗方式下监听平仓
-		if cc.setting.FollowSymbol == false {
-			go cc.tickerCheckForClose(cc.pairOptions)
+		if c.setting.FollowSymbol == false {
+			go c.tickerCheckForClose(c.pairOptions)
 		}
 	}
 }
 
-func (cc *CallerCommon) tickerCheckForClose(options map[string]model.PairOption) {
+func (c *CallerCommon) tickerCheckForClose(options map[string]model.PairOption) {
 	for {
 		select {
 		// 定时查询当前是否有仓位
 		case <-time.After(CheckCloseInterval * time.Millisecond):
 			for _, option := range options {
-				cc.EventCallClose(option.Pair)
+				c.EventCallClose(option.Pair)
 			}
 		}
 	}
 }
 
-func (cc *CallerCommon) RegisterOrderSignal() {
+func (c *CallerCommon) RegisterOrderSignal() {
 	for {
 		select {
 		case orderClose := <-types.OrderCloseChan:
-			cc.ResetJudger(orderClose.Pair)
+			c.ResetJudger(orderClose.Pair)
 		default:
 			time.Sleep(1 * time.Second)
 		}
 	}
 }
 
-func (cc *CallerCommon) ResetJudger(pair string) {
-	cc.positionJudgers[pair] = &PositionJudger{
+func (c *CallerCommon) ResetJudger(pair string) {
+	c.positionJudgers[pair] = &PositionJudger{
 		Pair:          pair,
 		Matchers:      []model.Strategy{},
 		TendencyCount: make(map[string]int),
@@ -122,9 +122,9 @@ func (s *CallerCommon) checkPosition(option model.PairOption) (float64, float64,
 	return assetPosition, quotePosition, longShortRatio, currentMatchers, matcherStrategy
 }
 
-func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quotePosition, longShortRatio float64, matcherStrategy map[string]int, strategies []model.Strategy) {
-	cc.mu.Lock()         // 加锁
-	defer cc.mu.Unlock() // 解锁
+func (c *CallerCommon) openPosition(option model.PairOption, assetPosition, quotePosition, longShortRatio float64, matcherStrategy map[string]int, strategies []model.Strategy) {
+	c.mu.Lock()         // 加锁
+	defer c.mu.Unlock() // 解锁
 	// 无资产
 	if quotePosition <= 0 {
 		utils.Log.Errorf("Balance is not enough to create order")
@@ -153,12 +153,12 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 		return
 	}
 
-	openedPositions, err := cc.broker.GetPositionsForPair(option.Pair)
+	openedPositions, err := c.broker.GetPositionsForPair(option.Pair)
 	if err != nil {
 		utils.Log.Error(err)
 		return
 	}
-	currentPrice := cc.pairPrices[option.Pair]
+	currentPrice := c.pairPrices[option.Pair]
 	var existPosition *model.Position
 	var reversePosition *model.Position
 	for _, openedPosition := range openedPositions {
@@ -170,7 +170,7 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 	}
 	// 当前方向已存在仓位，不在开仓
 	if existPosition != nil {
-		if cc.setting.Backtest == false {
+		if c.setting.Backtest == false {
 			utils.Log.Infof(
 				"[POSITION - EXSIT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v",
 				existPosition.OrderFlag,
@@ -198,12 +198,12 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 			if model.PositionSideType(reversePosition.PositionSide) == model.PositionSideTypeLong &&
 				(0.5-longShortRatio) > 0 &&
 				(0.5-longShortRatio) >= calc.Abs(0.5-reversePosition.LongShortRatio) {
-				cc.finishPosition(SeasonTypeReverse, reversePosition)
+				c.finishPosition(SeasonTypeReverse, reversePosition)
 			}
 			if model.PositionSideType(reversePosition.PositionSide) == model.PositionSideTypeShort &&
 				(0.5-longShortRatio) < 0 &&
 				calc.Abs(0.5-longShortRatio) <= (0.5-reversePosition.LongShortRatio) {
-				cc.finishPosition(SeasonTypeReverse, reversePosition)
+				c.finishPosition(SeasonTypeReverse, reversePosition)
 			}
 		}
 	}
@@ -214,7 +214,7 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 		postionSide = model.PositionSideTypeShort
 	}
 	// 判断是否有当前方向未成交的订单
-	hasOrder, err := cc.CheckHasUnfilledPositionOrders(option.Pair, finalSide, postionSide)
+	hasOrder, err := c.CheckHasUnfilledPositionOrders(option.Pair, finalSide, postionSide)
 	if err != nil {
 		utils.Log.Error(err)
 		return
@@ -231,7 +231,7 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 	} else {
 		amount = option.MarginSize
 	}
-	if cc.setting.Backtest == false {
+	if c.setting.Backtest == false {
 		utils.Log.Infof(
 			"[POSITION OPENING] Pair: %s | P.Side: %s | Quantity: %v | Price: %v",
 			option.Pair,
@@ -242,9 +242,9 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 	}
 
 	// 重置当前交易对止损比例
-	cc.profitRatioLimit[option.Pair] = 0
+	c.resetPairProfit(option.Pair)
 	// 根据最新价格创建限价单
-	order, err := cc.broker.CreateOrderLimit(finalSide, postionSide, option.Pair, amount, currentPrice, model.OrderExtra{
+	order, err := c.broker.CreateOrderLimit(finalSide, postionSide, option.Pair, amount, currentPrice, model.OrderExtra{
 		Leverage:             option.Leverage,
 		LongShortRatio:       longShortRatio,
 		MatcherStrategyCount: matcherStrategy,
@@ -275,7 +275,7 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 		stopLimitPrice = order.Price + stopLossDistance
 		stopTrigerPrice = order.Price + stopLossDistance*StopLossDistanceRatio
 	}
-	_, err = cc.broker.CreateOrderStopLimit(
+	_, err = c.broker.CreateOrderStopLimit(
 		closeSideType,
 		postionSide,
 		option.Pair,
@@ -294,14 +294,14 @@ func (cc *CallerCommon) openPosition(option model.PairOption, assetPosition, quo
 		return
 	}
 	// 重置开仓检查条件
-	cc.ResetJudger(option.Pair)
+	c.ResetJudger(option.Pair)
 }
 
-func (cc *CallerCommon) closePosition(option model.PairOption, longShortRatio float64, strategies []model.Strategy) {
-	cc.mu.Lock()         // 加锁
-	defer cc.mu.Unlock() // 解锁
+func (c *CallerCommon) closePosition(option model.PairOption, longShortRatio float64, strategies []model.Strategy) {
+	c.mu.Lock()         // 加锁
+	defer c.mu.Unlock() // 解锁
 	// 获取当前已存在的仓位
-	openedPositions, err := cc.broker.GetPositionsForPair(option.Pair)
+	openedPositions, err := c.broker.GetPositionsForPair(option.Pair)
 	if err != nil {
 		utils.Log.Error(err)
 		return
@@ -310,11 +310,8 @@ func (cc *CallerCommon) closePosition(option model.PairOption, longShortRatio fl
 		return
 	}
 
-	currentPrice := cc.pairPrices[option.Pair]
-	var closeSideType model.SideType
+	currentPrice := c.pairPrices[option.Pair]
 	var currentTime time.Time
-	var stopLossDistance float64
-	var stopLimitPrice float64
 	// ***********************
 	var checkPostionSide model.PositionSideType
 	if longShortRatio > 0.5 {
@@ -331,19 +328,19 @@ func (cc *CallerCommon) closePosition(option model.PairOption, longShortRatio fl
 			if model.PositionSideType(openedPosition.PositionSide) == model.PositionSideTypeLong &&
 				(0.5-longShortRatio) > 0 &&
 				(0.5-longShortRatio) >= calc.Abs(0.5-openedPosition.LongShortRatio) {
-				cc.finishPosition(SeasonTypeReverse, openedPosition)
+				c.finishPosition(SeasonTypeReverse, openedPosition)
 				continue
 			}
 			if model.PositionSideType(openedPosition.PositionSide) == model.PositionSideTypeShort &&
 				(0.5-longShortRatio) < 0 &&
 				calc.Abs(0.5-longShortRatio) <= (0.5-openedPosition.LongShortRatio) {
-				cc.finishPosition(SeasonTypeReverse, openedPosition)
+				c.finishPosition(SeasonTypeReverse, openedPosition)
 				continue
 			}
 		}
 		// 监控已成交仓位，记录订单成交时间+指定时间作为时间止损
-		if _, ok := cc.lossLimitTimes[openedPosition.OrderFlag]; !ok {
-			cc.lossLimitTimes[openedPosition.OrderFlag] = openedPosition.UpdatedAt.Add(time.Duration(cc.setting.LossTimeDuration) * time.Minute)
+		if _, ok := c.lossLimitTimes[openedPosition.OrderFlag]; !ok {
+			c.lossLimitTimes[openedPosition.OrderFlag] = openedPosition.UpdatedAt.Add(time.Duration(c.setting.LossTimeDuration) * time.Minute)
 		}
 		// 记录利润比
 		profitRatio := calc.ProfitRatio(
@@ -353,7 +350,7 @@ func (cc *CallerCommon) closePosition(option model.PairOption, longShortRatio fl
 			float64(option.Leverage),
 			openedPosition.Quantity,
 		)
-		if cc.setting.Backtest == false {
+		if c.setting.Backtest == false {
 			utils.Log.Infof(
 				"[POSITION - WATCH] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v | PR.%%: %s | Create: %s | Stop Cut-off: %s",
 				openedPosition.OrderFlag,
@@ -364,95 +361,141 @@ func (cc *CallerCommon) closePosition(option model.PairOption, longShortRatio fl
 				currentPrice,
 				fmt.Sprintf("%.2f%%", profitRatio*100),
 				openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-				cc.lossLimitTimes[openedPosition.OrderFlag].In(Loc).Format("2006-01-02 15:04:05"),
+				c.lossLimitTimes[openedPosition.OrderFlag].In(Loc).Format("2006-01-02 15:04:05"),
 			)
-		}
-		if model.SideType(openedPosition.Side) == model.SideTypeBuy {
-			closeSideType = model.SideTypeSell
-		} else {
-			closeSideType = model.SideTypeBuy
 		}
 		currentTime = time.Now()
-		if cc.setting.CheckMode == "candle" {
-			currentTime = cc.lastUpdate[option.Pair]
+		if c.setting.CheckMode == "candle" {
+			currentTime = c.lastUpdate[option.Pair]
 		}
-		// 如果利润比大于预设值，则使用计算出得利润比 - 指定步进的利润比 得到新的止损利润比
-		// 小于预设值，判断止损时间
-		// 此处处理时间止损
-		// 获取当前时间使用
-		if profitRatio < option.ProfitableTrigger || profitRatio <= (cc.profitRatioLimit[option.Pair]+option.ProfitableScale+0.01) {
-			// 时间未达到新的止损限制时间
-			if currentTime.Before(cc.lossLimitTimes[openedPosition.OrderFlag]) {
-				continue
-			}
-			// 时间超过限制时间，执行时间止损 市价平单
-			cc.finishPosition(SeasonTypeTimeout, openedPosition)
-			continue
-		}
-		// 盈利时更新止损终止时间
-		cc.lossLimitTimes[openedPosition.OrderFlag] = currentTime.Add(time.Duration(cc.setting.LossTimeDuration) * time.Minute)
-		// 递增利润比
-		currentLossLimitProfit := profitRatio - option.ProfitableScale
-		// 使用新的止损利润比计算止损点数
-		stopLossDistance = calc.StopLossDistance(
-			currentLossLimitProfit,
-			openedPosition.AvgPrice,
-			float64(option.Leverage),
-			openedPosition.Quantity,
-		)
-		// 重新计算止损价格
-		if model.SideType(openedPosition.Side) == model.SideTypeSell {
-			stopLimitPrice = openedPosition.AvgPrice - stopLossDistance
-		} else {
-			stopLimitPrice = openedPosition.AvgPrice + stopLossDistance
-		}
-		if cc.setting.Backtest == false {
+		// 时间未达到新的止损限制时间
+		if currentTime.After(c.lossLimitTimes[openedPosition.OrderFlag]) {
 			utils.Log.Infof(
-				"[POSITION - PROFIT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v, Stop: %v | PR.%%: %s, SPR.%%: %s | Create: %s | Stop Cut-off: %s",
-				openedPosition.OrderFlag,
+				"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s (time out)",
 				openedPosition.Pair,
-				openedPosition.PositionSide,
+				openedPosition.OrderFlag,
 				openedPosition.Quantity,
 				openedPosition.AvgPrice,
-				currentPrice,
-				stopLimitPrice,
-				fmt.Sprintf("%.2f%%", profitRatio*100),
-				fmt.Sprintf("%.2f%%", currentLossLimitProfit*100),
 				openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-				cc.lossLimitTimes[openedPosition.OrderFlag].In(Loc).Format("2006-01-02 15:04:05"),
+				currentPrice,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
 			)
-		}
-		// 获取原始止损单
-		lossOrders, err := cc.broker.GetOrdersForPostionLossUnfilled(openedPosition.OrderFlag)
-		if err != nil {
-			utils.Log.Error(err)
+			c.resetPairProfit(option.Pair)
+			c.finishAllPosition(openedPosition, &model.Position{})
 			continue
 		}
-		// 设置新的止损单
-		_, err = cc.broker.CreateOrderStopMarket(closeSideType, model.PositionSideType(openedPosition.PositionSide), option.Pair, openedPosition.Quantity, stopLimitPrice, model.OrderExtra{
-			Leverage:             option.Leverage,
-			OrderFlag:            openedPosition.OrderFlag,
-			LongShortRatio:       openedPosition.LongShortRatio,
-			MatcherStrategyCount: openedPosition.MatcherStrategyCount,
-		})
-		if err != nil {
-			// 如果重新挂限价止损失败则不在取消
-			utils.Log.Error(err)
-			continue
-		}
-		cc.profitRatioLimit[option.Pair] = profitRatio - option.ProfitableScale
-		for _, lossOrder := range lossOrders {
-			// 取消之前的止损单
-			err = cc.broker.Cancel(*lossOrder)
-			if err != nil {
-				utils.Log.Error(err)
+		// ****************
+		if profitRatio > 0 {
+			// ---------------------
+			// 判断利润比小于等于上次设置的利润比，则平仓 初始时为0
+			if profitRatio <= c.pairCurrentProfit[option.Pair].Close && c.pairCurrentProfit[option.Pair].Close > 0 {
+				utils.Log.Infof(
+					"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < ProfitClose: %s",
+					openedPosition.Pair,
+					openedPosition.OrderFlag,
+					openedPosition.Quantity,
+					openedPosition.AvgPrice,
+					openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+					currentPrice,
+					fmt.Sprintf("%.2f%%", profitRatio*100),
+					fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Close*100),
+				)
+				// 重置交易对盈利
+				c.resetPairProfit(option.Pair)
+				c.finishAllPosition(openedPosition, &model.Position{})
 				return
 			}
+			profitTriggerRatio := c.pairCurrentProfit[option.Pair].Floor
+			// 判断是否已锁定利润比
+			if c.pairCurrentProfit[option.Pair].Close == 0 {
+				// 小于触发值时，记录当前利润比
+				if profitRatio < profitTriggerRatio {
+					utils.Log.Infof(
+						"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < ProfitTriggerRatio: %s",
+						openedPosition.Pair,
+						openedPosition.OrderFlag,
+						openedPosition.Quantity,
+						openedPosition.AvgPrice,
+						openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+						currentPrice,
+						fmt.Sprintf("%.2f%%", profitRatio*100),
+						fmt.Sprintf("%.2f%%", profitTriggerRatio*100),
+					)
+					return
+				}
+			} else {
+				if profitRatio < profitTriggerRatio {
+					// 当前利润比触发值，之前已经有Close时，判断当前利润比是否比上次设置的利润比大
+					if profitRatio <= c.pairCurrentProfit[option.Pair].Close+c.pairCurrentProfit[option.Pair].Decrease {
+						utils.Log.Infof(
+							"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < ProfitCloseRatio: %s",
+							openedPosition.Pair,
+							openedPosition.OrderFlag,
+							openedPosition.Quantity,
+							openedPosition.AvgPrice,
+							openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+							currentPrice,
+							fmt.Sprintf("%.2f%%", profitRatio*100),
+							fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Close*100),
+						)
+						return
+					}
+				}
+			}
+			// 当前利润比大于等于触发利润比，
+			profitLevel := c.findProfitLevel(option.Pair, profitRatio)
+			if profitLevel != nil {
+				c.pairCurrentProfit[option.Pair].Floor = profitLevel.NextTriggerRatio
+				c.pairCurrentProfit[option.Pair].Decrease = profitLevel.DrawdownRatio
+			}
+
+			c.pairCurrentProfit[option.Pair].Close = profitRatio - c.pairCurrentProfit[option.Pair].Decrease
+			utils.Log.Infof(
+				"[POSITION - PROFIT] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > NewProfitRatio: %s",
+				openedPosition.Pair,
+				openedPosition.OrderFlag,
+				openedPosition.Quantity,
+				openedPosition.AvgPrice,
+				openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				currentPrice,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
+				fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Close*100),
+			)
+		} else {
+			lossRatio := option.MaxMarginLossRatio * float64(option.Leverage)
+			// 亏损盈利比已大于最大
+			if calc.Abs(profitRatio) > lossRatio {
+				utils.Log.Infof(
+					"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > MaxLoseRatio %s",
+					openedPosition.Pair,
+					openedPosition.OrderFlag,
+					openedPosition.Quantity,
+					openedPosition.AvgPrice,
+					openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+					currentPrice,
+					fmt.Sprintf("%.2f%%", profitRatio*100),
+					fmt.Sprintf("%.2f%%", lossRatio*100),
+				)
+				c.resetPairProfit(option.Pair)
+				c.finishAllPosition(openedPosition, &model.Position{})
+				return
+			}
+			utils.Log.Infof(
+				"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < LossStepRatio: %s",
+				openedPosition.Pair,
+				openedPosition.OrderFlag,
+				openedPosition.Quantity,
+				openedPosition.AvgPrice,
+				openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				currentPrice,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
+				fmt.Sprintf("%.2f%%", StepMoreRatio*100),
+			)
 		}
 	}
 }
 
-func (cc *CallerCommon) finishPosition(seasonType SeasonType, position *model.Position) {
+func (c *CallerCommon) finishPosition(seasonType SeasonType, position *model.Position) {
 	var closeSideType model.SideType
 	if model.PositionSideType(position.PositionSide) == model.PositionSideTypeLong {
 		closeSideType = model.SideTypeSell
@@ -460,7 +503,7 @@ func (cc *CallerCommon) finishPosition(seasonType SeasonType, position *model.Po
 		closeSideType = model.SideTypeBuy
 	}
 	// 判断仓位方向为反方向，平掉现有仓位
-	_, err := cc.broker.CreateOrderMarket(
+	_, err := c.broker.CreateOrderMarket(
 		closeSideType,
 		model.PositionSideType(position.PositionSide),
 		position.Pair,
@@ -477,7 +520,7 @@ func (cc *CallerCommon) finishPosition(seasonType SeasonType, position *model.Po
 		return
 	}
 	// 删除止损时间限制配置
-	delete(cc.lossLimitTimes, position.OrderFlag)
+	delete(c.lossLimitTimes, position.OrderFlag)
 
 	utils.Log.Infof(
 		"[POSITION - %s] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v",
@@ -490,14 +533,14 @@ func (cc *CallerCommon) finishPosition(seasonType SeasonType, position *model.Po
 		position,
 	)
 	// 查询当前orderFlag所有的止损单，全部取消
-	lossOrders, err := cc.broker.GetOrdersForPostionLossUnfilled(position.OrderFlag)
+	lossOrders, err := c.broker.GetOrdersForPostionLossUnfilled(position.OrderFlag)
 	if err != nil {
 		utils.Log.Error(err)
 		return
 	}
 	for _, lossOrder := range lossOrders {
 		// 取消之前的止损单
-		err = cc.broker.Cancel(*lossOrder)
+		err = c.broker.Cancel(*lossOrder)
 		if err != nil {
 			utils.Log.Error(err)
 			return
@@ -559,7 +602,7 @@ func (bcc *CallerCommon) Sanitizer(matchers []model.Strategy) (string, []model.S
 	return finalTendency, currentMatchers
 }
 
-func (cc *CallerCommon) getStrategyLongShortRatio(finalTendency string, currentMatchers []model.Strategy) (float64, map[string]int) {
+func (c *CallerCommon) getStrategyLongShortRatio(finalTendency string, currentMatchers []model.Strategy) (float64, map[string]int) {
 	longShortRatio := -1.0
 	totalScore := 0
 	matcherMapScore := make(map[string]int)
@@ -569,7 +612,7 @@ func (cc *CallerCommon) getStrategyLongShortRatio(finalTendency string, currentM
 		return longShortRatio, matcherStrategy
 	}
 	// 计算总得分
-	for _, strategy := range cc.strategy.Strategies {
+	for _, strategy := range c.strategy.Strategies {
 		totalScore += strategy.SortScore()
 	}
 	// 初始化多空双方map

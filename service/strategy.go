@@ -118,23 +118,27 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, is
 			s.caller.SetSample(candle.Pair, timeframe, reflect.TypeOf(str).Elem().Name(), &sample)
 		}
 	}
-	// 未开始时
-	if isComplate == true {
-		// 回溯测试模式
-		if s.backtest {
-			s.caller.EventCallOpen(candle.Pair)
-			s.caller.EventCallClose(candle.Pair)
-			s.caller.CloseOrder(true)
-		} else {
-			if s.checkMode == "grid" {
-				s.caller.BuildGird(candle.Pair, timeframe, true)
-			}
-			if s.checkMode == "candle" {
+	if s.started {
+		// 未开始时
+		if isComplate == true {
+			// 回溯测试模式
+			if s.backtest {
 				s.caller.EventCallOpen(candle.Pair)
+				s.caller.EventCallClose(candle.Pair)
+				s.caller.CloseOrder(true)
+			} else {
+				if s.checkMode == "grid" {
+					s.caller.BuildGird(candle.Pair, timeframe, true)
+				}
+				if s.checkMode == "candle" {
+					s.caller.EventCallOpen(candle.Pair)
+				}
 			}
+		} else {
+			s.caller.OpenTube(candle.Pair)
 		}
 	} else {
-		s.caller.OpenTube(candle.Pair)
+		s.caller.BuildGird(candle.Pair, timeframe, false)
 	}
 }
 

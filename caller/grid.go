@@ -26,7 +26,7 @@ func (c *CallerGrid) Start() {
 			select {
 			case <-tickerCheck.C:
 				for _, option := range c.pairOptions {
-					c.openGridPosition(option)
+					go c.openGridPosition(option)
 				}
 			}
 		}
@@ -37,7 +37,7 @@ func (c *CallerGrid) Start() {
 			select {
 			case <-tickerClose.C:
 				for _, option := range c.pairOptions {
-					c.closeGridPosition(option)
+					go c.closeGridPosition(option)
 				}
 			}
 		}
@@ -68,6 +68,7 @@ func (c *CallerGrid) WatchPriceChange() {
 				// 计算量能异动诧异
 				currDiffVolume := c.pairOriginVolumes[option.Pair].Last(0) - c.pairOriginVolumes[option.Pair].Last(ChangeDiffInterval)
 				prevDiffVolume := c.pairOriginVolumes[option.Pair].Last(ChangeDiffInterval) - c.pairOriginVolumes[option.Pair].Last(2*ChangeDiffInterval)
+
 				// 计算价格差异
 				currDiffPrice := c.pairOriginPrices[option.Pair].Last(0) - c.pairOriginPrices[option.Pair].Last(ChangeDiffInterval)
 				// 处理价格变化率
@@ -404,7 +405,6 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 	}
 	c.pairGirdStatus[option.Pair] = constants.GridStatusInside
 	c.pairHedgeMode[option.Pair] = constants.PositionModeNormal
-	c.profitRatioLimit[option.Pair] = 0
 	c.positionGridIndex[option.Pair] = openIndex
 	c.positionGridMap[option.Pair].GridItems[openIndex].Lock = true
 }
@@ -483,19 +483,18 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 			currentPrice,
 			fmt.Sprintf("%.2f%%", profitRatio*100),
 		)
-		// 重置当前交易对止损比例
-		c.profitRatioLimit[option.Pair] = 0
+		// 重置交易对盈利
 		delete(c.positionGridMap, option.Pair)
+		c.resetPairProfit(option.Pair)
 		c.finishAllPosition(mainPosition, subPosition)
 		go c.CloseOrder(false)
 		return
 	}
-	var stopProfitLimit float64
 	if profitRatio > 0 {
 		// 判断利润比小于等于上次设置的利润比，则平仓 初始时为0
-		if profitRatio <= c.profitRatioLimit[option.Pair] && c.profitRatioLimit[option.Pair] > 0 {
+		if profitRatio <= c.pairCurrentProfit[option.Pair].Close && c.pairCurrentProfit[option.Pair].Close > 0 {
 			utils.Log.Infof(
-				"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < StopLossRatio: %s",
+				"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < ProfitClose: %s",
 				mainPosition.Pair,
 				mainPosition.OrderFlag,
 				mainPosition.Quantity,
@@ -507,11 +506,10 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 				subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 				currentPrice,
 				fmt.Sprintf("%.2f%%", profitRatio*100),
-				fmt.Sprintf("%.2f%%", c.profitRatioLimit[option.Pair]*100),
+				fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Close*100),
 			)
-
-			// 重置当前交易对止损比例
-			c.profitRatioLimit[option.Pair] = 0
+			// 重置交易对盈利
+			c.resetPairProfit(option.Pair)
 			if subPosition.Quantity > 0 {
 				delete(c.positionGridMap, option.Pair)
 				go c.CloseOrder(false)
@@ -521,35 +519,60 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 			c.finishAllPosition(mainPosition, subPosition)
 			return
 		}
-		// 判断当前盈亏比是否大于触发盈亏比
-		if subPosition.Quantity > 0 {
-			stopProfitLimit = option.ProfitableScale
+		profitTriggerRatio := c.pairCurrentProfit[option.Pair].Floor
+		// 判断是否已锁定利润比
+		if c.pairCurrentProfit[option.Pair].Close == 0 {
+			// 保守出局，利润比稍微为正即可
+			if subPosition.Quantity > 0 || (subPosition.Quantity == 0 && mainPosition.MoreCount >= option.MaxAddPosition) {
+				profitTriggerRatio = c.pairCurrentProfit[option.Pair].Decrease
+			}
+			// 小于触发值时，记录当前利润比
+			if profitRatio < profitTriggerRatio {
+				utils.Log.Infof(
+					"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < NextTrigger: %s, CurrentScale: %s",
+					mainPosition.Pair,
+					mainPosition.OrderFlag,
+					mainPosition.Quantity,
+					mainPosition.AvgPrice,
+					mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+					currentPrice,
+					fmt.Sprintf("%.2f%%", profitRatio*100),
+					fmt.Sprintf("%.2f%%", profitTriggerRatio*100),
+					fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Decrease*100),
+				)
+				return
+			}
 		} else {
-			if mainPosition.MoreCount >= option.MaxAddPosition {
-				stopProfitLimit = option.ProfitableScale
-			} else {
-				stopProfitLimit = option.ProfitableTrigger
+			if profitRatio < profitTriggerRatio {
+				// 当前利润比触发值，之前已经有Close时，判断当前利润比是否比上次设置的利润比大
+				if profitRatio <= (c.pairCurrentProfit[option.Pair].Close + c.pairCurrentProfit[option.Pair].Decrease) {
+					utils.Log.Infof(
+						"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < ProfitCloseRatio: %s, NextTrigger: %s, CurrentScale: %s",
+						mainPosition.Pair,
+						mainPosition.OrderFlag,
+						mainPosition.Quantity,
+						mainPosition.AvgPrice,
+						mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+						currentPrice,
+						fmt.Sprintf("%.2f%%", profitRatio*100),
+						fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Close*100),
+						fmt.Sprintf("%.2f%%", profitTriggerRatio*100),
+						fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Decrease*100),
+					)
+					return
+				}
 			}
 		}
-		if profitRatio < stopProfitLimit || profitRatio < (c.profitRatioLimit[option.Pair]+option.ProfitableScale+0.01) {
-			utils.Log.Infof(
-				"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < StopLossRatio: %s",
-				mainPosition.Pair,
-				mainPosition.OrderFlag,
-				mainPosition.Quantity,
-				mainPosition.AvgPrice,
-				mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-				currentPrice,
-				fmt.Sprintf("%.2f%%", profitRatio*100),
-				fmt.Sprintf("%.2f%%", c.profitRatioLimit[option.Pair]*100),
-			)
-			return
+		// 当前利润比大于等于触发利润比，
+		profitLevel := c.findProfitLevel(option.Pair, profitRatio)
+		if profitLevel != nil {
+			c.pairCurrentProfit[option.Pair].Floor = profitLevel.NextTriggerRatio
+			c.pairCurrentProfit[option.Pair].Decrease = profitLevel.DrawdownRatio
 		}
 
-		// 重设利润比
-		c.profitRatioLimit[option.Pair] = profitRatio - option.ProfitableScale
+		c.pairCurrentProfit[option.Pair].Close = profitRatio - c.pairCurrentProfit[option.Pair].Decrease
 		utils.Log.Infof(
-			"[POSITION - PROFIT] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > NewProfitRatio: %s",
+			"[POSITION - PROFIT] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > NewProfitRatio: %s NextTrigger: %s, CurrentScale: %s",
 			mainPosition.Pair,
 			mainPosition.OrderFlag,
 			mainPosition.Quantity,
@@ -561,7 +584,9 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 			subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 			currentPrice,
 			fmt.Sprintf("%.2f%%", profitRatio*100),
-			fmt.Sprintf("%.2f%%", c.profitRatioLimit[option.Pair]*100),
+			fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Close*100),
+			fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Floor*100),
+			fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Decrease*100),
 		)
 	} else {
 		lossRatio := option.MaxMarginLossRatio * float64(option.Leverage)
@@ -618,9 +643,9 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 				fmt.Sprintf("%.2f%%", profitRatio*100),
 				fmt.Sprintf("%.2f%%", lossRatio*100),
 			)
-			// 重置当前交易对止损比例
-			c.profitRatioLimit[option.Pair] = 0
+			// 重置交易对盈利
 			delete(c.positionGridMap, option.Pair)
+			c.resetPairProfit(option.Pair)
 			c.finishAllPosition(mainPosition, subPosition)
 			go c.CloseOrder(false)
 			return
@@ -664,9 +689,10 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 					fmt.Sprintf("%.2f%%", profitRatio*100),
 					fmt.Sprintf("%.2f%%", lossRatio*100),
 				)
-				// 重置当前交易对止损比例
-				c.profitRatioLimit[option.Pair] = 0
+
+				// 重置交易对盈利
 				delete(c.positionGridMap, option.Pair)
+				c.resetPairProfit(option.Pair)
 				c.finishAllPosition(mainPosition, subPosition)
 				go c.CloseOrder(false)
 			} else {

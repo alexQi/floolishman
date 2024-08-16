@@ -9,24 +9,26 @@ import (
 )
 
 type PairOption struct {
-	Status              bool
-	Pair                string
-	Leverage            int
-	MarginType          futures.MarginType
-	MarginMode          constants.MarginMode
-	MarginSize          float64
-	MaxGridStep         float64
-	MinGridStep         float64
-	UndulatePriceLimit  float64
-	UndulateVolumeLimit float64
-	WindowPeriod        float64
-	MaxAddPosition      int64
-	MinAddPosition      int64
-	ProfitableScale     float64
-	ProfitableTrigger   float64
-	PullMarginLossRatio float64
-	MaxMarginRatio      float64
-	MaxMarginLossRatio  float64
+	Status                    bool
+	Pair                      string
+	Leverage                  int
+	MarginType                futures.MarginType
+	MarginMode                constants.MarginMode
+	MarginSize                float64
+	MaxGridStep               float64
+	MinGridStep               float64
+	UndulatePriceLimit        float64
+	UndulateVolumeLimit       float64
+	WindowPeriod              float64
+	MaxAddPosition            int64
+	MinAddPosition            int64
+	ProfitableScale           float64
+	ProfitableScaleDecrStep   float64
+	ProfitableTrigger         float64
+	ProfitableTriggerIncrStep float64
+	PullMarginLossRatio       float64
+	MaxMarginRatio            float64
+	MaxMarginLossRatio        float64
 }
 
 func (o PairOption) String() string {
@@ -99,10 +101,20 @@ func BuildPairOption(pair string, valMap map[string]interface{}) PairOption {
 	if !ok {
 		log.Fatalf("Invalid profitableTrigger format for pair %s: %v", pair, valMap["profitableTrigger"])
 	}
+	// 止盈触发比例-step
+	profitableTriggerIncrStep, ok := valMap["profitabletriggerincrstep"].(float64)
+	if !ok {
+		log.Fatalf("Invalid profitableTriggerIncrStep format for pair %s: %v", pair, valMap["profitableTriggerIncrStep"])
+	}
 	// 止盈触发回撤比例
 	profitableScale, ok := valMap["profitablescale"].(float64)
 	if !ok {
 		log.Fatalf("Invalid profitableScale format for pair %s: %v", pair, valMap["profitableScale"])
+	}
+	// 止盈触发回撤比例-step
+	profitableScaleDecrStep, ok := valMap["profitablescaledecrstep"].(float64)
+	if !ok {
+		log.Fatalf("Invalid profitableScaleDecrStep format for pair %s: %v", pair, valMap["profitableScaleDecrStep"])
 	}
 	// 亏损拉回比例
 	pullMarginLossRatio, ok := valMap["pullmarginlossratio"].(float64)
@@ -121,23 +133,25 @@ func BuildPairOption(pair string, valMap map[string]interface{}) PairOption {
 	}
 
 	return PairOption{
-		Status:              status,
-		Pair:                strings.ToUpper(pair),
-		Leverage:            int(leverageFloat),
-		WindowPeriod:        windowPeriod,
-		MaxGridStep:         maxGridStep,
-		MinGridStep:         minGridStep,
-		UndulatePriceLimit:  undulatePriceLimit,
-		UndulateVolumeLimit: undulateVolumeLimit,
-		MarginType:          futures.MarginType(strings.ToUpper(marginType)),
-		MarginMode:          constants.MarginMode(strings.ToUpper(marginMode)),
-		MarginSize:          marginSize,
-		MaxAddPosition:      int64(maxAddPosition),
-		MinAddPosition:      int64(minAddPosition),
-		ProfitableScale:     profitableScale,
-		ProfitableTrigger:   profitableTrigger,
-		PullMarginLossRatio: pullMarginLossRatio,
-		MaxMarginRatio:      maxMarginRatio,
-		MaxMarginLossRatio:  maxMarginLossRatio,
+		Status:                    status,
+		Pair:                      strings.ToUpper(pair),
+		Leverage:                  int(leverageFloat),
+		WindowPeriod:              windowPeriod,
+		MaxGridStep:               maxGridStep,
+		MinGridStep:               minGridStep,
+		UndulatePriceLimit:        undulatePriceLimit,
+		UndulateVolumeLimit:       undulateVolumeLimit,
+		MarginType:                futures.MarginType(strings.ToUpper(marginType)),
+		MarginMode:                constants.MarginMode(strings.ToUpper(marginMode)),
+		MarginSize:                marginSize,
+		MaxAddPosition:            int64(maxAddPosition),
+		MinAddPosition:            int64(minAddPosition),
+		ProfitableScale:           profitableScale,
+		ProfitableScaleDecrStep:   profitableScaleDecrStep,
+		ProfitableTrigger:         profitableTrigger,
+		ProfitableTriggerIncrStep: profitableTriggerIncrStep,
+		PullMarginLossRatio:       pullMarginLossRatio,
+		MaxMarginRatio:            maxMarginRatio,
+		MaxMarginLossRatio:        maxMarginLossRatio,
 	}
 }
