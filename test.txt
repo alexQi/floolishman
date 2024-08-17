@@ -6,6 +6,8 @@
 "Vibrate15m",
 "Kc15m"
 
+go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 1m --futures --output ./testdata/eth-1m.csv --days 7
+
 go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 1h --futures --days 2 --output ./testdata/eth-1h.csv
 go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 15m --futures --output ./testdata/eth-15m.csv --days 2
 

@@ -31,17 +31,20 @@ func (c *CallerCommon) Listen() {
 		go c.tickCheckOrderTimeout()
 		// 非回溯测试模式且不是看门狗方式下监听平仓
 		if c.setting.FollowSymbol == false {
-			go c.tickerCheckForClose(c.pairOptions)
+			go c.tickerCheckForClose()
 		}
 	}
 }
 
-func (c *CallerCommon) tickerCheckForClose(options map[string]model.PairOption) {
+func (c *CallerCommon) tickerCheckForClose() {
 	for {
 		select {
 		// 定时查询当前是否有仓位
 		case <-time.After(CheckCloseInterval * time.Millisecond):
-			for _, option := range options {
+			for _, option := range c.pairOptions {
+				if option.Status == false {
+					continue
+				}
 				c.EventCallClose(option.Pair)
 			}
 		}
@@ -92,7 +95,7 @@ func (s *CallerCommon) EventCallClose(pair string) {
 	}
 }
 
-func (s *CallerCommon) checkPosition(option model.PairOption) (float64, float64, float64, []model.Strategy, map[string]int) {
+func (s *CallerCommon) checkPosition(option *model.PairOption) (float64, float64, float64, []model.Strategy, map[string]int) {
 	s.mu.Lock()         // 加锁
 	defer s.mu.Unlock() // 解锁
 	if _, ok := s.samples[option.Pair]; !ok {
@@ -122,7 +125,7 @@ func (s *CallerCommon) checkPosition(option model.PairOption) (float64, float64,
 	return assetPosition, quotePosition, longShortRatio, currentMatchers, matcherStrategy
 }
 
-func (c *CallerCommon) openPosition(option model.PairOption, assetPosition, quotePosition, longShortRatio float64, matcherStrategy map[string]int, strategies []model.Strategy) {
+func (c *CallerCommon) openPosition(option *model.PairOption, assetPosition, quotePosition, longShortRatio float64, matcherStrategy map[string]int, strategies []model.Strategy) {
 	c.mu.Lock()         // 加锁
 	defer c.mu.Unlock() // 解锁
 	// 无资产
@@ -297,7 +300,7 @@ func (c *CallerCommon) openPosition(option model.PairOption, assetPosition, quot
 	c.ResetJudger(option.Pair)
 }
 
-func (c *CallerCommon) closePosition(option model.PairOption, longShortRatio float64, strategies []model.Strategy) {
+func (c *CallerCommon) closePosition(option *model.PairOption, longShortRatio float64, strategies []model.Strategy) {
 	c.mu.Lock()         // 加锁
 	defer c.mu.Unlock() // 解锁
 	// 获取当前已存在的仓位

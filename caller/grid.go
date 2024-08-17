@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	PriceChangeLimitRatio  = 1.0
-	VolumeChangeLimitRatio = 10.0
-	VolumeGrowLimitRatio   = 3.0
+	VolumeChangeLimitRatio   = 10.0
+	VolumeReversalLimitRatio = 30.0
+	VolumeGrowLimitRatio     = 3.0
 )
 
 type CallerGrid struct {
@@ -26,6 +26,9 @@ func (c *CallerGrid) Start() {
 			select {
 			case <-tickerCheck.C:
 				for _, option := range c.pairOptions {
+					if option.Status == false {
+						continue
+					}
 					go c.openGridPosition(option)
 				}
 			}
@@ -37,6 +40,9 @@ func (c *CallerGrid) Start() {
 			select {
 			case <-tickerClose.C:
 				for _, option := range c.pairOptions {
+					if option.Status == false {
+						continue
+					}
 					go c.closeGridPosition(option)
 				}
 			}
@@ -49,8 +55,11 @@ func (c *CallerGrid) Start() {
 func (c *CallerGrid) WatchPriceChange() {
 	for {
 		select {
-		case <-time.After(CHeckPriceUndulateInterval * time.Second):
+		case <-time.After(CHeckPriceUndulateInterval * time.Millisecond):
 			for _, option := range c.pairOptions {
+				if option.Status == false {
+					continue
+				}
 				// 记录循环价格数组
 				c.pairOriginPrices[option.Pair].Add(c.pairPrices[option.Pair])
 				// 记录循环成交量数组
@@ -96,7 +105,7 @@ func (c *CallerGrid) Listen() {
 	}
 }
 
-func (c *CallerGrid) openGridPosition(option model.PairOption) {
+func (c *CallerGrid) openGridPosition(option *model.PairOption) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// 当前量能与上个蜡烛的平均量能比例
@@ -105,11 +114,11 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 	volGrowHasSurmountLimit := c.pairVolumeGrowRatio[option.Pair] > VolumeGrowLimitRatio
 	// 量能变化率
 	volChangeHasSurmountLimit := c.pairVolumeChangeRatio[option.Pair] > VolumeChangeLimitRatio
-	//价格变化率
-	priceChangeHasSurmountLimit := calc.Abs(c.pairPriceChangeRatio[option.Pair]) > PriceChangeLimitRatio
+	// 量能反转限制
+	volChangeHasReversalLimit := c.pairVolumeChangeRatio[option.Pair] < VolumeReversalLimitRatio
 	// 判断当前网格是否存在，不存在则不开仓
 	if _, ok := c.positionGridMap[option.Pair]; !ok {
-		utils.Log.Errorf("[POSITION] Grid not exsit, waiting ....")
+		utils.Log.Errorf("[POSITION] Grid for %s not exsit, waiting ....", option.Pair)
 		return
 	}
 	currentPrice := c.pairPrices[option.Pair]
@@ -206,7 +215,8 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 	if sampleSidePosition != nil {
 		// 量能增长量突破限制，量能增长率突破限制，价格波动突破限制
 		if volChangeHasSurmountLimit && volGrowHasSurmountLimit {
-			if priceChangeHasSurmountLimit {
+			// 量能范围在1000-3000以内 开启对冲
+			if volChangeHasReversalLimit {
 				// 当前仓位为空，价格快速拉升时开启对冲
 				// 当前仓位为多，价格快速下降时开启对冲
 				if (c.pairPriceChangeRatio[option.Pair] < 0 && model.PositionSideType(sampleSidePosition.PositionSide) == model.PositionSideTypeLong) ||
@@ -228,7 +238,7 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 					return
 				}
 			} else {
-				// 价格波动没达到限制，价格趋势反向
+				// 量能过大，直接平仓
 				if (c.pairPriceChangeRatio[option.Pair] < 0 && model.PositionSideType(sampleSidePosition.PositionSide) == model.PositionSideTypeLong) ||
 					(c.pairPriceChangeRatio[option.Pair] > 0 && model.PositionSideType(sampleSidePosition.PositionSide) == model.PositionSideTypeShort) {
 					// 量能异常开始平仓
@@ -369,22 +379,6 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 		go c.CloseOrder(false)
 		return
 	}
-	if priceChangeHasSurmountLimit {
-		utils.Log.Infof(
-			"[POSITION IGNORE] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v | Current: %v , %.2f%% (Change) | Volume: %.2f%% (Change), %.2f%% (Grow) (Price change surmount limit)",
-			option.Pair,
-			openPositionGrid.Side,
-			openPositionGrid.PositionSide,
-			amount,
-			openPositionGrid.Price,
-			currentPrice,
-			c.pairPriceChangeRatio[option.Pair]*100,
-			c.pairVolumeChangeRatio[option.Pair]*100,
-			c.pairVolumeGrowRatio[option.Pair]*100,
-		)
-		go c.CloseOrder(false)
-		return
-	}
 	utils.Log.Infof(
 		"[POSITION - OPENING] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v | Current: %v , %.2f%% (Change) | Volume: %.2f%% (Change), %.2f%% (Grow)",
 		option.Pair,
@@ -409,7 +403,7 @@ func (c *CallerGrid) openGridPosition(option model.PairOption) {
 	c.positionGridMap[option.Pair].GridItems[openIndex].Lock = true
 }
 
-func (c *CallerGrid) closeGridPosition(option model.PairOption) {
+func (c *CallerGrid) closeGridPosition(option *model.PairOption) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// 获取当前已存在的仓位
@@ -651,31 +645,12 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 			return
 		}
 		// ********** 对冲开启 **********
-		// 判断当前是否是超出亏损限制
-		if c.pairGirdStatus[option.Pair] == constants.GridStatusOut {
-			// 超出网格后判断当前亏损是否超过比例，判断是否要加对冲仓
-			if calc.Abs(profitRatio) < StepMoreRatio {
-				utils.Log.Infof(
-					"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < LossStepRatio: %s (OUT GRID)",
-					mainPosition.Pair,
-					mainPosition.OrderFlag,
-					mainPosition.Quantity,
-					mainPosition.AvgPrice,
-					mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-					currentPrice,
-					fmt.Sprintf("%.2f%%", profitRatio*100),
-					fmt.Sprintf("%.2f%%", StepMoreRatio*100),
-				)
-				return
-			}
-		}
-
 		// 判断对冲仓位是否已存在,存在则不在加仓
 		if subPosition.Quantity > 0 {
 			// 亏损盈利比已大于最大
-			if calc.Abs(profitRatio) > lossRatio {
+			if calc.Abs(profitRatio) >= lossRatio {
 				utils.Log.Infof(
-					"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > MaxLoseRatio %s",
+					"[POSITION - CLOSE: HEDGE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > MaxLoseRatio %s",
 					mainPosition.Pair,
 					mainPosition.OrderFlag,
 					mainPosition.Quantity,
@@ -712,6 +687,27 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 					fmt.Sprintf("%.2f%%", lossRatio*100),
 				)
 			}
+			return
+		}
+		// 当加仓次数达到限制时直接损减小风险
+		if mainPosition.MoreCount >= option.MaxAddPosition {
+			// 超出网格或仓位最大时直接平仓
+			utils.Log.Infof(
+				"[POSITION - CLOSE：%s] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s (ignore hedge: position times in max)",
+				c.pairGirdStatus[option.Pair],
+				mainPosition.Pair,
+				mainPosition.OrderFlag,
+				mainPosition.Quantity,
+				mainPosition.AvgPrice,
+				mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				currentPrice,
+				fmt.Sprintf("%.2f%%", profitRatio*100),
+			)
+			// 重置交易对盈利
+			delete(c.positionGridMap, option.Pair)
+			c.resetPairProfit(option.Pair)
+			c.finishAllPosition(mainPosition, subPosition)
+			go c.CloseOrder(false)
 			return
 		}
 
@@ -792,7 +788,7 @@ func (c *CallerGrid) closeGridPosition(option model.PairOption) {
 	}
 }
 
-func (c *CallerGrid) judePosition(option model.PairOption, price float64, positionMap map[model.PositionSideType]*model.Position) (*model.Position, *model.Position) {
+func (c *CallerGrid) judePosition(option *model.PairOption, price float64, positionMap map[model.PositionSideType]*model.Position) (*model.Position, *model.Position) {
 	var mainPosition, subPosition *model.Position
 	if _, ok := positionMap[model.PositionSideTypeLong]; !ok {
 		positionMap[model.PositionSideTypeLong] = &model.Position{

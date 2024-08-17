@@ -7,3 +7,5 @@ type CallerSetting struct {
 	Backtest         bool
 	LossTimeDuration int
 }
+
+var PairStatusChan = make(chan string, 10)

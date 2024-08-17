@@ -42,7 +42,7 @@ var (
 	CheckLeverageInterval      time.Duration = 1000
 	CheckTimeoutInterval       time.Duration = 500
 	CheckStrategyInterval      time.Duration = 500
-	CHeckPriceUndulateInterval time.Duration = 1
+	CHeckPriceUndulateInterval time.Duration = 500
 )
 
 func init() {
@@ -67,7 +67,7 @@ type CallerBase struct {
 	broker                reference.Broker
 	exchange              reference.Exchange
 	guider                *service.ServiceGuider
-	pairOptions           map[string]model.PairOption
+	pairOptions           map[string]*model.PairOption
 	samples               map[string]map[string]map[string]*model.Dataframe
 	pairTubeOpen          map[string]bool
 	pairPrices            map[string]float64
@@ -114,7 +114,7 @@ func (c *CallerBase) Init(
 	c.exchange = exchange
 	c.setting = setting
 	c.pairTubeOpen = make(map[string]bool)
-	c.pairOptions = make(map[string]model.PairOption)
+	c.pairOptions = make(map[string]*model.PairOption)
 	c.pairPrices = make(map[string]float64)
 	c.pairVolumes = make(map[string]float64)
 	c.pairCurrentProfit = make(map[string]*model.PairProfit)
@@ -138,6 +138,7 @@ func (c *CallerBase) Init(
 		Min: 100 * time.Millisecond,
 		Max: 1 * time.Second,
 	}
+	go c.RegiterPairOption()
 }
 
 func (c *CallerBase) OpenTube(pair string) {
@@ -146,7 +147,7 @@ func (c *CallerBase) OpenTube(pair string) {
 
 func (c *CallerBase) SetPair(option model.PairOption) {
 	c.pairTubeOpen[option.Pair] = false
-	c.pairOptions[option.Pair] = option
+	c.pairOptions[option.Pair] = &option
 	c.pairPrices[option.Pair] = 0
 	c.pairVolumes[option.Pair] = 0
 	c.pairOriginVolumes[option.Pair] = model.NewRingBuffer(ChangeRingCount)
@@ -177,6 +178,17 @@ func (c *CallerBase) SetPair(option model.PairOption) {
 		c.samples[option.Pair][strategy.Timeframe()][reflect.TypeOf(strategy).Elem().Name()] = &model.Dataframe{
 			Pair:     option.Pair,
 			Metadata: make(map[string]model.Series[float64]),
+		}
+	}
+}
+
+func (c *CallerBase) RegiterPairOption() {
+	for {
+		select {
+		case pair := <-types.PairStatusChan:
+			c.pairOptions[pair].Status = !c.pairOptions[pair].Status
+		default:
+			time.Sleep(1 * time.Second)
 		}
 	}
 }
@@ -345,7 +357,7 @@ func (c *CallerBase) finishAllPosition(mainPosition *model.Position, subPosition
 func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	_, gridExsit := c.positionGridMap[pair]
 	if isForce == true && c.pairTubeOpen[pair] == false {
-		utils.Log.Infof("[GRID] Build - Living data has no exsit, wating...")
+		utils.Log.Infof("[GRID: %s] Build - Living data has no exsit, wating...", pair)
 		return
 	}
 	// 获取当前已存在的仓位,保持原有网格
@@ -355,7 +367,7 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 		return
 	}
 	if len(openedPositions) > 0 && gridExsit == true {
-		utils.Log.Infof("[GRID] Build - Position has exsit, wating...")
+		utils.Log.Infof("[GRID: %s] Build - Position has exsit, wating...", pair)
 		return
 	}
 
@@ -388,12 +400,12 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	amplitude := indicator.AMP(openPrice, highPrice, lowPrice)
 	// 上一根蜡烛线已经破线，不在初始化网格
 	if lastPrice > bbUpper || lastPrice < bbLower {
-		utils.Log.Infof("[Grid] Build - Bolling has cross limit, wating...")
+		utils.Log.Infof("[Grid: %s] Build - Bolling has cross limit, wating...", pair)
 		delete(c.positionGridMap, pair)
 		return
 	}
 	if (volume / avgVolume) > AvgVolumeLimitRatio {
-		utils.Log.Infof("[GRID] Build - Volume bigger than avgVolume, wating...")
+		utils.Log.Infof("[GRID: %s] Build - Volume bigger than avgVolume, wating...", pair)
 		delete(c.positionGridMap, pair)
 		return
 	}
@@ -413,7 +425,7 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	// 计算网格数量
 	numGrids := bbWidth / gridStep
 	if numGrids <= 0 {
-		utils.Log.Infof("[GRID] Build - Grid spacing too large for the given price width, wating...")
+		utils.Log.Infof("[GRID: %s] Build - Grid spacing too large for the given price width, wating...", pair)
 		return
 	}
 
@@ -472,7 +484,8 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	}
 	if len(longGridItems) < int(c.pairOptions[pair].MinAddPosition) || len(shortGridItems) < int(c.pairOptions[pair].MinAddPosition) {
 		utils.Log.Infof(
-			"[GRID] Build - Too few grids (Min Add Position: %v ),Long:%v, Short:%v, wating...",
+			"[GRID: %s] Build - Too few grids (Min Add Position: %v ),Long:%v, Short:%v, wating...",
+			pair,
 			c.pairOptions[pair].MinAddPosition,
 			len(longGridItems),
 			len(shortGridItems),
@@ -483,7 +496,8 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	grid.GridItems = append(grid.GridItems, longGridItems...)
 	grid.GridItems = append(grid.GridItems, shortGridItems...)
 	utils.Log.Infof(
-		"[GRID] Build - BasePrice: %v | Upper: %v | Lower: %v | Count: %v | CreatedAt: %s (Index: %v, Force: %v, Tube: %v)",
+		"[GRID: %s] Build - BasePrice: %v | Upper: %v | Lower: %v | Count: %v | CreatedAt: %s (Index: %v, Force: %v, Tube: %v)",
+		pair,
 		grid.BasePrice,
 		grid.BoundaryUpper,
 		grid.BoundaryLower,

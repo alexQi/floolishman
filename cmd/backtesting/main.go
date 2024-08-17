@@ -60,11 +60,7 @@ func main() {
 	}
 	callerSetting.GuiderHost = settings.GuiderGrpcHost
 	for pair, val := range pairsSetting {
-		pairOption := model.BuildPairOption(pair, val.(map[string]interface{}))
-		if pairOption.Status == false {
-			continue
-		}
-		settings.PairOptions = append(settings.PairOptions, pairOption)
+		settings.PairOptions = append(settings.PairOptions, model.BuildPairOption(pair, val.(map[string]interface{})))
 	}
 
 	compositesStrategy := types.CompositesStrategy{}

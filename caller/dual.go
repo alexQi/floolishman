@@ -23,10 +23,16 @@ func (c *CallerDual) Start() {
 			select {
 			case <-tickerCheck.C:
 				for _, option := range c.pairOptions {
+					if option.Status == false {
+						continue
+					}
 					c.openDualPosition(option)
 				}
 			case <-tickerClose.C:
 				for _, option := range c.pairOptions {
+					if option.Status == false {
+						continue
+					}
 					c.closePosition(option)
 				}
 			default:
@@ -45,7 +51,7 @@ func (c *CallerDual) Listen() {
 //"MaxMarginRatio": 0.20,
 //"MaxMarginLossRatio": 0.002,
 
-func (c *CallerDual) openDualPosition(option model.PairOption) {
+func (c *CallerDual) openDualPosition(option *model.PairOption) {
 	c.mu.Lock()         // 加锁
 	defer c.mu.Unlock() // 解锁
 	currentPrice := c.pairPrices[option.Pair]
@@ -160,7 +166,7 @@ func (c *CallerDual) openDualPosition(option model.PairOption) {
 	delete(c.pairTriggerPrice, option.Pair)
 }
 
-func (c *CallerDual) closePosition(option model.PairOption) {
+func (c *CallerDual) closePosition(option *model.PairOption) {
 	c.mu.Lock()         // 加锁
 	defer c.mu.Unlock() // 解锁
 	// 获取当前已存在的仓位
@@ -443,7 +449,7 @@ func (c *CallerDual) closePosition(option model.PairOption) {
 	}
 }
 
-func (cc *CallerDual) judePosition(option model.PairOption, price float64, positionMap map[model.PositionSideType]*model.Position) (*model.Position, *model.Position) {
+func (cc *CallerDual) judePosition(option *model.PairOption, price float64, positionMap map[model.PositionSideType]*model.Position) (*model.Position, *model.Position) {
 	var mainPosition, subPosition *model.Position
 	if _, ok := positionMap[model.PositionSideTypeLong]; !ok {
 		positionMap[model.PositionSideTypeLong] = &model.Position{

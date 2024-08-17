@@ -35,7 +35,7 @@ pairs:
     # 触发移动止损比例
     profitableTrigger: 0.185
     # 触发移动止损比例-step
-    profitableTriggerIncrStep: 0.05
+    profitableTriggerIncrStep: 0.04
     # 最大加仓后联合仓位亏损拉回比例
     pullMarginLossRatio: 0.18
     # 最大保证金比例
@@ -75,7 +75,7 @@ pairs:
     # 触发移动止损比例
     profitableTrigger: 0.185
     # 触发移动止损比例-step
-    profitableTriggerIncrStep: 0.05
+    profitableTriggerIncrStep: 0.04
     # 最大加仓后联合仓位亏损拉回比例
     pullMarginLossRatio: 0.18
     # 最大保证金比例

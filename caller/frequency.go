@@ -29,10 +29,16 @@ func (c *CallerFrequency) Start() {
 		select {
 		case <-tickerCheck.C:
 			for _, option := range c.pairOptions {
+				if option.Status == false {
+					continue
+				}
 				go c.checkPosition(option.Pair)
 			}
 		case <-tickerReset.C:
 			for _, option := range c.pairOptions {
+				if option.Status == false {
+					continue
+				}
 				utils.Log.Infof("[JUDGE RESET] Pair: %s | TendencyCount: %v", option.Pair, c.positionJudgers[option.Pair].TendencyCount)
 				c.ResetJudger(option.Pair)
 			}

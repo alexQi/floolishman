@@ -42,7 +42,7 @@ func (cc *CallerWatchdog) Listen() {
 	go cc.tickCheckOrderTimeout()
 	// 非回溯测试模式且不是看门狗方式下监听平仓
 	if cc.setting.FollowSymbol == false {
-		go cc.tickerCheckForClose(cc.pairOptions)
+		go cc.tickerCheckForClose()
 	}
 }
 
@@ -62,12 +62,18 @@ func (c *CallerWatchdog) checkPositionOpen() {
 			if _, ok := c.pairOptions[pair]; !ok {
 				continue
 			}
+			if c.pairOptions[pair].Status == false {
+				continue
+			}
 			go c.openWithFollowSymbol(pair, guiderPositionsMap)
 		}
 	} else {
 		var longShortRatio float64
 		for _, option := range c.pairOptions {
 			if _, ok := guiderPairPositionsMap[option.Pair]; !ok {
+				continue
+			}
+			if option.Status == false {
 				continue
 			}
 			if _, ok := guiderPairPositionsMap[option.Pair][model.PositionSideTypeLong]; !ok {
@@ -112,7 +118,7 @@ func (c *CallerWatchdog) openWithFollowSymbol(pair string, positionMap map[model
 	}
 }
 
-func (c *CallerWatchdog) openWithLongShortRatio(option model.PairOption, longShortRatio float64) {
+func (c *CallerWatchdog) openWithLongShortRatio(option *model.PairOption, longShortRatio float64) {
 	assetPosition, quotePosition, err := c.broker.PairAsset(option.Pair)
 	if err != nil {
 		utils.Log.Error(err)
