@@ -8,4 +8,9 @@ type CallerSetting struct {
 	LossTimeDuration int
 }
 
-var PairStatusChan = make(chan string, 10)
+type PairStatus struct {
+	Pair   string
+	Status bool
+}
+
+var PairStatusChan = make(chan PairStatus, 10)

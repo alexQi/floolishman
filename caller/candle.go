@@ -1,9 +1,9 @@
 package caller
 
-type CallerCandle struct {
-	CallerCommon
+type Candle struct {
+	Common
 }
 
-func (c *CallerCandle) Start() {
+func (c *Candle) Start() {
 	go c.Listen()
 }

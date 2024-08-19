@@ -4,11 +4,11 @@ import (
 	"time"
 )
 
-type CallerInterval struct {
-	CallerCommon
+type Interval struct {
+	Common
 }
 
-func (c *CallerInterval) Start() {
+func (c *Interval) Start() {
 	go func() {
 		for {
 			select {

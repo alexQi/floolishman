@@ -16,13 +16,21 @@ func (c *PairController) SwitchStatus(ctx iris.Context) error {
 		"code":    "0",
 		"message": "success",
 	}
+	pairStatus := types.PairStatus{}
 	var pair string
 	if pair = ctx.URLParamTrim("pair"); len(pair) == 0 {
 		data["code"] = "10401"
 		data["message"] = "please set pair name"
 		return ctx.JSON(data)
 	}
-	types.PairStatusChan <- strings.ToUpper(pair)
+	status := ctx.URLParamTrim("status")
+	pairStatus.Pair = strings.ToUpper(pair)
+	if status == "true" {
+		pairStatus.Status = true
+	} else {
+		pairStatus.Status = false
+	}
+	types.PairStatusChan <- pairStatus
 	// 返回响应
 	return ctx.JSON(data)
 }

@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-type CallerWatchdog struct {
-	CallerCommon
+type Watchdog struct {
+	Common
 }
 
-func (c *CallerWatchdog) Start() {
+func (c *Watchdog) Start() {
 	go func() {
 		tickerCheck := time.NewTicker(CheckStrategyInterval * time.Millisecond)
 		tickerClose := time.NewTicker(CheckCloseInterval * time.Millisecond)
@@ -37,7 +37,7 @@ func (c *CallerWatchdog) Start() {
 	go c.Listen()
 }
 
-func (cc *CallerWatchdog) Listen() {
+func (cc *Watchdog) Listen() {
 	// 执行超时检查
 	go cc.tickCheckOrderTimeout()
 	// 非回溯测试模式且不是看门狗方式下监听平仓
@@ -46,7 +46,7 @@ func (cc *CallerWatchdog) Listen() {
 	}
 }
 
-func (c *CallerWatchdog) checkPositionOpen() {
+func (c *Watchdog) checkPositionOpen() {
 	guiderPairPositionsMap, err := c.guider.GetAllPositions()
 	if err != nil {
 		utils.Log.Error(err)
@@ -95,7 +95,7 @@ func (c *CallerWatchdog) checkPositionOpen() {
 	}
 }
 
-func (c *CallerWatchdog) openWithFollowSymbol(pair string, positionMap map[model.PositionSideType][]model.GuiderPosition) {
+func (c *Watchdog) openWithFollowSymbol(pair string, positionMap map[model.PositionSideType][]model.GuiderPosition) {
 	// 判断当前资产
 	assetPosition, quotePosition, err := c.broker.PairAsset(pair)
 	if err != nil {
@@ -118,7 +118,7 @@ func (c *CallerWatchdog) openWithFollowSymbol(pair string, positionMap map[model
 	}
 }
 
-func (c *CallerWatchdog) openWithLongShortRatio(option *model.PairOption, longShortRatio float64) {
+func (c *Watchdog) openWithLongShortRatio(option *model.PairOption, longShortRatio float64) {
 	assetPosition, quotePosition, err := c.broker.PairAsset(option.Pair)
 	if err != nil {
 		utils.Log.Error(err)
@@ -133,10 +133,10 @@ func (c *CallerWatchdog) openWithLongShortRatio(option *model.PairOption, longSh
 	)
 }
 
-func (s *CallerWatchdog) openWatchdogPosition(guiderPosition model.GuiderPosition, assetPosition, quotePosition float64) {
+func (s *Watchdog) openWatchdogPosition(guiderPosition model.GuiderPosition, assetPosition, quotePosition float64) {
 	s.mu.Lock()         // 加锁
 	defer s.mu.Unlock() // 解锁
-	currentPrice := s.pairPrices[guiderPosition.Symbol]
+	currentPrice, _ := s.pairPrices.Get(guiderPosition.Symbol)
 	// 当前仓位为多，最近策略为多，保持仓位
 	// 当前仓位为空，最近策略为空，保持仓位
 	if (assetPosition > 0 && model.PositionSideType(guiderPosition.PositionSide) == model.PositionSideTypeLong) ||
@@ -268,7 +268,7 @@ func (s *CallerWatchdog) openWatchdogPosition(guiderPosition model.GuiderPositio
 	}
 }
 
-func (s *CallerWatchdog) checkPositionLeverage() {
+func (s *Watchdog) checkPositionLeverage() {
 	openedPositions, err := s.broker.GetPositionsForOpened()
 	if err != nil {
 		utils.Log.Error(err)
@@ -307,7 +307,7 @@ func (s *CallerWatchdog) checkPositionLeverage() {
 	}
 }
 
-func (s *CallerWatchdog) checkPositionClose() {
+func (s *Watchdog) checkPositionClose() {
 	// 查询用户仓位
 	userPositions, err := s.guider.GetAllPositions()
 	if err != nil {
@@ -332,7 +332,7 @@ func (s *CallerWatchdog) checkPositionClose() {
 		} else {
 			closeSideType = model.SideTypeBuy
 		}
-		currentPrice = s.pairPrices[openedPosition.Pair]
+		currentPrice, _ = s.pairPrices.Get(openedPosition.Pair)
 		// 判断当前币种仓位是否在guider中存在，不存在时平掉全部仓位 （所有guider都没有该方向仓位则该订单已被平仓）
 		if _, ok := userPositions[openedPosition.Pair]; !ok {
 			_, err := s.broker.CreateOrderMarket(

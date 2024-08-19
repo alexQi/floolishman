@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-type CallerDual struct {
-	CallerCommon
+type Dual struct {
+	Common
 	pairTriggerPrice map[string]float64
 }
 
-func (c *CallerDual) Start() {
+func (c *Dual) Start() {
 	c.pairTriggerPrice = make(map[string]float64)
 	go func() {
 		tickerCheck := time.NewTicker(CheckStrategyInterval * time.Millisecond)
@@ -30,9 +30,6 @@ func (c *CallerDual) Start() {
 				}
 			case <-tickerClose.C:
 				for _, option := range c.pairOptions {
-					if option.Status == false {
-						continue
-					}
 					c.closePosition(option)
 				}
 			default:
@@ -43,7 +40,7 @@ func (c *CallerDual) Start() {
 	go c.Listen()
 }
 
-func (c *CallerDual) Listen() {
+func (c *Dual) Listen() {
 	go c.tickCheckOrderTimeout()
 }
 
@@ -51,10 +48,10 @@ func (c *CallerDual) Listen() {
 //"MaxMarginRatio": 0.20,
 //"MaxMarginLossRatio": 0.002,
 
-func (c *CallerDual) openDualPosition(option *model.PairOption) {
+func (c *Dual) openDualPosition(option *model.PairOption) {
 	c.mu.Lock()         // 加锁
 	defer c.mu.Unlock() // 解锁
-	currentPrice := c.pairPrices[option.Pair]
+	currentPrice, _ := c.pairPrices.Get(option.Pair)
 	// 判断当前资产
 	_, quotePosition, err := c.broker.PairAsset(option.Pair)
 	if err != nil {
@@ -75,14 +72,13 @@ func (c *CallerDual) openDualPosition(option *model.PairOption) {
 	if len(openedPositions) > 0 {
 		for _, openedPosition := range openedPositions {
 			utils.Log.Infof(
-				"[POSITION - EXSIT %s] OrderFlag: %s | Pair: %s | Quantity: %v | Price: %v, Current: %v, CandleTime: %s",
+				"[POSITION - EXSIT %s] OrderFlag: %s | Pair: %s | Quantity: %v | Price: %v, Current: %v",
 				openedPosition.PositionSide,
 				openedPosition.OrderFlag,
 				openedPosition.Pair,
 				openedPosition.Quantity,
 				openedPosition.AvgPrice,
 				currentPrice,
-				c.lastUpdate[option.Pair].In(Loc).Format("2006-01-02 15:04:05"),
 			)
 		}
 		return
@@ -97,14 +93,13 @@ func (c *CallerDual) openDualPosition(option *model.PairOption) {
 	if ok == true && len(unfillePositionOrders) > 0 {
 		for _, unfillePositionOrder := range unfillePositionOrders {
 			utils.Log.Infof(
-				"[POSITION - EXSIT %s] OrderFlag: %s | Pair: %s | Quantity: %v | Price: %v, Current: %v, CandleTime: %s | (UNFILLED)",
+				"[POSITION - EXSIT %s] OrderFlag: %s | Pair: %s | Quantity: %v | Price: %v, Current: %v | (UNFILLED)",
 				unfillePositionOrder.PositionSide,
 				unfillePositionOrder.OrderFlag,
 				unfillePositionOrder.Pair,
 				unfillePositionOrder.Quantity,
 				unfillePositionOrder.Price,
 				currentPrice,
-				c.lastUpdate[option.Pair].In(Loc).Format("2006-01-02 15:04:05"),
 			)
 		}
 		return
@@ -113,14 +108,13 @@ func (c *CallerDual) openDualPosition(option *model.PairOption) {
 	if ok == true && len(unfilleLossOrders) > 0 {
 		for _, unfilleLossOrder := range unfilleLossOrders {
 			utils.Log.Infof(
-				"[POSITION - EXSIT %s] OrderFlag: %s | Pair: %s | Quantity: %v | Price: %v, Current: %v, CandleTime: %s | (CLOSE PENDING)",
+				"[POSITION - EXSIT %s] OrderFlag: %s | Pair: %s | Quantity: %v | Price: %v, Current: %v | (CLOSE PENDING)",
 				unfilleLossOrder.PositionSide,
 				unfilleLossOrder.OrderFlag,
 				unfilleLossOrder.Pair,
 				unfilleLossOrder.Quantity,
 				unfilleLossOrder.Price,
 				currentPrice,
-				c.lastUpdate[option.Pair].In(Loc).Format("2006-01-02 15:04:05"),
 			)
 		}
 		return
@@ -139,11 +133,10 @@ func (c *CallerDual) openDualPosition(option *model.PairOption) {
 		amount = option.MarginSize
 	}
 	utils.Log.Infof(
-		"[POSITION OPENING] Pair: %s | Quantity: %v | Price: %v | CandleTime: %s",
+		"[POSITION OPENING] Pair: %s | Quantity: %v | Price: %v",
 		option.Pair,
 		amount,
 		currentPrice,
-		c.lastUpdate[option.Pair].In(Loc).Format("2006-01-02 15:04:05"),
 	)
 	var finalSide model.SideType
 	var postionSide model.PositionSideType
@@ -166,7 +159,7 @@ func (c *CallerDual) openDualPosition(option *model.PairOption) {
 	delete(c.pairTriggerPrice, option.Pair)
 }
 
-func (c *CallerDual) closePosition(option *model.PairOption) {
+func (c *Dual) closePosition(option *model.PairOption) {
 	c.mu.Lock()         // 加锁
 	defer c.mu.Unlock() // 解锁
 	// 获取当前已存在的仓位
@@ -184,7 +177,7 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 		openedPositionMap[model.PositionSideType(position.PositionSide)] = position
 	}
 
-	currentPrice := c.pairPrices[option.Pair]
+	currentPrice, _ := c.pairPrices.Get(option.Pair)
 	mainPosition, subPosition := c.judePosition(option, currentPrice, openedPositionMap)
 
 	// 判断当前是否已有同向挂单未成交，有则不在开单
@@ -205,7 +198,7 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 					unfillePositionOrders[model.PositionSideType(subPosition.PositionSide)].Pair,
 					unfillePositionOrders[model.PositionSideType(subPosition.PositionSide)].Quantity,
 					unfillePositionOrders[model.PositionSideType(subPosition.PositionSide)].Price,
-					c.pairPrices[option.Pair],
+					currentPrice,
 				)
 				return
 			}
@@ -237,9 +230,10 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 		mainPosition.Quantity,
 	)
 	if profitRatio > 0 {
+		pairCurrentProfit, _ := c.pairCurrentProfit.Get(option.Pair)
 		// ---------------------
 		// 判断利润比小于等于上次设置的利润比，则平仓 初始时为0
-		if profitRatio <= c.pairCurrentProfit[option.Pair].Close && c.pairCurrentProfit[option.Pair].Close > 0 {
+		if profitRatio <= pairCurrentProfit.Close && pairCurrentProfit.Close > 0 {
 			utils.Log.Infof(
 				"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < ProfitClose: %s",
 				mainPosition.Pair,
@@ -253,7 +247,7 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 				subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 				currentPrice,
 				fmt.Sprintf("%.2f%%", profitRatio*100),
-				fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Close*100),
+				fmt.Sprintf("%.2f%%", pairCurrentProfit.Close*100),
 			)
 			// 重置交易对盈利
 			c.resetPairProfit(option.Pair)
@@ -263,12 +257,12 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 			c.finishAllPosition(mainPosition, subPosition)
 			return
 		}
-		profitTriggerRatio := c.pairCurrentProfit[option.Pair].Floor
+		profitTriggerRatio := pairCurrentProfit.Floor
 		// 判断是否已锁定利润比
-		if c.pairCurrentProfit[option.Pair].Close == 0 {
+		if pairCurrentProfit.Close == 0 {
 			// 保守出局，利润比稍微为正即可
 			if subPosition.Quantity > 0 || (subPosition.Quantity == 0 && mainPosition.MoreCount >= option.MaxAddPosition) {
-				profitTriggerRatio = c.pairCurrentProfit[option.Pair].Decrease
+				profitTriggerRatio = pairCurrentProfit.Decrease
 			}
 			// 小于触发值时，记录当前利润比
 			if profitRatio < profitTriggerRatio {
@@ -288,7 +282,7 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 		} else {
 			if profitRatio < profitTriggerRatio {
 				// 当前利润比触发值，之前已经有Close时，判断当前利润比是否比上次设置的利润比大
-				if profitRatio <= c.pairCurrentProfit[option.Pair].Close+c.pairCurrentProfit[option.Pair].Decrease {
+				if profitRatio <= pairCurrentProfit.Close+pairCurrentProfit.Decrease {
 					utils.Log.Infof(
 						"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < ProfitCloseRatio: %s",
 						mainPosition.Pair,
@@ -298,7 +292,7 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 						mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 						currentPrice,
 						fmt.Sprintf("%.2f%%", profitRatio*100),
-						fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Close*100),
+						fmt.Sprintf("%.2f%%", pairCurrentProfit.Close*100),
 					)
 					return
 				}
@@ -307,11 +301,12 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 		// 当前利润比大于等于触发利润比，
 		profitLevel := c.findProfitLevel(option.Pair, profitRatio)
 		if profitLevel != nil {
-			c.pairCurrentProfit[option.Pair].Floor = profitLevel.NextTriggerRatio
-			c.pairCurrentProfit[option.Pair].Decrease = profitLevel.DrawdownRatio
+			pairCurrentProfit.Floor = profitLevel.NextTriggerRatio
+			pairCurrentProfit.Decrease = profitLevel.DrawdownRatio
 		}
 
-		c.pairCurrentProfit[option.Pair].Close = profitRatio - c.pairCurrentProfit[option.Pair].Decrease
+		pairCurrentProfit.Close = profitRatio - pairCurrentProfit.Decrease
+		c.pairCurrentProfit.Set(option.Pair, pairCurrentProfit)
 		utils.Log.Infof(
 			"[POSITION - PROFIT] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > NewProfitRatio: %s",
 			mainPosition.Pair,
@@ -325,7 +320,7 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 			subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 			currentPrice,
 			fmt.Sprintf("%.2f%%", profitRatio*100),
-			fmt.Sprintf("%.2f%%", c.pairCurrentProfit[option.Pair].Close*100),
+			fmt.Sprintf("%.2f%%", pairCurrentProfit.Close*100),
 		)
 	} else {
 		lossRatio := option.MaxMarginLossRatio * float64(option.Leverage)
@@ -405,7 +400,7 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 					unfillePositionOrders[model.PositionSideType(morePosition.PositionSide)].Pair,
 					unfillePositionOrders[model.PositionSideType(morePosition.PositionSide)].Quantity,
 					unfillePositionOrders[model.PositionSideType(morePosition.PositionSide)].Price,
-					c.pairPrices[option.Pair],
+					currentPrice,
 				)
 				return
 			}
@@ -449,7 +444,7 @@ func (c *CallerDual) closePosition(option *model.PairOption) {
 	}
 }
 
-func (cc *CallerDual) judePosition(option *model.PairOption, price float64, positionMap map[model.PositionSideType]*model.Position) (*model.Position, *model.Position) {
+func (cc *Dual) judePosition(option *model.PairOption, price float64, positionMap map[model.PositionSideType]*model.Position) (*model.Position, *model.Position) {
 	var mainPosition, subPosition *model.Position
 	if _, ok := positionMap[model.PositionSideTypeLong]; !ok {
 		positionMap[model.PositionSideTypeLong] = &model.Position{

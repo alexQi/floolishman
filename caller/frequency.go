@@ -18,11 +18,11 @@ type PositionJudger struct {
 	CreatedAt     time.Time        // 本次Counter创建时间
 }
 
-type CallerFrequency struct {
-	CallerCommon
+type Frequency struct {
+	Common
 }
 
-func (c *CallerFrequency) Start() {
+func (c *Frequency) Start() {
 	tickerCheck := time.NewTicker(CheckStrategyInterval * time.Millisecond)
 	tickerReset := time.NewTicker(ResetStrategyInterval * time.Second)
 	for {
@@ -32,7 +32,7 @@ func (c *CallerFrequency) Start() {
 				if option.Status == false {
 					continue
 				}
-				go c.checkPosition(option.Pair)
+				go c.checkPosition(option)
 			}
 		case <-tickerReset.C:
 			for _, option := range c.pairOptions {
@@ -46,17 +46,17 @@ func (c *CallerFrequency) Start() {
 	}
 }
 
-func (c *CallerFrequency) checkPosition(pair string) {
+func (c *Frequency) checkPosition(option *model.PairOption) {
 	// 执行策略
-	finalTendency := c.Process(pair)
+	finalTendency := c.Process(option.Pair)
 	// 获取多空比
-	longShortRatio, matcherStrategy := c.getStrategyLongShortRatio(finalTendency, c.positionJudgers[pair].Matchers)
-	if c.setting.Backtest == false && len(c.positionJudgers[pair].Matchers) > 0 {
+	longShortRatio, matcherStrategy := c.getStrategyLongShortRatio(finalTendency, c.positionJudgers[option.Pair].Matchers)
+	if c.setting.Backtest == false && len(c.positionJudgers[option.Pair].Matchers) > 0 {
 		utils.Log.Infof(
 			"[JUDGE] Pair: %s | LongShortRatio: %.2f | TendencyCount: %v | MatcherStrategy:【%v】",
-			pair,
+			option.Pair,
 			longShortRatio,
-			c.positionJudgers[pair].TendencyCount,
+			c.positionJudgers[option.Pair].TendencyCount,
 			matcherStrategy,
 		)
 	}
@@ -78,21 +78,21 @@ func (c *CallerFrequency) checkPosition(pair string) {
 		return
 	}
 	// 执行开仓检查
-	assetPosition, quotePosition, err := c.broker.PairAsset(pair)
+	assetPosition, quotePosition, err := c.broker.PairAsset(option.Pair)
 	if err != nil {
 		utils.Log.Error(err)
 	}
 	c.openPosition(
-		c.pairOptions[pair],
+		option,
 		assetPosition,
 		quotePosition,
 		longShortRatio,
 		matcherStrategy,
-		c.positionJudgers[pair].Matchers,
+		c.positionJudgers[option.Pair].Matchers,
 	)
 }
 
-func (c *CallerFrequency) Process(pair string) string {
+func (c *Frequency) Process(pair string) string {
 	c.mu.Lock()         // 加锁
 	defer c.mu.Unlock() // 解锁
 	// 如果 pair 在 positionJudgers 中不存在，则初始化

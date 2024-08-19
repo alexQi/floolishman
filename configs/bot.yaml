@@ -25,9 +25,9 @@ pairs:
     # 最小加仓次数
     minAddPosition: 3
     # 价格波动触发限制 eth 3 $/s    btc 150 $/s
-    undulatePriceLimit: 5.0
+    undulatePriceLimit: 4.0
     # 价格波动触发限制 eth 100 Vol/s  btc 30 Vol/s
-    undulateVolumeLimit: 100.0
+    undulateVolumeLimit: 80.0
     # 移动止盈后撤比例
     profitableScale: 0.1
     # 移动止盈后撤比例-step
@@ -67,7 +67,7 @@ pairs:
     # 价格波动触发限制 eth 3 $/s    btc 150 $/s
     undulatePriceLimit: 150.0
     # 价格波动触发限制 eth 100 Vol/s  btc 25 Vol/s
-    undulateVolumeLimit: 25.0
+    undulateVolumeLimit: 20.0
     # 移动止盈后撤比例
     profitableScale: 0.1
     # 移动止盈后撤比例-step

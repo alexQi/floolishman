@@ -11,7 +11,7 @@ import (
 	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/calc"
-	"github.com/jpillora/backoff"
+	"fmt"
 	"reflect"
 	"sync"
 	"time"
@@ -37,6 +37,7 @@ var (
 )
 
 var (
+	PausePairCallDuration      time.Duration = 30
 	CancelLimitDuration        time.Duration = 60
 	CheckCloseInterval         time.Duration = 500
 	CheckLeverageInterval      time.Duration = 1000
@@ -50,43 +51,46 @@ func init() {
 }
 
 var ConstCallers = map[string]reference.Caller{
-	"candle":    &CallerCandle{},
-	"interval":  &CallerInterval{},
-	"frequency": &CallerFrequency{},
-	"watchdog":  &CallerWatchdog{},
-	"dual":      &CallerDual{},
-	"grid":      &CallerGrid{},
+	"candle":    &Candle{},
+	"interval":  &Interval{},
+	"frequency": &Frequency{},
+	"watchdog":  &Watchdog{},
+	"dual":      &Dual{},
+	"grid":      &Grid{},
 }
 
-type CallerBase struct {
-	ctx                   context.Context
-	mu                    sync.Mutex
-	strategy              types.CompositesStrategy
-	setting               types.CallerSetting
-	ba                    *backoff.Backoff
-	broker                reference.Broker
-	exchange              reference.Exchange
-	guider                *service.ServiceGuider
-	pairOptions           map[string]*model.PairOption
-	samples               map[string]map[string]map[string]*model.Dataframe
-	pairTubeOpen          map[string]bool
-	pairPrices            map[string]float64
-	pairVolumes           map[string]float64
-	pairOriginVolumes     map[string]*model.RingBuffer
-	pairOriginPrices      map[string]*model.RingBuffer
-	pairPriceChangeRatio  map[string]float64
-	pairVolumeChangeRatio map[string]float64
-	pairVolumeGrowRatio   map[string]float64
-	pairHedgeMode         map[string]constants.PositionMode
-	pairGirdStatus        map[string]constants.GridStatus
-	pairProfitLevels      map[string][]*model.StopProfitLevel
-	pairCurrentProfit     map[string]*model.PairProfit
-	lastAvgVolume         map[string]float64
-	lastUpdate            map[string]time.Time
-	lossLimitTimes        map[string]time.Time
-	positionJudgers       map[string]*PositionJudger
-	positionGridMap       map[string]*model.PositionGrid
-	positionGridIndex     map[string]int
+type Base struct {
+	ctx             context.Context
+	mu              sync.Mutex
+	strategy        types.CompositesStrategy
+	setting         types.CallerSetting
+	broker          reference.Broker
+	exchange        reference.Exchange
+	guider          *service.ServiceGuider
+	samples         map[string]map[string]map[string]*model.Dataframe
+	positionJudgers map[string]*PositionJudger
+
+	pairOptions map[string]*model.PairOption
+
+	// todo 需要处理为线程安全map
+	pairTubeOpen      *model.ThreadSafeMap[string, bool]
+	pairGridMap       *model.ThreadSafeMap[string, *model.PositionGrid]
+	pairGridMapIndex  *model.ThreadSafeMap[string, int]
+	pairHedgeMode     *model.ThreadSafeMap[string, constants.PositionMode]
+	pairGirdStatus    *model.ThreadSafeMap[string, constants.GridStatus]
+	pairProfitLevels  *model.ThreadSafeMap[string, []*model.StopProfitLevel]
+	pairCurrentProfit *model.ThreadSafeMap[string, *model.PairProfit]
+
+	pairPrices            *model.ThreadSafeMap[string, float64]
+	pairVolumes           *model.ThreadSafeMap[string, float64]
+	lastAvgVolume         *model.ThreadSafeMap[string, float64]
+	pairOriginVolumes     *model.ThreadSafeMap[string, *model.RingBuffer]
+	pairOriginPrices      *model.ThreadSafeMap[string, *model.RingBuffer]
+	pairPriceChangeRatio  *model.ThreadSafeMap[string, float64]
+	pairVolumeChangeRatio *model.ThreadSafeMap[string, float64]
+	pairVolumeGrowRatio   *model.ThreadSafeMap[string, float64]
+	lastUpdate            *model.ThreadSafeMap[string, time.Time]
+	lossLimitTimes        *model.ThreadSafeMap[string, time.Time]
 }
 
 func NewCaller(
@@ -101,7 +105,7 @@ func NewCaller(
 	return realCaller
 }
 
-func (c *CallerBase) Init(
+func (c *Base) Init(
 	ctx context.Context,
 	strategy types.CompositesStrategy,
 	broker reference.Broker,
@@ -113,58 +117,66 @@ func (c *CallerBase) Init(
 	c.broker = broker
 	c.exchange = exchange
 	c.setting = setting
-	c.pairTubeOpen = make(map[string]bool)
 	c.pairOptions = make(map[string]*model.PairOption)
-	c.pairPrices = make(map[string]float64)
-	c.pairVolumes = make(map[string]float64)
-	c.pairCurrentProfit = make(map[string]*model.PairProfit)
-	c.pairOriginPrices = make(map[string]*model.RingBuffer)
-	c.pairOriginVolumes = make(map[string]*model.RingBuffer)
-	c.pairPriceChangeRatio = make(map[string]float64)
-	c.pairVolumeChangeRatio = make(map[string]float64)
-	c.pairVolumeGrowRatio = make(map[string]float64)
-	c.pairProfitLevels = make(map[string][]*model.StopProfitLevel)
-	c.pairHedgeMode = make(map[string]constants.PositionMode)
-	c.pairGirdStatus = make(map[string]constants.GridStatus)
-	c.lastUpdate = make(map[string]time.Time)
-	c.lastAvgVolume = make(map[string]float64)
-	c.lossLimitTimes = make(map[string]time.Time)
+
 	c.samples = make(map[string]map[string]map[string]*model.Dataframe)
 	c.positionJudgers = make(map[string]*PositionJudger)
-	c.positionGridMap = make(map[string]*model.PositionGrid)
-	c.positionGridIndex = make(map[string]int)
+
+	// build tsmap
+	c.pairTubeOpen = model.NewThreadSafeMap[string, bool]()
+	c.lastUpdate = model.NewThreadSafeMap[string, time.Time]()
+	c.lossLimitTimes = model.NewThreadSafeMap[string, time.Time]()
+
+	c.pairGridMap = model.NewThreadSafeMap[string, *model.PositionGrid]()
+	c.pairGridMapIndex = model.NewThreadSafeMap[string, int]()
+	c.pairProfitLevels = model.NewThreadSafeMap[string, []*model.StopProfitLevel]()
+	c.pairHedgeMode = model.NewThreadSafeMap[string, constants.PositionMode]()
+	c.pairGirdStatus = model.NewThreadSafeMap[string, constants.GridStatus]()
+	c.pairCurrentProfit = model.NewThreadSafeMap[string, *model.PairProfit]()
+
+	c.pairPrices = model.NewThreadSafeMap[string, float64]()
+	c.pairVolumes = model.NewThreadSafeMap[string, float64]()
+	c.pairOriginPrices = model.NewThreadSafeMap[string, *model.RingBuffer]()
+	c.pairOriginVolumes = model.NewThreadSafeMap[string, *model.RingBuffer]()
+	c.pairPriceChangeRatio = model.NewThreadSafeMap[string, float64]()
+	c.pairVolumeChangeRatio = model.NewThreadSafeMap[string, float64]()
+	c.pairVolumeGrowRatio = model.NewThreadSafeMap[string, float64]()
+	c.lastAvgVolume = model.NewThreadSafeMap[string, float64]()
+
 	c.guider = service.NewServiceGuider(ctx, setting.GuiderHost)
-	c.ba = &backoff.Backoff{
-		Min: 100 * time.Millisecond,
-		Max: 1 * time.Second,
-	}
+
 	go c.RegiterPairOption()
 }
 
-func (c *CallerBase) OpenTube(pair string) {
-	c.pairTubeOpen[pair] = true
+func (c *Base) OpenTube(pair string) {
+	c.pairTubeOpen.Set(pair, true)
 }
 
-func (c *CallerBase) SetPair(option model.PairOption) {
-	c.pairTubeOpen[option.Pair] = false
+func (c *Base) SetPair(option model.PairOption) {
 	c.pairOptions[option.Pair] = &option
-	c.pairPrices[option.Pair] = 0
-	c.pairVolumes[option.Pair] = 0
-	c.pairOriginVolumes[option.Pair] = model.NewRingBuffer(ChangeRingCount)
-	c.pairOriginPrices[option.Pair] = model.NewRingBuffer(ChangeRingCount)
-	c.pairPriceChangeRatio[option.Pair] = 0
-	c.pairVolumeChangeRatio[option.Pair] = 0
-	c.pairVolumeGrowRatio[option.Pair] = 0
-	c.pairHedgeMode[option.Pair] = constants.PositionModeNormal
-	c.positionGridIndex[option.Pair] = -1
-	c.pairGirdStatus[option.Pair] = constants.GridStatusInside
-	c.pairCurrentProfit[option.Pair] = &model.PairProfit{}
-	c.pairProfitLevels[option.Pair] = c.generateTriggerSequence(
+
+	// todo tsmap build
+	c.pairTubeOpen.Set(option.Pair, false)
+	c.pairOriginVolumes.Set(option.Pair, model.NewRingBuffer(ChangeRingCount))
+	c.pairOriginPrices.Set(option.Pair, model.NewRingBuffer(ChangeRingCount))
+	c.pairPrices.Set(option.Pair, 0)
+	c.pairVolumes.Set(option.Pair, 0)
+	c.pairPriceChangeRatio.Set(option.Pair, 0)
+	c.pairVolumeChangeRatio.Set(option.Pair, 0)
+	c.pairVolumeGrowRatio.Set(option.Pair, 0)
+
+	c.pairGridMap.Set(option.Pair, &model.PositionGrid{})
+	c.pairGridMapIndex.Set(option.Pair, -1)
+	c.pairHedgeMode.Set(option.Pair, constants.PositionModeNormal)
+	c.pairGirdStatus.Set(option.Pair, constants.GridStatusInside)
+	c.pairCurrentProfit.Set(option.Pair, &model.PairProfit{})
+	c.pairProfitLevels.Set(option.Pair, c.generateTriggerSequence(
 		option.ProfitableTrigger,
 		option.ProfitableTriggerIncrStep,
 		option.ProfitableScale,
 		option.ProfitableScaleDecrStep,
-	)
+	))
+
 	c.resetPairProfit(option.Pair)
 
 	if c.samples[option.Pair] == nil {
@@ -182,28 +194,45 @@ func (c *CallerBase) SetPair(option model.PairOption) {
 	}
 }
 
-func (c *CallerBase) RegiterPairOption() {
+func (c *Base) RegiterPairOption() {
 	for {
 		select {
-		case pair := <-types.PairStatusChan:
-			c.pairOptions[pair].Status = !c.pairOptions[pair].Status
+		case pairStatus := <-types.PairStatusChan:
+			c.pairOptions[pairStatus.Pair].Status = pairStatus.Status
+			utils.Log.Infof(
+				"[CALLER - SWITCH：%s] Caller Status Changed, new Status: %v",
+				pairStatus.Pair,
+				pairStatus.Status,
+			)
 		default:
 			time.Sleep(1 * time.Second)
 		}
 	}
 }
 
-func (c *CallerBase) SetSample(pair string, timeframe string, strategyName string, dataframe *model.Dataframe) {
+func (c *Base) PausePairCall(pair string) {
+	utils.Log.Infof(
+		"[CALLER - PAUSE：%s] Caller paused, will be resume at %v mins",
+		pair,
+		PausePairCallDuration,
+	)
+	c.pairOptions[pair].Status = false
+	time.AfterFunc(PausePairCallDuration*time.Minute, func() {
+		c.pairOptions[pair].Status = true
+	})
+}
+
+func (c *Base) SetSample(pair string, timeframe string, strategyName string, dataframe *model.Dataframe) {
 	c.samples[pair][timeframe][strategyName] = dataframe
 }
 
-func (c *CallerBase) UpdatePairInfo(pair string, price float64, volume float64, updatedAt time.Time) {
-	c.pairPrices[pair] = price
-	c.pairVolumes[pair] = volume
-	c.lastUpdate[pair] = updatedAt
+func (c *Base) UpdatePairInfo(pair string, price float64, volume float64, updatedAt time.Time) {
+	c.pairPrices.Set(pair, price)
+	c.pairVolumes.Set(pair, volume)
+	c.lastUpdate.Set(pair, updatedAt)
 }
 
-func (c *CallerBase) tickCheckOrderTimeout() {
+func (c *Base) tickCheckOrderTimeout() {
 	for {
 		select {
 		// 定时查询当前是否有仓位
@@ -213,7 +242,7 @@ func (c *CallerBase) tickCheckOrderTimeout() {
 	}
 }
 
-func (c *CallerBase) CheckHasUnfilledPositionOrders(pair string, side model.SideType, positionSide model.PositionSideType) (bool, error) {
+func (c *Base) CheckHasUnfilledPositionOrders(pair string, side model.SideType, positionSide model.PositionSideType) (bool, error) {
 	// 判断当前是否已有同向挂单未成交，有则不在开单
 	existUnfilledOrderMap, err := c.broker.GetOrdersForPairUnfilled(pair)
 	if err != nil {
@@ -233,6 +262,7 @@ func (c *CallerBase) CheckHasUnfilledPositionOrders(pair string, side model.Side
 			}
 		}
 	}
+	pairPrice, _ := c.pairPrices.Get(exsitOrder.Pair)
 	// 判断当前是否已有同向挂单
 	if exsitOrder != nil {
 		utils.Log.Infof(
@@ -242,14 +272,14 @@ func (c *CallerBase) CheckHasUnfilledPositionOrders(pair string, side model.Side
 			exsitOrder.PositionSide,
 			exsitOrder.Quantity,
 			exsitOrder.Price,
-			c.pairPrices[exsitOrder.Pair],
+			pairPrice,
 		)
 		return true, nil
 	}
 	return false, nil
 }
 
-func (c *CallerBase) CloseOrder(checkTimeout bool) {
+func (c *Base) CloseOrder(checkTimeout bool) {
 	c.mu.Lock()         // 加锁
 	defer c.mu.Unlock() // 解锁
 	existOrderMap, err := c.broker.GetOrdersForUnfilled()
@@ -268,7 +298,7 @@ func (c *CallerBase) CloseOrder(checkTimeout bool) {
 				// 获取当前时间使用
 				currentTime := time.Now()
 				if c.setting.CheckMode == "candle" {
-					currentTime = c.lastUpdate[positionOrder.Pair]
+					currentTime, _ = c.lastUpdate.Get(positionOrder.Pair)
 				}
 				// 获取挂单时间是否超长
 				cancelLimitTime := positionOrder.UpdatedAt.Add(CancelLimitDuration * time.Second)
@@ -285,12 +315,21 @@ func (c *CallerBase) CloseOrder(checkTimeout bool) {
 			}
 
 			// 取消订单时将该订单锁定的网格重置回去
-			if _, ok := c.positionGridMap[positionOrder.Pair]; ok {
-				if c.positionGridIndex[positionOrder.Pair] < 0 {
+			if c.pairGridMap.Exists(positionOrder.Pair) {
+				gridIndex, ok := c.pairGridMapIndex.Get(positionOrder.Pair)
+				if !ok {
 					continue
 				}
-				c.positionGridMap[positionOrder.Pair].GridItems[c.positionGridIndex[positionOrder.Pair]].Lock = false
-				c.positionGridIndex[positionOrder.Pair] = -1
+				if gridIndex < 0 {
+					continue
+				}
+				currentGrid, ok := c.pairGridMap.Get(positionOrder.Pair)
+				if !ok {
+					continue
+				}
+				currentGrid.GridItems[gridIndex].Lock = false
+				c.pairGridMap.Set(positionOrder.Pair, currentGrid)
+				c.pairGridMapIndex.Set(positionOrder.Pair, -1)
 			}
 			utils.Log.Infof(
 				"[ORDER - %s] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v | Create: %s",
@@ -319,7 +358,7 @@ func (c *CallerBase) CloseOrder(checkTimeout bool) {
 	}
 }
 
-func (c *CallerBase) finishAllPosition(mainPosition *model.Position, subPosition *model.Position) {
+func (c *Base) finishAllPosition(mainPosition *model.Position, subPosition *model.Position) {
 	// 批量下单
 	orderParams := []*model.OrderParam{}
 	// 平掉副仓位
@@ -354,9 +393,10 @@ func (c *CallerBase) finishAllPosition(mainPosition *model.Position, subPosition
 	}
 }
 
-func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
-	_, gridExsit := c.positionGridMap[pair]
-	if isForce == true && c.pairTubeOpen[pair] == false {
+func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
+	currentGrid, gridExsit := c.pairGridMap.Get(pair)
+	pairTubeOpen, _ := c.pairTubeOpen.Get(pair)
+	if isForce == true && pairTubeOpen == false {
 		utils.Log.Infof("[GRID: %s] Build - Living data has no exsit, wating...", pair)
 		return
 	}
@@ -394,19 +434,18 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 	avgVolume := dataframe.Metadata["avgVolume"].Last(dataIndex)
 	volume := dataframe.Metadata["volume"].Last(0)
 
-	c.lastAvgVolume[pair] = avgVolume
-
+	c.lastAvgVolume.Set(pair, avgVolume)
 	// 计算振幅
 	amplitude := indicator.AMP(openPrice, highPrice, lowPrice)
 	// 上一根蜡烛线已经破线，不在初始化网格
 	if lastPrice > bbUpper || lastPrice < bbLower {
 		utils.Log.Infof("[Grid: %s] Build - Bolling has cross limit, wating...", pair)
-		delete(c.positionGridMap, pair)
+		c.pairGridMap.Delete(pair)
 		return
 	}
 	if (volume / avgVolume) > AvgVolumeLimitRatio {
 		utils.Log.Infof("[GRID: %s] Build - Volume bigger than avgVolume, wating...", pair)
-		delete(c.positionGridMap, pair)
+		c.pairGridMap.Delete(pair)
 		return
 	}
 	// 根据振幅动态计算网格大小
@@ -429,10 +468,8 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 		return
 	}
 
-	if _, ok := c.positionGridMap[pair]; ok {
-		if c.positionGridMap[pair].BasePrice == midPrice {
-			return
-		}
+	if gridExsit && currentGrid.BasePrice == midPrice {
+		return
 	}
 
 	// 初始化网格
@@ -490,7 +527,7 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 			len(longGridItems),
 			len(shortGridItems),
 		)
-		delete(c.positionGridMap, pair)
+		c.pairGridMap.Delete(pair)
 		return
 	}
 	grid.GridItems = append(grid.GridItems, longGridItems...)
@@ -505,33 +542,39 @@ func (c *CallerBase) BuildGird(pair string, timeframe string, isForce bool) {
 		grid.CreatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 		dataIndex,
 		isForce,
-		c.pairTubeOpen[pair],
+		pairTubeOpen,
 	)
 	grid.SortGridItemsByPrice(true)
 	// 将网格添加到网格映射中
-	c.positionGridMap[pair] = &grid
+	c.pairGridMap.Set(pair, &grid)
 }
 
-func (c *CallerBase) ResetGrid(pair string) {
-	if _, ok := c.positionGridMap[pair]; !ok {
+func (c *Base) ResetGrid(pair string) {
+	currentGrid, gridExsit := c.pairGridMap.Get(pair)
+	if !gridExsit {
 		return
 	}
-	if len(c.positionGridMap[pair].GridItems) == 0 {
+	if len(currentGrid.GridItems) == 0 {
 		return
 	}
 	// 修改网格锁定状态
-	for i := range c.positionGridMap[pair].GridItems {
-		c.positionGridMap[pair].GridItems[i].Lock = false
+	for i := range currentGrid.GridItems {
+		currentGrid.GridItems[i].Lock = false
 	}
+	c.pairGridMap.Set(pair, currentGrid)
 }
 
-func (c *CallerBase) getOpenGrid(pair string, currentPrice float64) (int, error) {
+func (c *Base) getOpenGrid(pair string, currentPrice float64) (int, error) {
 	openGridIndex := -1
-	if currentPrice == c.positionGridMap[pair].BasePrice {
-		return openGridIndex, errors.New("Pair price at base line")
+	currentGrid, gridExsit := c.pairGridMap.Get(pair)
+	if !gridExsit {
+		return openGridIndex, errors.New(fmt.Sprintf("[POSITION] Grid for %s not exsit, waiting ....", pair))
 	}
-	if currentPrice > c.positionGridMap[pair].BasePrice {
-		for i, item := range c.positionGridMap[pair].GridItems {
+	if currentPrice == currentGrid.BasePrice {
+		return openGridIndex, errors.New(fmt.Sprintf("[GRID] Pair for %s price at base line, ignore ...", pair))
+	}
+	if currentPrice > currentGrid.BasePrice {
+		for i, item := range currentGrid.GridItems {
 			if item.PositionSide == model.PositionSideTypeLong {
 				continue
 			}
@@ -541,8 +584,8 @@ func (c *CallerBase) getOpenGrid(pair string, currentPrice float64) (int, error)
 			}
 		}
 	} else {
-		for i := len(c.positionGridMap[pair].GridItems) - 1; i >= 0; i-- {
-			item := c.positionGridMap[pair].GridItems[i]
+		for i := len(currentGrid.GridItems) - 1; i >= 0; i-- {
+			item := currentGrid.GridItems[i]
 			if item.PositionSide == model.PositionSideTypeShort {
 				continue
 			}
@@ -555,7 +598,7 @@ func (c *CallerBase) getOpenGrid(pair string, currentPrice float64) (int, error)
 	return openGridIndex, nil
 }
 
-func (c *CallerBase) generateTriggerSequence(initialTriggerRatio, triggerIncrement, totalDrawdown, drawdownInterval float64) []*model.StopProfitLevel {
+func (c *Base) generateTriggerSequence(initialTriggerRatio, triggerIncrement, totalDrawdown, drawdownInterval float64) []*model.StopProfitLevel {
 	var triggerSequence []*model.StopProfitLevel
 	totalSteps := int(totalDrawdown / drawdownInterval)
 
@@ -581,17 +624,20 @@ func (c *CallerBase) generateTriggerSequence(initialTriggerRatio, triggerIncreme
 	return triggerSequence
 }
 
-func (c *CallerBase) resetPairProfit(pair string) {
-	c.pairCurrentProfit[pair] = &model.PairProfit{
+func (c *Base) resetPairProfit(pair string) {
+	pairProfitLevels, _ := c.pairProfitLevels.Get(pair)
+	c.pairCurrentProfit.Set(pair, &model.PairProfit{
 		Close:    0,
-		Floor:    c.pairProfitLevels[pair][0].TriggerRatio,
-		Decrease: c.pairProfitLevels[pair][0].DrawdownRatio,
-	}
+		Floor:    pairProfitLevels[0].TriggerRatio,
+		Decrease: pairProfitLevels[0].DrawdownRatio,
+	})
 }
 
-func (c *CallerBase) findProfitLevel(pair string, profit float64) *model.StopProfitLevel {
+func (c *Base) findProfitLevel(pair string, profit float64) *model.StopProfitLevel {
 	var bestMatch *model.StopProfitLevel
-	for _, level := range c.pairProfitLevels[pair] {
+	pairProfitLevels, _ := c.pairProfitLevels.Get(pair)
+
+	for _, level := range pairProfitLevels {
 		if profit > level.TriggerRatio {
 			bestMatch = level // 更新最佳匹配
 		} else {
