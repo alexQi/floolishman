@@ -25,7 +25,7 @@ func (s Range15m) WarmupPeriod() int {
 
 func (s Range15m) Indicators(df *model.Dataframe) {
 
-	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
+	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 0)
 	// 计算布林带宽度
 	bbWidth := make([]float64, len(bbUpper))
 	for i := 0; i < len(bbUpper); i++ {

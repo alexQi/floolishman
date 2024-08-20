@@ -427,12 +427,27 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	highPrice := dataframe.High.Last(dataIndex)
 	lastPrice := dataframe.Close.Last(dataIndex)
 	bbUpper := dataframe.Metadata["bbUpper"].Last(dataIndex)
+	bbMiddle := dataframe.Metadata["bbMiddle"].Last(dataIndex)
 	bbLower := dataframe.Metadata["bbLower"].Last(dataIndex)
 	bbWidth := dataframe.Metadata["bbWidth"].Last(dataIndex)
 	avgVolume := dataframe.Metadata["avgVolume"].Last(dataIndex)
 	volume := dataframe.Metadata["volume"].Last(0)
 	midPrice := dataframe.Metadata["basePrice"].Last(dataIndex)
-
+	// 判断基准线
+	if midPrice > bbMiddle {
+		// 如果上轨与均线的距离大于均线与中轨的距离，则使用中轨作为基准线
+		if (bbUpper - midPrice) > (midPrice - bbMiddle) {
+			midPrice = bbMiddle
+		}
+	} else {
+		// 如果下轨与均线的距离大于中轨与均线的距离，则使用中轨作为基准线
+		if (midPrice - bbLower) > (bbMiddle - midPrice) {
+			midPrice = bbMiddle
+		}
+	}
+	if gridExsit && currentGrid.BasePrice == midPrice {
+		return
+	}
 	c.lastAvgVolume.Set(pair, avgVolume)
 	// 计算振幅
 	amplitude := indicator.AMP(openPrice, highPrice, lowPrice)
@@ -460,6 +475,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		stepRatio = 1.5
 		gridStep = float64(c.pairOptions[pair].MinGridStep) + (amplitude-AmplitudeMinRatio)*(float64(c.pairOptions[pair].MaxGridStep-c.pairOptions[pair].MinGridStep)/(AmplitudeMaxRatio-AmplitudeMinRatio))
 	}
+
 	// 计算网格数量
 	numGrids := bbWidth / gridStep
 	if numGrids <= 0 {
@@ -467,16 +483,12 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		return
 	}
 	sideGridNum := numGrids / 2
-
 	//sideGridNum := c.pairOptions[pair].MaxAddPosition
-	if gridExsit && currentGrid.BasePrice == midPrice {
-		return
-	}
 
 	// 初始化网格
 	grid := model.PositionGrid{
 		BasePrice:     midPrice,
-		CreatedAt:     dataframe.Time[len(dataframe.Time)-1],
+		CreatedAt:     dataframe.Time[len(dataframe.Time)-dataIndex-1],
 		GridItems:     []model.PositionGridItem{},
 		BoundaryUpper: bbUpper,
 		BoundaryLower: bbLower,

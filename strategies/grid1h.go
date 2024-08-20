@@ -19,11 +19,11 @@ func (s Grid1h) Timeframe() string {
 }
 
 func (s Grid1h) WarmupPeriod() int {
-	return 36 // RSI的预热期设定为14个数据点
+	return 96 // RSI的预热期设定为14个数据点
 }
 
 func (s Grid1h) Indicators(df *model.Dataframe) {
-	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
+	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 0)
 	bbWidth := make([]float64, len(bbUpper))
 	for i := 0; i < len(bbUpper); i++ {
 		bbWidth[i] = bbUpper[i] - bbLower[i]
@@ -34,7 +34,7 @@ func (s Grid1h) Indicators(df *model.Dataframe) {
 	df.Metadata["bbLower"] = bbLower
 	df.Metadata["bbWidth"] = bbWidth
 
-	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
+	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 7)
 	df.Metadata["volume"] = df.Volume
 	df.Metadata["basePrice"] = indicator.EMA(df.Close, 5)
 }

@@ -23,7 +23,7 @@ func (s Kc15m) WarmupPeriod() int {
 }
 
 func (s Kc15m) Indicators(df *model.Dataframe) {
-	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 2.0)
+	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 0)
 	df.Metadata["bbUpper"] = bbUpper
 	df.Metadata["bbMiddle"] = bbMiddle
 	df.Metadata["bbLower"] = bbLower

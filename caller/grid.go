@@ -285,7 +285,21 @@ func (c *Grid) openGridPosition(option *model.PairOption) {
 				}
 			}
 		}
-		// 判断加仓次数已达上线，不在加仓
+		// 判断当前价格是否优于仓位价格
+		if (model.PositionSideType(sampleSidePosition.PositionSide) == model.PositionSideTypeLong && currentPrice > sampleSidePosition.AvgPrice) || (model.PositionSideType(sampleSidePosition.PositionSide) == model.PositionSideTypeShort && currentPrice < sampleSidePosition.AvgPrice) {
+			utils.Log.Infof(
+				"[POSITION - IGNORE] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v, MoreCount:%v | Current: %v (position profiting)",
+				sampleSidePosition.Pair,
+				sampleSidePosition.Side,
+				sampleSidePosition.PositionSide,
+				sampleSidePosition.Quantity,
+				sampleSidePosition.AvgPrice,
+				sampleSidePosition.MoreCount,
+				currentPrice,
+			)
+			return
+		}
+		// 判断加仓次数已达上限，不在加仓
 		pairGridIndex, ok := c.pairGridMapIndex.Get(option.Pair)
 		if !ok {
 			utils.Log.Error(fmt.Sprintf("[POSITION] Grid for %s Index not exsit, waiting ....", option.Pair))
@@ -448,8 +462,10 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 		utils.Log.Error(err)
 		return
 	}
-	// 没有仓位时重新创建网格
+	// 当前没有仓位
 	if len(openedPositions) == 0 {
+		// 重置利润比
+		c.resetPairProfit(option.Pair)
 		// 重新生成网格
 		c.BuildGird(option.Pair, "1h", true)
 		return
@@ -515,10 +531,10 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 		)
 		// 平仓
 		c.finishAllPosition(mainPosition, subPosition)
-		// 暂停交易
-		c.PausePairCall(option.Pair)
 		// 重置利润比
 		c.resetPairProfit(option.Pair)
+		// 暂停交易
+		c.PausePairCall(option.Pair)
 		// 取消所有挂单
 		go c.CloseOrder(false)
 		return
@@ -711,10 +727,10 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 			)
 			// 平仓操作
 			c.finishAllPosition(mainPosition, subPosition)
-			// 暂停交易
-			c.PausePairCall(option.Pair)
 			// 重置利润比
 			c.resetPairProfit(option.Pair)
+			// 暂停交易
+			c.PausePairCall(option.Pair)
 			// 取消挂单
 			go c.CloseOrder(false)
 			return
@@ -741,10 +757,10 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 				)
 				// 关闭仓位
 				c.finishAllPosition(mainPosition, subPosition)
-				// 暂停交易
-				c.PausePairCall(option.Pair)
 				// 重设利润比
 				c.resetPairProfit(option.Pair)
+				// 暂停交易
+				c.PausePairCall(option.Pair)
 				// 取消挂单
 				go c.CloseOrder(false)
 			} else {
@@ -782,10 +798,10 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 			)
 			// 关闭仓位
 			c.finishAllPosition(mainPosition, subPosition)
-			// 暂停交易
-			c.PausePairCall(option.Pair)
 			// 重设利润比
 			c.resetPairProfit(option.Pair)
+			// 暂停交易
+			c.PausePairCall(option.Pair)
 			// 取消挂单
 			go c.CloseOrder(false)
 			return
@@ -807,10 +823,10 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 			)
 			// 关闭仓位
 			c.finishAllPosition(mainPosition, subPosition)
-			// 暂停交易
-			c.PausePairCall(option.Pair)
 			// 重设利润比
 			c.resetPairProfit(option.Pair)
+			// 暂停交易
+			c.PausePairCall(option.Pair)
 			// 取消挂单
 			go c.CloseOrder(false)
 			return

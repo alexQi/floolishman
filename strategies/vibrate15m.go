@@ -24,7 +24,7 @@ func (s Vibrate15m) WarmupPeriod() int {
 }
 
 func (s Vibrate15m) Indicators(df *model.Dataframe) {
-	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 20, 2.0, 2.0)
+	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 20, 2.0, 0)
 	bbWidth := make([]float64, len(bbUpper))
 	for i := 0; i < len(bbUpper); i++ {
 		bbWidth[i] = bbUpper[i] - bbLower[i]
