@@ -244,6 +244,55 @@ func (c *Base) tickCheckOrderTimeout() {
 	}
 }
 
+func (c *Base) WatchPriceChange() {
+	for {
+		select {
+		case <-time.After(CHeckPriceUndulateInterval * time.Millisecond):
+			for _, option := range c.pairOptions {
+				if option.Status == false {
+					continue
+				}
+				pairPrice, _ := c.pairPrices.Get(option.Pair)
+				pairVolume, _ := c.pairVolumes.Get(option.Pair)
+				pairOriginPrices, _ := c.pairOriginPrices.Get(option.Pair)
+				pairOriginVolumes, _ := c.pairOriginVolumes.Get(option.Pair)
+				// 记录循环价格数组
+				pairOriginPrices.Add(pairPrice)
+				pairOriginVolumes.Add(pairVolume)
+				// 重设数据
+				c.pairOriginPrices.Set(option.Pair, pairOriginPrices)
+				c.pairOriginVolumes.Set(option.Pair, pairOriginVolumes)
+				// 判断数据是否足够
+				if pairOriginPrices.Count() < ChangeRingCount || pairOriginVolumes.Count() < ChangeRingCount {
+					continue
+				}
+				// 本次量能小于上次量能，处理蜡烛收线时量能倍重置
+				if pairOriginVolumes.Last(0) < pairOriginVolumes.Last(1) {
+					pairOriginVolumes.Clear()
+					c.pairOriginVolumes.Set(option.Pair, pairOriginVolumes)
+					continue
+				}
+				// 计算量能异动诧异
+				currDiffVolume := pairOriginVolumes.Last(0) - pairOriginVolumes.Last(ChangeDiffInterval)
+				prevDiffVolume := pairOriginVolumes.Last(ChangeDiffInterval) - pairOriginVolumes.Last(2*ChangeDiffInterval)
+				// 计算价格差异
+				currDiffPrice := pairOriginPrices.Last(0) - pairOriginPrices.Last(ChangeDiffInterval)
+				// 处理价格变化率
+				c.pairPriceChangeRatio.Set(option.Pair, currDiffPrice/(option.UndulatePriceLimit*float64(ChangeDiffInterval)))
+				// 处理量能变化率
+				c.pairVolumeChangeRatio.Set(option.Pair, currDiffVolume/(option.UndulateVolumeLimit*float64(ChangeDiffInterval)))
+				// 判断当前量能差有没有达到最小限制
+				if currDiffVolume > (option.UndulateVolumeLimit * float64(ChangeDiffInterval)) {
+					// 处理量能每秒增长率
+					c.pairVolumeGrowRatio.Set(option.Pair, currDiffVolume/prevDiffVolume)
+				} else {
+					c.pairVolumeGrowRatio.Set(option.Pair, 0)
+				}
+			}
+		}
+	}
+}
+
 func (c *Base) CheckHasUnfilledPositionOrders(pair string, side model.SideType, positionSide model.PositionSideType) (bool, error) {
 	// 判断当前是否已有同向挂单未成交，有则不在开单
 	existUnfilledOrderMap, err := c.broker.GetOrdersForPairUnfilled(pair)
@@ -389,6 +438,9 @@ func (c *Base) finishAllPosition(mainPosition *model.Position, subPosition *mode
 			},
 		})
 	}
+	if len(orderParams) == 0 {
+		return
+	}
 	_, err := c.broker.BatchCreateOrderMarket(orderParams)
 	if err != nil {
 		utils.Log.Error(err)
@@ -416,7 +468,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	openPrice := dataframe.Open.Last(dataIndex)
 	lowPrice := dataframe.Low.Last(dataIndex)
 	highPrice := dataframe.High.Last(dataIndex)
-	lastPrice := dataframe.Close.Last(dataIndex)
+	closePrice := dataframe.Close.Last(dataIndex)
 	bbUpper := dataframe.Metadata["bbUpper"].Last(dataIndex)
 	bbMiddle := dataframe.Metadata["bbMiddle"].Last(dataIndex)
 	bbLower := dataframe.Metadata["bbLower"].Last(dataIndex)
@@ -439,12 +491,12 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	// 判断基准线
 	if midPrice > bbMiddle {
 		// 如果上轨与均线的距离大于均线与中轨的距离，则使用中轨作为基准线
-		if (bbUpper - midPrice) > (midPrice - bbMiddle) {
+		if (bbUpper-midPrice) > (midPrice-bbMiddle) && openPrice > closePrice {
 			midPrice = bbMiddle
 		}
 	} else {
 		// 如果下轨与均线的距离大于中轨与均线的距离，则使用中轨作为基准线
-		if (midPrice - bbLower) > (bbMiddle - midPrice) {
+		if (midPrice-bbLower) > (bbMiddle-midPrice) && closePrice > openPrice {
 			midPrice = bbMiddle
 		}
 	}
@@ -454,7 +506,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	// 计算振幅
 	amplitude := indicator.AMP(openPrice, highPrice, lowPrice)
 	// 上一根蜡烛线已经破线，不在初始化网格
-	if lastPrice > bbUpper || lastPrice < bbLower {
+	if closePrice > bbUpper || closePrice < bbLower {
 		utils.Log.Infof("[Grid: %s] Build - Bolling has cross limit, wating...", pair)
 		c.pairGridMap.Delete(pair)
 		return
@@ -500,7 +552,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	var longGridItems, shortGridItems []model.PositionGridItem
 	// 计算网格上下限
 	for i := 0; i <= int(sideGridNum); i++ {
-		if dataframe.Open.Last(1) < lastPrice {
+		if dataframe.Open.Last(1) < closePrice {
 			longPrice = midPrice + float64(i)*gridStep + gridStep*stepRatio
 		} else {
 			longPrice = midPrice + float64(i)*gridStep + c.pairOptions[pair].WindowPeriod
@@ -517,7 +569,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		}
 	}
 	for i := 0; i <= int(sideGridNum); i++ {
-		if dataframe.Open.Last(1) > lastPrice {
+		if dataframe.Open.Last(1) > closePrice {
 			shortPrice = midPrice - float64(i)*gridStep - gridStep*stepRatio
 		} else {
 			shortPrice = midPrice - float64(i)*gridStep - c.pairOptions[pair].WindowPeriod

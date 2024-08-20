@@ -49,55 +49,6 @@ func (c *Grid) Start() {
 	go c.WatchPriceChange()
 }
 
-func (c *Grid) WatchPriceChange() {
-	for {
-		select {
-		case <-time.After(CHeckPriceUndulateInterval * time.Millisecond):
-			for _, option := range c.pairOptions {
-				if option.Status == false {
-					continue
-				}
-				pairPrice, _ := c.pairPrices.Get(option.Pair)
-				pairVolume, _ := c.pairVolumes.Get(option.Pair)
-				pairOriginPrices, _ := c.pairOriginPrices.Get(option.Pair)
-				pairOriginVolumes, _ := c.pairOriginVolumes.Get(option.Pair)
-				// 记录循环价格数组
-				pairOriginPrices.Add(pairPrice)
-				pairOriginVolumes.Add(pairVolume)
-				// 重设数据
-				c.pairOriginPrices.Set(option.Pair, pairOriginPrices)
-				c.pairOriginVolumes.Set(option.Pair, pairOriginVolumes)
-				// 判断数据是否足够
-				if pairOriginPrices.Count() < ChangeRingCount || pairOriginVolumes.Count() < ChangeRingCount {
-					continue
-				}
-				// 本次量能小于上次量能，处理蜡烛收线时量能倍重置
-				if pairOriginVolumes.Last(0) < pairOriginVolumes.Last(1) {
-					pairOriginVolumes.Clear()
-					c.pairOriginVolumes.Set(option.Pair, pairOriginVolumes)
-					continue
-				}
-				// 计算量能异动诧异
-				currDiffVolume := pairOriginVolumes.Last(0) - pairOriginVolumes.Last(ChangeDiffInterval)
-				prevDiffVolume := pairOriginVolumes.Last(ChangeDiffInterval) - pairOriginVolumes.Last(2*ChangeDiffInterval)
-				// 计算价格差异
-				currDiffPrice := pairOriginPrices.Last(0) - pairOriginPrices.Last(ChangeDiffInterval)
-				// 处理价格变化率
-				c.pairPriceChangeRatio.Set(option.Pair, currDiffPrice/(option.UndulatePriceLimit*float64(ChangeDiffInterval)))
-				// 处理量能变化率
-				c.pairVolumeChangeRatio.Set(option.Pair, currDiffVolume/(option.UndulateVolumeLimit*float64(ChangeDiffInterval)))
-				// 判断当前量能差有没有达到最小限制
-				if currDiffVolume > (option.UndulateVolumeLimit * float64(ChangeDiffInterval)) {
-					// 处理量能每秒增长率
-					c.pairVolumeGrowRatio.Set(option.Pair, currDiffVolume/prevDiffVolume)
-				} else {
-					c.pairVolumeGrowRatio.Set(option.Pair, 0)
-				}
-			}
-		}
-	}
-}
-
 func (c *Grid) Listen() {
 	for {
 		select {
