@@ -9,26 +9,29 @@ import (
 )
 
 type PairOption struct {
-	Status                    bool
-	Pair                      string
-	Leverage                  int
-	MarginType                futures.MarginType
-	MarginMode                constants.MarginMode
-	MarginSize                float64
-	MaxGridStep               float64
-	MinGridStep               float64
-	UndulatePriceLimit        float64
-	UndulateVolumeLimit       float64
-	WindowPeriod              float64
-	MaxAddPosition            int64
-	MinAddPosition            int64
-	ProfitableScale           float64
-	ProfitableScaleDecrStep   float64
-	ProfitableTrigger         float64
-	ProfitableTriggerIncrStep float64
-	PullMarginLossRatio       float64
-	MaxMarginRatio            float64
-	MaxMarginLossRatio        float64
+	Status                     bool
+	Pair                       string
+	Leverage                   int
+	MarginType                 futures.MarginType
+	MarginMode                 constants.MarginMode
+	MarginSize                 float64
+	MaxGridStep                float64
+	MinGridStep                float64
+	UndulatePriceLimit         float64
+	UndulateVolumeLimit        float64
+	WindowPeriod               float64
+	MaxAddPosition             int64
+	MinAddPosition             int64
+	HoldPositionPeriod         int64
+	HoldPositionPeriodDecrStep float64
+	ProfitableScale            float64
+	ProfitableScaleDecrStep    float64
+	ProfitableTrigger          float64
+	ProfitableTriggerIncrStep  float64
+	PullMarginLossRatio        float64
+	MaxMarginRatio             float64
+	MaxMarginLossRatio         float64
+	PauseCaller                int64
 }
 
 func (o PairOption) String() string {
@@ -131,27 +134,45 @@ func BuildPairOption(pair string, valMap map[string]interface{}) PairOption {
 	if !ok {
 		log.Fatalf("Invalid maxMarginLossRatio format for pair %s: %v", pair, valMap["maxMarginLossRatio"])
 	}
+	// 暂停交易时长 min
+	pauseCaller, ok := valMap["pausecaller"].(int)
+	if !ok {
+		log.Fatalf("Invalid pauseCaller format for pair %s: %v", pair, valMap["pauseCaller"])
+	}
+	// 持仓周期 min
+	holdPositionPeriod, ok := valMap["holdpositionperiod"].(int)
+	if !ok {
+		log.Fatalf("Invalid holdPositionPeriod format for pair %s: %v", pair, valMap["holdPositionPeriod"])
+	}
+	// 持仓超越周期盈利触发百分比
+	holdPositionPeriodDecrStep, ok := valMap["holdpositionperioddecrstep"].(float64)
+	if !ok {
+		log.Fatalf("Invalid holdPositionPeriodDecrStep format for pair %s: %v", pair, valMap["holdPositionPeriodDecrStep"])
+	}
 
 	return PairOption{
-		Status:                    status,
-		Pair:                      strings.ToUpper(pair),
-		Leverage:                  int(leverageFloat),
-		WindowPeriod:              windowPeriod,
-		MaxGridStep:               maxGridStep,
-		MinGridStep:               minGridStep,
-		UndulatePriceLimit:        undulatePriceLimit,
-		UndulateVolumeLimit:       undulateVolumeLimit,
-		MarginType:                futures.MarginType(strings.ToUpper(marginType)),
-		MarginMode:                constants.MarginMode(strings.ToUpper(marginMode)),
-		MarginSize:                marginSize,
-		MaxAddPosition:            int64(maxAddPosition),
-		MinAddPosition:            int64(minAddPosition),
-		ProfitableScale:           profitableScale,
-		ProfitableScaleDecrStep:   profitableScaleDecrStep,
-		ProfitableTrigger:         profitableTrigger,
-		ProfitableTriggerIncrStep: profitableTriggerIncrStep,
-		PullMarginLossRatio:       pullMarginLossRatio,
-		MaxMarginRatio:            maxMarginRatio,
-		MaxMarginLossRatio:        maxMarginLossRatio,
+		Status:                     status,
+		Pair:                       strings.ToUpper(pair),
+		Leverage:                   int(leverageFloat),
+		WindowPeriod:               windowPeriod,
+		MaxGridStep:                maxGridStep,
+		MinGridStep:                minGridStep,
+		UndulatePriceLimit:         undulatePriceLimit,
+		UndulateVolumeLimit:        undulateVolumeLimit,
+		MarginType:                 futures.MarginType(strings.ToUpper(marginType)),
+		MarginMode:                 constants.MarginMode(strings.ToUpper(marginMode)),
+		MarginSize:                 marginSize,
+		MaxAddPosition:             int64(maxAddPosition),
+		MinAddPosition:             int64(minAddPosition),
+		HoldPositionPeriod:         int64(holdPositionPeriod),
+		HoldPositionPeriodDecrStep: holdPositionPeriodDecrStep,
+		ProfitableScale:            profitableScale,
+		ProfitableScaleDecrStep:    profitableScaleDecrStep,
+		ProfitableTrigger:          profitableTrigger,
+		ProfitableTriggerIncrStep:  profitableTriggerIncrStep,
+		PullMarginLossRatio:        pullMarginLossRatio,
+		MaxMarginRatio:             maxMarginRatio,
+		MaxMarginLossRatio:         maxMarginLossRatio,
+		PauseCaller:                int64(pauseCaller),
 	}
 }

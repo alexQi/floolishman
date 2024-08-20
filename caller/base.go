@@ -37,7 +37,6 @@ var (
 )
 
 var (
-	PausePairCallDuration      time.Duration = 30
 	CancelLimitDuration        time.Duration = 60
 	CheckCloseInterval         time.Duration = 500
 	CheckLeverageInterval      time.Duration = 1000
@@ -214,10 +213,10 @@ func (c *Base) PausePairCall(pair string) {
 	utils.Log.Infof(
 		"[CALLER - PAUSE：%s] Caller paused, will be resume at %v mins",
 		pair,
-		PausePairCallDuration,
+		c.pairOptions[pair].PauseCaller,
 	)
 	c.pairOptions[pair].Status = false
-	time.AfterFunc(PausePairCallDuration*time.Minute, func() {
+	time.AfterFunc(time.Duration(c.pairOptions[pair].PauseCaller)*time.Minute, func() {
 		c.pairOptions[pair].Status = true
 	})
 }
@@ -474,12 +473,9 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 
 	// 初始化网格
 	grid := model.PositionGrid{
-		BasePrice:     midPrice,
-		CreatedAt:     dataframe.Time[len(dataframe.Time)-1],
-		CountGrid:     int64(numGrids),
-		BoundaryUpper: bbUpper,
-		BoundaryLower: bbLower,
-		GridItems:     []model.PositionGridItem{},
+		BasePrice: midPrice,
+		CreatedAt: dataframe.Time[len(dataframe.Time)-1],
+		GridItems: []model.PositionGridItem{},
 	}
 
 	var longPrice, shortPrice float64
@@ -532,6 +528,10 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	}
 	grid.GridItems = append(grid.GridItems, longGridItems...)
 	grid.GridItems = append(grid.GridItems, shortGridItems...)
+	grid.SortGridItemsByPrice(true)
+	grid.CountGrid = int64(len(grid.GridItems))
+	grid.BoundaryLower = grid.GridItems[0].Price
+	grid.BoundaryUpper = grid.GridItems[len(grid.GridItems)-1].Price
 	utils.Log.Infof(
 		"[GRID: %s] Build - BasePrice: %v | Upper: %v | Lower: %v | Count: %v | CreatedAt: %s (Index: %v, Force: %v, Tube: %v)",
 		pair,
@@ -544,7 +544,6 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		isForce,
 		pairTubeOpen,
 	)
-	grid.SortGridItemsByPrice(true)
 	// 将网格添加到网格映射中
 	c.pairGridMap.Set(pair, &grid)
 }

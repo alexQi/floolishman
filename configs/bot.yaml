@@ -27,21 +27,27 @@ pairs:
     # 价格波动触发限制 eth 3 $/s    btc 150 $/s
     undulatePriceLimit: 4.0
     # 价格波动触发限制 eth 100 Vol/s  btc 30 Vol/s
-    undulateVolumeLimit: 80.0
+    undulateVolumeLimit: 65.0
+    # 仓位持仓周期 (分钟)
+    holdPositionPeriod: 60
+    # 超过持仓周期递减触发百分比
+    holdPositionPeriodDecrStep: 0.02
     # 移动止盈后撤比例
-    profitableScale: 0.1
+    profitableScale: 0.15
     # 移动止盈后撤比例-step
     profitableScaleDecrStep: 0.005
     # 触发移动止损比例
-    profitableTrigger: 0.185
+    profitableTrigger: 0.2
     # 触发移动止损比例-step
-    profitableTriggerIncrStep: 0.04
+    profitableTriggerIncrStep: 0.05
     # 最大加仓后联合仓位亏损拉回比例
     pullMarginLossRatio: 0.18
     # 最大保证金比例
     maxMarginRatio: 0.40
     # 最大止损保证金比例
     maxMarginLossRatio: 0.0038
+    # 暂停交易时常（分钟）
+    pauseCaller: 45
   # 交易对名称
   BTCUSDT:
     # 状态
@@ -67,21 +73,27 @@ pairs:
     # 价格波动触发限制 eth 3 $/s    btc 150 $/s
     undulatePriceLimit: 150.0
     # 价格波动触发限制 eth 100 Vol/s  btc 25 Vol/s
-    undulateVolumeLimit: 20.0
+    undulateVolumeLimit: 16.0
+    # 仓位持仓周期 (分钟)
+    holdPositionPeriod: 60
+    # 超过持仓周期递减触发百分比
+    holdPositionPeriodDecrStep: 0.02
     # 移动止盈后撤比例
     profitableScale: 0.1
     # 移动止盈后撤比例-step
     profitableScaleDecrStep: 0.005
     # 触发移动止损比例
-    profitableTrigger: 0.185
+    profitableTrigger: 0.2
     # 触发移动止损比例-step
-    profitableTriggerIncrStep: 0.04
+    profitableTriggerIncrStep: 0.05
     # 最大加仓后联合仓位亏损拉回比例
     pullMarginLossRatio: 0.18
     # 最大保证金比例
     maxMarginRatio: 0.40
     # 最大止损保证金比例
     maxMarginLossRatio: 0.0038
+    # 暂停交易时常（分钟）
+    pauseCaller: 45
 # 看门狗服务grpc地址
 watchdog:
   host: "127.0.0.1:9999"
