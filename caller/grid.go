@@ -571,6 +571,9 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 			holdPeriod := int(time.Now().Sub(mainPosition.UpdatedAt).Minutes() / float64(option.HoldPositionPeriod))
 			if holdPeriod >= 1 {
 				profitTriggerRatio = profitTriggerRatio - option.HoldPositionPeriodDecrStep*float64(holdPeriod)
+				if profitTriggerRatio <= option.HoldPositionPeriodDecrStep {
+					profitTriggerRatio = option.HoldPositionPeriodDecrStep
+				}
 			}
 			// 小于触发值时，记录当前利润比
 			if profitRatio < profitTriggerRatio {
