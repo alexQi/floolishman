@@ -450,8 +450,6 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 	}
 	// 没有仓位时重新创建网格
 	if len(openedPositions) == 0 {
-		// 取消所有挂单
-		go c.CloseOrder(false)
 		// 重新生成网格
 		c.BuildGird(option.Pair, "1h", true)
 		return

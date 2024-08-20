@@ -426,12 +426,12 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	lowPrice := dataframe.Low.Last(dataIndex)
 	highPrice := dataframe.High.Last(dataIndex)
 	lastPrice := dataframe.Close.Last(dataIndex)
-	midPrice := dataframe.Metadata["basePrice"].Last(dataIndex)
 	bbUpper := dataframe.Metadata["bbUpper"].Last(dataIndex)
 	bbLower := dataframe.Metadata["bbLower"].Last(dataIndex)
 	bbWidth := dataframe.Metadata["bbWidth"].Last(dataIndex)
 	avgVolume := dataframe.Metadata["avgVolume"].Last(dataIndex)
 	volume := dataframe.Metadata["volume"].Last(0)
+	midPrice := dataframe.Metadata["basePrice"].Last(dataIndex)
 
 	c.lastAvgVolume.Set(pair, avgVolume)
 	// 计算振幅
@@ -466,22 +466,26 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		utils.Log.Infof("[GRID: %s] Build - Grid spacing too large for the given price width, wating...", pair)
 		return
 	}
+	sideGridNum := numGrids / 2
 
+	//sideGridNum := c.pairOptions[pair].MaxAddPosition
 	if gridExsit && currentGrid.BasePrice == midPrice {
 		return
 	}
 
 	// 初始化网格
 	grid := model.PositionGrid{
-		BasePrice: midPrice,
-		CreatedAt: dataframe.Time[len(dataframe.Time)-1],
-		GridItems: []model.PositionGridItem{},
+		BasePrice:     midPrice,
+		CreatedAt:     dataframe.Time[len(dataframe.Time)-1],
+		GridItems:     []model.PositionGridItem{},
+		BoundaryUpper: bbUpper,
+		BoundaryLower: bbLower,
 	}
 
 	var longPrice, shortPrice float64
 	var longGridItems, shortGridItems []model.PositionGridItem
 	// 计算网格上下限
-	for i := 0; i <= int(numGrids/2); i++ {
+	for i := 0; i <= int(sideGridNum); i++ {
 		if dataframe.Open.Last(1) < lastPrice {
 			longPrice = midPrice + float64(i)*gridStep + gridStep*stepRatio
 		} else {
@@ -498,7 +502,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 			break
 		}
 	}
-	for i := 0; i <= int(numGrids/2); i++ {
+	for i := 0; i <= int(sideGridNum); i++ {
 		if dataframe.Open.Last(1) > lastPrice {
 			shortPrice = midPrice - float64(i)*gridStep - gridStep*stepRatio
 		} else {
@@ -530,20 +534,20 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	grid.GridItems = append(grid.GridItems, shortGridItems...)
 	grid.SortGridItemsByPrice(true)
 	grid.CountGrid = int64(len(grid.GridItems))
-	grid.BoundaryLower = grid.GridItems[0].Price
-	grid.BoundaryUpper = grid.GridItems[len(grid.GridItems)-1].Price
 	utils.Log.Infof(
 		"[GRID: %s] Build - BasePrice: %v | Upper: %v | Lower: %v | Count: %v | CreatedAt: %s (Index: %v, Force: %v, Tube: %v)",
 		pair,
 		grid.BasePrice,
-		grid.BoundaryUpper,
-		grid.BoundaryLower,
+		grid.GridItems[len(grid.GridItems)-1].Price,
+		grid.GridItems[0].Price,
 		grid.CountGrid,
 		grid.CreatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 		dataIndex,
 		isForce,
 		pairTubeOpen,
 	)
+	// 网格被重新生成时取消所有挂单
+	go c.CloseOrder(false)
 	// 将网格添加到网格映射中
 	c.pairGridMap.Set(pair, &grid)
 }
