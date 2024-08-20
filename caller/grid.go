@@ -345,6 +345,27 @@ func (c *Grid) openGridPosition(option *model.PairOption) {
 		orderExtra.OrderFlag = sampleSidePosition.OrderFlag
 		amount = sampleSidePosition.UnitQuantity
 	} else {
+		// 判断当前量能是否变化当前无仓位，暂停caller
+		if volChangeHasSurmountLimit && volGrowHasSurmountLimit {
+			// 暂停该交易对新的仓位请求
+			c.PausePairCall(option.Pair)
+			// 取消所有挂单
+			go c.CloseOrder(false)
+			// 日志
+			utils.Log.Infof(
+				"[POSITION PAUSE] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v | Current: %v , %.2f%% (Change) | Volume: %.2f%% (Change), %.2f%% (Grow)",
+				option.Pair,
+				openPositionGrid.Side,
+				openPositionGrid.PositionSide,
+				amount,
+				openPositionGrid.Price,
+				currentPrice,
+				pairPriceChangeRatio*100,
+				pairVolumeChangeRatio*100,
+				pairVolumeGrowRatio*100,
+			)
+			return
+		}
 		// 判断开仓时，保证后方有足够的加仓次数才开仓否则，可能会只加一次仓后突破仓位限制导致平仓
 		if (openPositionGrid.PositionSide == model.PositionSideTypeLong && int64(openIndex) < option.MinAddPosition) ||
 			(openPositionGrid.PositionSide == model.PositionSideTypeShort && (int64(len(pairGrid.GridItems))-int64(openIndex)) < option.MinAddPosition) {
@@ -390,39 +411,9 @@ func (c *Grid) openGridPosition(option *model.PairOption) {
 		)
 		// 设置未量能过大状态
 		c.pairGirdStatus.Set(option.Pair, constants.GridStatusGreaterAvgVol)
+		// 暂停该交易对新的仓位请求
+		c.PausePairCall(option.Pair)
 		// 取消所有挂单
-		go c.CloseOrder(false)
-		return
-	}
-	if volChangeHasSurmountLimit {
-		utils.Log.Infof(
-			"[POSITION IGNORE] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v | Current: %v , %.2f%% (Change) | Volume: %.2f%% (Change), %.2f%% (Grow) (Volume change surmount limit)",
-			option.Pair,
-			openPositionGrid.Side,
-			openPositionGrid.PositionSide,
-			amount,
-			openPositionGrid.Price,
-			currentPrice,
-			pairPriceChangeRatio*100,
-			pairVolumeChangeRatio*100,
-			pairVolumeGrowRatio*100,
-		)
-		go c.CloseOrder(false)
-		return
-	}
-	if volGrowHasSurmountLimit {
-		utils.Log.Infof(
-			"[POSITION IGNORE] Pair: %s | Side: %v, PositionSide: %s | Quantity: %v, Price: %v | Current: %v , %.2f%% (Change) | Volume: %.2f%% (Change), %.2f%% (Grow) (Volume grow surmount limit)",
-			option.Pair,
-			openPositionGrid.Side,
-			openPositionGrid.PositionSide,
-			amount,
-			openPositionGrid.Price,
-			currentPrice,
-			pairPriceChangeRatio*100,
-			pairVolumeChangeRatio*100,
-			pairVolumeGrowRatio*100,
-		)
 		go c.CloseOrder(false)
 		return
 	}

@@ -210,6 +210,9 @@ func (c *Base) RegiterPairOption() {
 }
 
 func (c *Base) PausePairCall(pair string) {
+	if c.pairOptions[pair].Status == false {
+		return
+	}
 	utils.Log.Infof(
 		"[CALLER - PAUSE：%s] Caller paused, will be resume at %v mins",
 		pair,
@@ -399,22 +402,10 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		utils.Log.Infof("[GRID: %s] Build - Living data has no exsit, wating...", pair)
 		return
 	}
-	// 获取当前已存在的仓位,保持原有网格
-	openedPositions, err := c.broker.GetPositionsForPair(pair)
-	if err != nil {
-		utils.Log.Error(err)
-		return
-	}
-	if len(openedPositions) > 0 && gridExsit == true {
-		utils.Log.Infof("[GRID: %s] Build - Position has exsit, wating...", pair)
-		return
-	}
-
 	dataframe := c.samples[pair][timeframe]["Grid1h"]
 	if len(dataframe.Close) == 0 {
 		return
 	}
-
 	var dataIndex int
 	// 判断是否是强制更新
 	if isForce == false {
@@ -433,6 +424,18 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	avgVolume := dataframe.Metadata["avgVolume"].Last(dataIndex)
 	volume := dataframe.Metadata["volume"].Last(0)
 	midPrice := dataframe.Metadata["basePrice"].Last(dataIndex)
+	// 更新平均量能
+	c.lastAvgVolume.Set(pair, avgVolume)
+	// 获取当前已存在的仓位,保持原有网格
+	openedPositions, err := c.broker.GetPositionsForPair(pair)
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	if len(openedPositions) > 0 && gridExsit == true {
+		utils.Log.Infof("[GRID: %s] Build - Position has exsit, wating...", pair)
+		return
+	}
 	// 判断基准线
 	if midPrice > bbMiddle {
 		// 如果上轨与均线的距离大于均线与中轨的距离，则使用中轨作为基准线
@@ -448,7 +451,6 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	if gridExsit && currentGrid.BasePrice == midPrice {
 		return
 	}
-	c.lastAvgVolume.Set(pair, avgVolume)
 	// 计算振幅
 	amplitude := indicator.AMP(openPrice, highPrice, lowPrice)
 	// 上一根蜡烛线已经破线，不在初始化网格
