@@ -525,10 +525,10 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 			}
 			// 计算持仓时间周期倍数，获取盈利触发百分比
 			holdPeriod := int(time.Now().Sub(mainPosition.UpdatedAt).Minutes() / float64(option.HoldPositionPeriod))
-			if holdPeriod >= 1 {
+			if pairCurrentProfit.Close == 0 && holdPeriod >= 1 {
 				profitTriggerRatio = profitTriggerRatio - option.HoldPositionPeriodDecrStep*float64(holdPeriod)
-				if profitTriggerRatio <= option.HoldPositionPeriodDecrStep {
-					profitTriggerRatio = option.HoldPositionPeriodDecrStep
+				if profitTriggerRatio <= pairCurrentProfit.Decrease {
+					profitTriggerRatio = pairCurrentProfit.Decrease
 				}
 			}
 			// 小于触发值时，记录当前利润比
