@@ -249,9 +249,6 @@ func (c *Base) WatchPriceChange() {
 		select {
 		case <-time.After(CHeckPriceUndulateInterval * time.Millisecond):
 			for _, option := range c.pairOptions {
-				if option.Status == false {
-					continue
-				}
 				pairPrice, _ := c.pairPrices.Get(option.Pair)
 				pairVolume, _ := c.pairVolumes.Get(option.Pair)
 				pairOriginPrices, _ := c.pairOriginPrices.Get(option.Pair)

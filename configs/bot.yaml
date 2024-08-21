@@ -5,7 +5,7 @@ pairs:
   # 交易对名称
   ETHUSDT:
     # 状态
-    status: true
+    status: false
     # 杠杆倍数 需要带上小数点
     leverage: 100.0
     # 仓位模式
@@ -51,7 +51,7 @@ pairs:
   # 交易对名称
   BTCUSDT:
     # 状态
-    status: true
+    status: false
     # 杠杆倍数 需要带上小数点
     leverage: 100.0
     # 仓位模式

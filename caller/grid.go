@@ -130,17 +130,6 @@ func (c *Grid) openGridPosition(option *model.PairOption) {
 			}
 		}
 	}
-	// 判断当前资产
-	_, quotePosition, err := c.broker.PairAsset(option.Pair)
-	if err != nil {
-		utils.Log.Error(err)
-		return
-	}
-	// 无资产
-	if quotePosition <= 0 {
-		utils.Log.Errorf("[EXCHANGE] Balance is not enough to create order")
-		return
-	}
 	orderExtra := model.OrderExtra{
 		Leverage: option.Leverage,
 	}
@@ -332,6 +321,17 @@ func (c *Grid) openGridPosition(option *model.PairOption) {
 				currentPrice,
 				openIndex,
 			)
+			return
+		}
+		// 判断当前资产
+		_, quotePosition, err := c.broker.PairAsset(option.Pair)
+		if err != nil {
+			utils.Log.Error(err)
+			return
+		}
+		// 无资产
+		if quotePosition <= 0 {
+			utils.Log.Errorf("[EXCHANGE] Balance is not enough to create order")
 			return
 		}
 		if option.MarginMode == constants.MarginModeRoll {
