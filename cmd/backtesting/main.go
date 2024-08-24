@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"floolishman/bot"
+	"floolishman/constants"
 	"floolishman/exchange"
 	"floolishman/model"
 	"floolishman/storage"
 	"floolishman/strategies"
 	"floolishman/types"
 	"floolishman/utils"
+	"github.com/adshao/go-binance/v2/futures"
 	"github.com/glebarez/sqlite"
 	"github.com/spf13/viper"
 	"gorm.io/gorm"
@@ -24,6 +26,7 @@ var ConstStraties = map[string]types.Strategy{
 	"MomentumVolume15m": &strategies.MomentumVolume15m{},
 	"Rsi1h":             &strategies.Rsi1h{},
 	"Emacross15m":       &strategies.Emacross15m{},
+	"Resonance15m":      &strategies.Resonance15m{},
 	"Emacross1h":        &strategies.Emacross1h{},
 	"Rsi15m":            &strategies.Rsi15m{},
 	"Vibrate15m":        &strategies.Vibrate15m{},
@@ -39,8 +42,21 @@ func main() {
 		telegramToken = viper.GetString("telegram.token")
 		telegramUser  = viper.GetInt("telegram.user")
 		callerSetting = types.CallerSetting{
-			CheckMode:        viper.GetString("caller.checkMode"),
-			LossTimeDuration: viper.GetInt("caller.lossTimeDuration"),
+			CheckMode:                 viper.GetString("caller.checkMode"),
+			LossTimeDuration:          viper.GetInt("caller.lossTimeDuration"),
+			IgnorePairs:               viper.GetStringSlice("caller.ignorePairs"),
+			Leverage:                  viper.GetInt("caller.leverage"),
+			MarginType:                futures.MarginType(viper.GetString("caller.marginType")),
+			MarginMode:                constants.MarginMode(viper.GetString("caller.marginMode")),
+			MarginSize:                viper.GetFloat64("caller.marginSize"),
+			ProfitableScale:           viper.GetFloat64("caller.profitableScale"),
+			ProfitableScaleDecrStep:   viper.GetFloat64("caller.profitableScaleDecrStep"),
+			ProfitableTrigger:         viper.GetFloat64("caller.profitableTrigger"),
+			ProfitableTriggerIncrStep: viper.GetFloat64("caller.profitableTriggerIncrStep"),
+			PullMarginLossRatio:       viper.GetFloat64("caller.pullMarginLossRatio"),
+			MaxMarginRatio:            viper.GetFloat64("caller.maxMarginRatio"),
+			MaxMarginLossRatio:        viper.GetFloat64("caller.maxMarginLossRatio"),
+			PauseCaller:               viper.GetInt64("caller.pauseCaller"),
 		}
 		pairsSetting      = viper.GetStringMap("pairs")
 		strategiesSetting = viper.GetStringSlice("strategies")
@@ -60,7 +76,22 @@ func main() {
 	}
 	callerSetting.GuiderHost = settings.GuiderGrpcHost
 	for pair, val := range pairsSetting {
-		settings.PairOptions = append(settings.PairOptions, model.BuildPairOption(pair, val.(map[string]interface{})))
+		pairOption := model.BuildPairOption(model.PairOption{
+			Pair:                      pair,
+			Leverage:                  callerSetting.Leverage,
+			MarginType:                callerSetting.MarginType,
+			MarginMode:                callerSetting.MarginMode,
+			MarginSize:                callerSetting.MarginSize,
+			ProfitableScale:           callerSetting.ProfitableScale,
+			ProfitableScaleDecrStep:   callerSetting.ProfitableScaleDecrStep,
+			ProfitableTrigger:         callerSetting.ProfitableTrigger,
+			ProfitableTriggerIncrStep: callerSetting.ProfitableTriggerIncrStep,
+			PullMarginLossRatio:       callerSetting.PullMarginLossRatio,
+			MaxMarginRatio:            callerSetting.MaxMarginRatio,
+			MaxMarginLossRatio:        callerSetting.MaxMarginLossRatio,
+			PauseCaller:               callerSetting.PauseCaller,
+		}, val.(map[string]interface{}))
+		settings.PairOptions = append(settings.PairOptions, pairOption)
 	}
 
 	compositesStrategy := types.CompositesStrategy{}
@@ -68,23 +99,19 @@ func main() {
 		compositesStrategy.Strategies = append(compositesStrategy.Strategies, ConstStraties[strategyName])
 	}
 
-	csvFeed, err := exchange.NewCSVFeed(
-		exchange.PairFeed{
-			Pair:      "ETHUSDT",
+	pairFeeds := []exchange.PairFeed{}
+	for _, option := range settings.PairOptions {
+		if option.Status == false {
+			continue
+		}
+		pairFeeds = append(pairFeeds, exchange.PairFeed{
+			Pair:      option.Pair,
 			File:      "testdata/eth-15m.csv",
 			Timeframe: "15m",
-		},
-		//exchange.PairFeed{
-		//	Pair:      "ETHUSDT",
-		//	File:      "testdata/eth-4h.csv",
-		//	Timeframe: "4h",
-		//},
-		//exchange.PairFeed{
-		//	Pair:      "BTCUSDT",
-		//	File:      "testdata/btc-15m.csv",
-		//	Timeframe: "15m",
-		//},
-	)
+		})
+	}
+
+	csvFeed, err := exchange.NewCSVFeed(pairFeeds...)
 
 	// initialize a database in memory
 	//memory, err := storage.FromFile("runtime/data/backtest.db")

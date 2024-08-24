@@ -110,9 +110,15 @@ func CalculateAngle(sequence []float64) float64 {
 		return 0.0 // 如果序列长度不足，返回默认角度
 	}
 
-	var sumX, sumY, sumXY, sumX2 float64
-	for i, y := range sequence {
-		x := float64(i)
+	var x, y, sumX, sumY, sumXY, sumX2 float64
+	baseValue := sequence[0]
+	for i, value := range sequence {
+		x = float64(i)
+		if baseValue == 0 {
+			y = 0
+		} else {
+			y = (value - baseValue) / baseValue * 100 // 计算百分比变化
+		}
 		sumX += x
 		sumY += y
 		sumXY += x * y
@@ -123,12 +129,9 @@ func CalculateAngle(sequence []float64) float64 {
 	if denominator == 0 {
 		return 0.0 // 避免除零
 	}
-	// 计算斜率 m = (n * Σ(xy) - Σx * Σy) / (n * Σ(x^2) - (Σx)^2)
+
 	m := (float64(n)*sumXY - sumX*sumY) / denominator
-	// 计算角度 angle = atan(m)
-	angle := math.Atan(m)
-	// 将弧度转换为角度
-	angle = angle * 180.0 / math.Pi
+	angle := math.Atan(m) * 180.0 / math.Pi
 
 	return angle
 }
@@ -142,19 +145,9 @@ func StopPositionSizeRatio(balance, leverage, price, positionQuantity float64) f
 	return positionQuantity / originPositionSize
 }
 
-func OpenPositionSize(balance, leverage, currentPrice float64, scoreRadio float64, marginRatio float64) float64 {
-	var amount float64
+func OpenPositionSize(balance, leverage, currentPrice float64, marginRatio float64) float64 {
 	fullPositionSize := PositionSize(balance, leverage, currentPrice)
-	if scoreRadio >= 0.5 {
-		amount = fullPositionSize * marginRatio
-	} else {
-		if scoreRadio < 0.2 {
-			amount = fullPositionSize * marginRatio * 0.4
-		} else {
-			amount = fullPositionSize * marginRatio * scoreRadio * 2
-		}
-	}
-	return amount
+	return fullPositionSize * marginRatio
 }
 
 func ProfitRatio(side model.SideType, entryPrice float64, currentPrice float64, leverage float64, quantity float64) float64 {

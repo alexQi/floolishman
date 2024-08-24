@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"floolishman/bot"
+	"floolishman/constants"
 	"floolishman/exchange"
 	"floolishman/model"
 	"floolishman/storage"
 	"floolishman/strategies"
 	"floolishman/types"
 	"floolishman/utils"
+	"floolishman/utils/strutil"
+	"github.com/adshao/go-binance/v2/futures"
 	"github.com/glebarez/sqlite"
 	"github.com/spf13/viper"
 	"log"
@@ -26,6 +29,7 @@ var ConstStraties = map[string]types.Strategy{
 	"Rsi15m":            &strategies.Rsi15m{},
 	"Vibrate15m":        &strategies.Vibrate15m{},
 	"Kc15m":             &strategies.Kc15m{},
+	"Resonance15m":      &strategies.Resonance15m{},
 	"Grid1h":            &strategies.Grid1h{},
 }
 
@@ -43,8 +47,21 @@ func main() {
 		proxyStatus   = viper.GetBool("proxy.status")
 		proxyUrl      = viper.GetString("proxy.url")
 		callerSetting = types.CallerSetting{
-			CheckMode:        viper.GetString("caller.checkMode"),
-			LossTimeDuration: viper.GetInt("caller.lossTimeDuration"),
+			CheckMode:                 viper.GetString("caller.checkMode"),
+			LossTimeDuration:          viper.GetInt("caller.lossTimeDuration"),
+			IgnorePairs:               viper.GetStringSlice("caller.ignorePairs"),
+			Leverage:                  viper.GetInt("caller.leverage"),
+			MarginType:                futures.MarginType(viper.GetString("caller.marginType")),
+			MarginMode:                constants.MarginMode(viper.GetString("caller.marginMode")),
+			MarginSize:                viper.GetFloat64("caller.marginSize"),
+			ProfitableScale:           viper.GetFloat64("caller.profitableScale"),
+			ProfitableScaleDecrStep:   viper.GetFloat64("caller.profitableScaleDecrStep"),
+			ProfitableTrigger:         viper.GetFloat64("caller.profitableTrigger"),
+			ProfitableTriggerIncrStep: viper.GetFloat64("caller.profitableTriggerIncrStep"),
+			PullMarginLossRatio:       viper.GetFloat64("caller.pullMarginLossRatio"),
+			MaxMarginRatio:            viper.GetFloat64("caller.maxMarginRatio"),
+			MaxMarginLossRatio:        viper.GetFloat64("caller.maxMarginLossRatio"),
+			PauseCaller:               viper.GetInt64("caller.pauseCaller"),
 		}
 		pairsSetting      = viper.GetStringMap("pairs")
 		strategiesSetting = viper.GetStringSlice("strategies")
@@ -60,10 +77,6 @@ func main() {
 		},
 	}
 	callerSetting.GuiderHost = settings.GuiderGrpcHost
-
-	for pair, val := range pairsSetting {
-		settings.PairOptions = append(settings.PairOptions, model.BuildPairOption(pair, val.(map[string]interface{})))
-	}
 
 	if apiKeyType != "HMAC" {
 		tempSecretKey, err := os.ReadFile(secretPem)
@@ -94,6 +107,57 @@ func main() {
 	binance, err := exchange.NewBinanceFuture(ctx, exhangeOptions...)
 	if err != nil {
 		utils.Log.Fatal(err)
+	}
+	// 判断是否是选币模式
+	if callerSetting.CheckMode == "scoop" {
+		coinAssetInfos := binance.AssetsInfos()
+		for pair, assetInfo := range coinAssetInfos {
+			if strutil.ContainsString(callerSetting.IgnorePairs, pair) {
+				continue
+			}
+			if assetInfo.QuoteAsset != "USDT" {
+				continue
+			}
+			pairOption := model.PairOption{
+				Pair:                      pair,
+				Status:                    true,
+				Leverage:                  callerSetting.Leverage,
+				MarginType:                callerSetting.MarginType,
+				MarginMode:                callerSetting.MarginMode,
+				MarginSize:                callerSetting.MarginSize,
+				ProfitableScale:           callerSetting.ProfitableScale,
+				ProfitableScaleDecrStep:   callerSetting.ProfitableScaleDecrStep,
+				ProfitableTrigger:         callerSetting.ProfitableTrigger,
+				ProfitableTriggerIncrStep: callerSetting.ProfitableTriggerIncrStep,
+				PullMarginLossRatio:       callerSetting.PullMarginLossRatio,
+				MaxMarginRatio:            callerSetting.MaxMarginRatio,
+				MaxMarginLossRatio:        callerSetting.MaxMarginLossRatio,
+				PauseCaller:               callerSetting.PauseCaller,
+			}
+			settings.PairOptions = append(settings.PairOptions, pairOption)
+			if len(settings.PairOptions) == 200 {
+				break
+			}
+		}
+	} else {
+		for pair, val := range pairsSetting {
+			pairOption := model.BuildPairOption(model.PairOption{
+				Pair:                      pair,
+				Leverage:                  callerSetting.Leverage,
+				MarginType:                callerSetting.MarginType,
+				MarginMode:                callerSetting.MarginMode,
+				MarginSize:                callerSetting.MarginSize,
+				ProfitableScale:           callerSetting.ProfitableScale,
+				ProfitableScaleDecrStep:   callerSetting.ProfitableScaleDecrStep,
+				ProfitableTrigger:         callerSetting.ProfitableTrigger,
+				ProfitableTriggerIncrStep: callerSetting.ProfitableTriggerIncrStep,
+				PullMarginLossRatio:       callerSetting.PullMarginLossRatio,
+				MaxMarginRatio:            callerSetting.MaxMarginRatio,
+				MaxMarginLossRatio:        callerSetting.MaxMarginLossRatio,
+				PauseCaller:               callerSetting.PauseCaller,
+			}, val.(map[string]interface{}))
+			settings.PairOptions = append(settings.PairOptions, pairOption)
+		}
 	}
 
 	compositesStrategy := types.CompositesStrategy{}

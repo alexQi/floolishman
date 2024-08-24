@@ -1,7 +1,6 @@
 package caller
 
 import (
-	"floolishman/constants"
 	"floolishman/model"
 	"floolishman/utils"
 	"floolishman/utils/calc"
@@ -126,12 +125,7 @@ func (c *Dual) openDualPosition(option *model.PairOption) {
 	// 重置当前交易对止损比例
 	c.resetPairProfit(option.Pair)
 	// 计算仓位大小
-	var amount float64
-	if option.MarginMode == constants.MarginModeRoll {
-		amount = calc.OpenPositionSize(quotePosition, float64(option.Leverage), currentPrice, 1, option.MarginSize)
-	} else {
-		amount = option.MarginSize
-	}
+	amount := c.getPositionMargin(quotePosition, currentPrice, option)
 	utils.Log.Infof(
 		"[POSITION OPENING] Pair: %s | Quantity: %v | Price: %v",
 		option.Pair,

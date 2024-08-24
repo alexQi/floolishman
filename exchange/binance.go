@@ -134,6 +134,10 @@ func (b *Binance) AssetsInfo(pair string) model.AssetInfo {
 	return b.assetsInfo[pair]
 }
 
+func (b *Binance) AssetsInfos() map[string]model.AssetInfo {
+	return b.assetsInfo
+}
+
 func (b *Binance) validate(pair string, quantity float64) error {
 	info, ok := b.assetsInfo[pair]
 	if !ok {
@@ -517,6 +521,9 @@ func (b *Binance) PairPosition(pair string) (map[string]map[string]*model.Positi
 	panic("not implemented")
 }
 
+func (p *Binance) CandlesBatchSubscription(ctx context.Context, combineConfig map[string]string) (map[string]chan model.Candle, chan error) {
+	panic("implement me")
+}
 func (b *Binance) CandlesSubscription(ctx context.Context, pair, period string) (chan model.Candle, chan error) {
 	ccandle := make(chan model.Candle)
 	cerr := make(chan error)

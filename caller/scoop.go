@@ -8,15 +8,15 @@ import (
 	"time"
 )
 
-type Candle struct {
+type Scoop struct {
 	Common
 }
 
-func (c *Candle) Start() {
+func (c *Scoop) Start() {
 	go c.Listen()
 }
 
-func (c *Candle) closePosition(option *model.PairOption) {
+func (c *Scoop) closePosition(option *model.PairOption) {
 	c.mu.Lock()         // 加锁
 	defer c.mu.Unlock() // 解锁
 	// 获取当前已存在的仓位

@@ -27,7 +27,10 @@ func main() {
 	// 获取交易对配置
 	pairOptions := []model.PairOption{}
 	for pair, val := range pairsSetting {
-		pairOptions = append(pairOptions, model.BuildPairOption(pair, val.(map[string]interface{})))
+		pairOption := model.BuildPairOption(model.PairOption{
+			Pair: pair,
+		}, val.(map[string]interface{}))
+		pairOptions = append(pairOptions, pairOption)
 	}
 	storagePath := viper.GetString("storage.path")
 	dir := filepath.Dir(storagePath)

@@ -14,6 +14,9 @@ go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 15m --futures --outp
 go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 4h --futures --output ./testdata/eth-4h.csv --days 15
 
 
+go run cmd/tools/cmd.go download --pair AUCTIONUSDT --timeframe 15m --futures --output ./testdata/eth-15m.csv --days 7
+
+go run cmd/tools/cmd.go download --timeframe 15m --futures --output ./testdata/eth-15m.csv --days 7 --pair EOSUSDT
 
 go run cmd/tools/cmd.go download --pair BTCUSDT --timeframe 1h --futures --days 7 --output ./testdata/btc-1h.csv
 go run cmd/tools/cmd.go download --pair BTCUSDT --timeframe 15m --futures --days 7 --output ./testdata/btc-15m.csv

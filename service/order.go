@@ -203,7 +203,6 @@ type ServiceOrder struct {
 	orderFeed              *model.Feed
 	notifier               reference.Notifier
 	Results                map[string]*summary
-	lastPrice              map[string]float64
 	tickerOrderInterval    time.Duration
 	tickerPositionInterval time.Duration
 	finish                 chan bool
@@ -231,7 +230,6 @@ func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage s
 		tickerOrderInterval:    500 * time.Millisecond,
 		tickerPositionInterval: time.Second,
 		finish:                 make(chan bool),
-		lastPrice:              make(map[string]float64),
 		Results:                make(map[string]*summary),
 		positionMap:            make(map[string]map[string]*model.Position),
 	}
@@ -348,10 +346,6 @@ func (c *ServiceOrder) ListenPositions() {
 
 func (c *ServiceOrder) SetNotifier(notifier reference.Notifier) {
 	c.notifier = notifier
-}
-
-func (c *ServiceOrder) OnCandle(candle model.Candle) {
-	c.lastPrice[candle.Pair] = candle.Close
 }
 
 func (c *ServiceOrder) GetPositionsForPair(pair string) ([]*model.Position, error) {

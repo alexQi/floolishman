@@ -35,144 +35,121 @@ type PairOption struct {
 }
 
 func (o PairOption) String() string {
-	return fmt.Sprintf("[STRATEGY - STATUS: %v] Loading Pair: %s, Leverage: %d, MarginType: %s", o.Status, o.Pair, o.Leverage, o.MarginType)
+	return fmt.Sprintf("[EXCHAGE - STATUS: %v] Loading Pair: %s, Leverage: %d, MarginType: %s", o.Status, o.Pair, o.Leverage, o.MarginType)
 }
 
-func BuildPairOption(pair string, valMap map[string]interface{}) PairOption {
+func BuildPairOption(defaultOption PairOption, valMap map[string]interface{}) PairOption {
 	// 检查并处理 status
 	status, ok := valMap["status"].(bool)
 	if !ok {
-		log.Fatalf("Invalid status format for pair %s: %v", pair, valMap["status"])
+		log.Fatalf("Invalid status format for pair %s: %v", defaultOption.Pair, valMap["status"])
 	}
+	defaultOption.Status = status
 	// 检查并处理 leverage
 	leverageFloat, ok := valMap["leverage"].(float64)
-	if !ok {
-		log.Fatalf("Invalid leverage format for pair %s: %v", pair, valMap["leverage"])
+	if ok {
+		defaultOption.Leverage = int(leverageFloat)
 	}
 	// 网格窗口期
 	windowPeriod, ok := valMap["windowperiod"].(float64)
-	if !ok {
-		log.Fatalf("Invalid windowPeriod format for pair %s: %v", pair, valMap["windowPeriod"])
+	if ok {
+		defaultOption.WindowPeriod = windowPeriod
 	}
 	// 最大网格间隔
 	maxGridStep, ok := valMap["maxgridstep"].(float64)
-	if !ok {
-		log.Fatalf("Invalid maxGridStep format for pair %s: %v", pair, valMap["maxGridStep"])
+	if ok {
+		defaultOption.MaxGridStep = maxGridStep
 	}
 	// 最小网格间隔
 	minGridStep, ok := valMap["mingridstep"].(float64)
-	if !ok {
-		log.Fatalf("Invalid minGridStep format for pair %s: %v", pair, valMap["minGridStep"])
+	if ok {
+		defaultOption.MinGridStep = minGridStep
 	}
 	// 价格波动限制
 	undulatePriceLimit, ok := valMap["undulatepricelimit"].(float64)
-	if !ok {
-		log.Fatalf("Invalid undulatePriceLimit format for pair %s: %v", pair, valMap["undulatePriceLimit"])
+	if ok {
+		defaultOption.UndulatePriceLimit = undulatePriceLimit
 	}
 	// 量能波动限制
 	undulateVolumeLimit, ok := valMap["undulatevolumelimit"].(float64)
-	if !ok {
-		log.Fatalf("Invalid undulateVolumeLimit format for pair %s: %v", pair, valMap["undulateVolumeLimit"])
+	if ok {
+		defaultOption.UndulateVolumeLimit = undulateVolumeLimit
 	}
 	// 保证金类型
 	marginType, ok := valMap["margintype"].(string)
-	if !ok {
-		log.Fatalf("Invalid marginType format for pair %s", pair)
+	if ok {
+		defaultOption.MarginType = futures.MarginType(strings.ToUpper(marginType))
 	}
 	// 保证金模式
 	marginMode, ok := valMap["marginmode"].(string)
-	if !ok {
-		log.Fatalf("Invalid marginMode format for pair %s", pair)
+	if ok {
+		defaultOption.MarginMode = constants.MarginMode(strings.ToUpper(marginMode))
 	}
 	// 保证金大小
 	marginSize, ok := valMap["marginsize"].(float64)
-	if !ok {
-		log.Fatalf("Invalid marginSize format for pair %s: %v", pair, valMap["marginSize"])
+	if ok {
+		defaultOption.MarginSize = marginSize
 	}
 	// 最大加仓次数
 	maxAddPosition, ok := valMap["maxaddposition"].(int)
-	if !ok {
-		log.Fatalf("Invalid maxAddPosition format for pair %s: %v", pair, valMap["maxAddPosition"])
+	if ok {
+		defaultOption.MaxAddPosition = int64(maxAddPosition)
 	}
 	// 最小加仓次数
 	minAddPosition, ok := valMap["minaddposition"].(int)
-	if !ok {
-		log.Fatalf("Invalid minAddPosition format for pair %s: %v", pair, valMap["minAddPosition"])
+	if ok {
+		defaultOption.MinAddPosition = int64(minAddPosition)
 	}
 	// 止盈触发比例
 	profitableTrigger, ok := valMap["profitabletrigger"].(float64)
-	if !ok {
-		log.Fatalf("Invalid profitableTrigger format for pair %s: %v", pair, valMap["profitableTrigger"])
+	if ok {
+		defaultOption.ProfitableTrigger = profitableTrigger
 	}
 	// 止盈触发比例-step
 	profitableTriggerIncrStep, ok := valMap["profitabletriggerincrstep"].(float64)
-	if !ok {
-		log.Fatalf("Invalid profitableTriggerIncrStep format for pair %s: %v", pair, valMap["profitableTriggerIncrStep"])
+	if ok {
+		defaultOption.ProfitableTriggerIncrStep = profitableTriggerIncrStep
 	}
 	// 止盈触发回撤比例
 	profitableScale, ok := valMap["profitablescale"].(float64)
-	if !ok {
-		log.Fatalf("Invalid profitableScale format for pair %s: %v", pair, valMap["profitableScale"])
+	if ok {
+		defaultOption.ProfitableScale = profitableScale
 	}
 	// 止盈触发回撤比例-step
 	profitableScaleDecrStep, ok := valMap["profitablescaledecrstep"].(float64)
-	if !ok {
-		log.Fatalf("Invalid profitableScaleDecrStep format for pair %s: %v", pair, valMap["profitableScaleDecrStep"])
+	if ok {
+		defaultOption.ProfitableScaleDecrStep = profitableScaleDecrStep
 	}
 	// 亏损拉回比例
 	pullMarginLossRatio, ok := valMap["pullmarginlossratio"].(float64)
-	if !ok {
-		log.Fatalf("Invalid pullMarginLossRatio format for pair %s: %v", pair, valMap["pullMarginLossRatio"])
+	if ok {
+		defaultOption.PullMarginLossRatio = pullMarginLossRatio
 	}
 	// 止盈触发回撤比例
 	maxMarginRatio, ok := valMap["maxmarginratio"].(float64)
-	if !ok {
-		log.Fatalf("Invalid maxMarginRatio format for pair %s: %v", pair, valMap["maxMarginRatio"])
+	if ok {
+		defaultOption.MaxMarginRatio = maxMarginRatio
 	}
 	// 止盈触发回撤比例
 	maxMarginLossRatio, ok := valMap["maxmarginlossratio"].(float64)
-	if !ok {
-		log.Fatalf("Invalid maxMarginLossRatio format for pair %s: %v", pair, valMap["maxMarginLossRatio"])
+	if ok {
+		defaultOption.MaxMarginLossRatio = maxMarginLossRatio
 	}
 	// 暂停交易时长 min
 	pauseCaller, ok := valMap["pausecaller"].(int)
-	if !ok {
-		log.Fatalf("Invalid pauseCaller format for pair %s: %v", pair, valMap["pauseCaller"])
+	if ok {
+		defaultOption.PauseCaller = int64(pauseCaller)
 	}
 	// 持仓周期 min
 	holdPositionPeriod, ok := valMap["holdpositionperiod"].(int)
-	if !ok {
-		log.Fatalf("Invalid holdPositionPeriod format for pair %s: %v", pair, valMap["holdPositionPeriod"])
+	if ok {
+		defaultOption.HoldPositionPeriod = int64(holdPositionPeriod)
 	}
 	// 持仓超越周期盈利触发百分比
 	holdPositionPeriodDecrStep, ok := valMap["holdpositionperioddecrstep"].(float64)
-	if !ok {
-		log.Fatalf("Invalid holdPositionPeriodDecrStep format for pair %s: %v", pair, valMap["holdPositionPeriodDecrStep"])
+	if ok {
+		defaultOption.HoldPositionPeriodDecrStep = holdPositionPeriodDecrStep
 	}
 
-	return PairOption{
-		Status:                     status,
-		Pair:                       strings.ToUpper(pair),
-		Leverage:                   int(leverageFloat),
-		WindowPeriod:               windowPeriod,
-		MaxGridStep:                maxGridStep,
-		MinGridStep:                minGridStep,
-		UndulatePriceLimit:         undulatePriceLimit,
-		UndulateVolumeLimit:        undulateVolumeLimit,
-		MarginType:                 futures.MarginType(strings.ToUpper(marginType)),
-		MarginMode:                 constants.MarginMode(strings.ToUpper(marginMode)),
-		MarginSize:                 marginSize,
-		MaxAddPosition:             int64(maxAddPosition),
-		MinAddPosition:             int64(minAddPosition),
-		HoldPositionPeriod:         int64(holdPositionPeriod),
-		HoldPositionPeriodDecrStep: holdPositionPeriodDecrStep,
-		ProfitableScale:            profitableScale,
-		ProfitableScaleDecrStep:    profitableScaleDecrStep,
-		ProfitableTrigger:          profitableTrigger,
-		ProfitableTriggerIncrStep:  profitableTriggerIncrStep,
-		PullMarginLossRatio:        pullMarginLossRatio,
-		MaxMarginRatio:             maxMarginRatio,
-		MaxMarginLossRatio:         maxMarginLossRatio,
-		PauseCaller:                int64(pauseCaller),
-	}
+	return defaultOption
 }

@@ -130,7 +130,7 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, is
 				if s.checkMode == "grid" {
 					s.caller.BuildGird(candle.Pair, timeframe, true)
 				}
-				if s.checkMode == "candle" {
+				if s.checkMode == "candle" || s.checkMode == "scoop" {
 					s.caller.EventCallOpen(candle.Pair)
 				}
 			}
@@ -138,7 +138,9 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, is
 			s.caller.OpenTube(candle.Pair)
 		}
 	} else {
-		s.caller.BuildGird(candle.Pair, timeframe, false)
+		if s.checkMode == "grid" {
+			s.caller.BuildGird(candle.Pair, timeframe, false)
+		}
 	}
 }
 

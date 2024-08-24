@@ -1934,3 +1934,36 @@ func ConvertToNestedStringMap(data map[string]interface{}) map[string]map[string
 	}
 	return result
 }
+
+// mergeStructs 是一个通用函数，用于合并两个相同类型的结构体
+// 后一个结构体的非零值会覆盖前一个结构体的对应字段值
+func MergeStructs(dst, src interface{}) {
+	// 获取dst和src的反射值
+	valDst := reflect.ValueOf(dst).Elem()
+	valSrc := reflect.ValueOf(src).Elem()
+
+	// 检查两个结构体是否为相同类型
+	if valDst.Type() != valSrc.Type() {
+		panic("dst and src must be of the same type")
+	}
+
+	// 遍历结构体的所有字段
+	for i := 0; i < valDst.NumField(); i++ {
+		fieldDst := valDst.Field(i)
+		fieldSrc := valSrc.Field(i)
+
+		// 仅当src的字段不为零值时，覆盖dst的对应字段
+		if fieldSrc.IsValid() && !fieldSrc.IsZero() {
+			fieldDst.Set(fieldSrc)
+		}
+	}
+}
+
+func ContainsString(slice []string, item string) bool {
+	for _, element := range slice {
+		if element == item {
+			return true
+		}
+	}
+	return false
+}

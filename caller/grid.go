@@ -334,17 +334,7 @@ func (c *Grid) openGridPosition(option *model.PairOption) {
 			utils.Log.Errorf("[EXCHANGE] Balance is not enough to create order")
 			return
 		}
-		if option.MarginMode == constants.MarginModeRoll {
-			amount = calc.OpenPositionSize(
-				quotePosition,
-				float64(option.Leverage),
-				openPositionGrid.Price,
-				1,
-				option.MarginSize,
-			)
-		} else {
-			amount = option.MarginSize
-		}
+		amount = c.getPositionMargin(quotePosition, openPositionGrid.Price, option)
 	}
 	// 当前量能超过平均量能
 	if volAvgChangeLimit {

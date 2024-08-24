@@ -1,6 +1,7 @@
 package indicator
 
 import (
+	"floolishman/utils/calc"
 	"github.com/markcheno/go-talib"
 )
 
@@ -531,4 +532,64 @@ func KeltnerChannel(close, high, low []float64, period int, multiplier float64) 
 	}
 
 	return upper, middle, lower
+}
+
+func TendencyAngles(data []float64, period int) []float64 {
+	n := len(data)
+	angles := make([]float64, n)
+
+	for i := 0; i < n; i++ {
+		startIndex := i - period + 1
+		if startIndex < 0 || i+1-startIndex < period {
+			angles[i] = 0.0 // 如果窗口中的数据点不足 windowSize 个，直接设为 0
+		} else {
+			window := data[startIndex : i+1]
+			angle := calc.CalculateAngle(window)
+			angles[i] = angle
+		}
+	}
+
+	return angles
+}
+
+func Discrepancy(data []float64, period int) []float64 {
+	n := len(data)
+	alterations := make([]float64, n)
+
+	for i := 0; i < n; i++ {
+		if i == 0 {
+			alterations[i] = 0
+		} else if (i - period + 1) < 1 {
+			alterations[i] = 0
+		} else {
+			if data[i-period+1] == 0 {
+				alterations[i] = 0
+			} else {
+				alterations[i] = (data[i] - data[i-period+1])
+			}
+		}
+	}
+
+	return alterations
+}
+
+func Alteration(data []float64, period int) []float64 {
+	n := len(data)
+	alterations := make([]float64, n)
+
+	for i := 0; i < n; i++ {
+		if i == 0 {
+			alterations[i] = 0
+		} else if (i - period + 1) < 1 {
+			alterations[i] = 0
+		} else {
+			if data[i-period+1] == 0 {
+				alterations[i] = 0
+			} else {
+				alterations[i] = (data[i] - data[i-period+1]) / data[i-period+1]
+			}
+		}
+	}
+
+	return alterations
 }

@@ -3,17 +3,17 @@ mode: online
 # 交易对配置
 pairs:
   # 交易对名称
-  ETHUSDT:
+  BATUSDT:
     # 状态
-    status: false
+    status: true
     # 杠杆倍数 需要带上小数点
     leverage: 100.0
     # 仓位模式
     marginType: CROSSED
-    # 保证金模式 ROLL 滚仓｜STATIC 静态
-    marginMode: STATIC
+    # 保证金模式 ROLL 滚仓｜STATIC 静态 | MARGIN 保证金
+    marginMode: ROLL
     # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量
-    marginSize: 0.008
+    marginSize: 0.05
     # 最大网格间距
     maxGridStep: 9.0
     # 最小网格间距
@@ -40,14 +40,43 @@ pairs:
     profitableTrigger: 0.2
     # 触发移动止损比例-step
     profitableTriggerIncrStep: 0.05
-    # 最大加仓后联合仓位亏损拉回比例
-    pullMarginLossRatio: 0.18
-    # 最大保证金比例
-    maxMarginRatio: 0.40
-    # 最大止损保证金比例
-    maxMarginLossRatio: 0.0038
-    # 暂停交易时常（分钟）
-    pauseCaller: 45
+  ETHUSDT:
+    # 状态
+    status: false
+    # 杠杆倍数 需要带上小数点
+    leverage: 100.0
+    # 仓位模式
+    marginType: CROSSED
+    # 保证金模式 ROLL 滚仓｜STATIC 静态
+    marginMode: ROLL
+    # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量
+    marginSize: 0.04
+    # 最大网格间距
+    maxGridStep: 9.0
+    # 最小网格间距
+    minGridStep: 8.0
+    # 网格空窗期
+    windowPeriod: 8.5
+    # 最大加仓次数
+    maxAddPosition: 4
+    # 最小加仓次数
+    minAddPosition: 3
+    # 价格波动触发限制 eth 3 $/s    btc 150 $/s
+    undulatePriceLimit: 4.0
+    # 价格波动触发限制 eth 100 Vol/s  btc 30 Vol/s
+    undulateVolumeLimit: 65.0
+    # 仓位持仓周期 (分钟)
+    holdPositionPeriod: 60
+    # 超过持仓周期递减触发百分比
+    holdPositionPeriodDecrStep: 0.02
+    # 移动止盈后撤比例
+    profitableScale: 0.15
+    # 移动止盈后撤比例-step
+    profitableScaleDecrStep: 0.005
+    # 触发移动止损比例
+    profitableTrigger: 0.2
+    # 触发移动止损比例-step
+    profitableTriggerIncrStep: 0.05
   # 交易对名称
   BTCUSDT:
     # 状态
@@ -60,6 +89,8 @@ pairs:
     marginMode: STATIC
     # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量
     marginSize: 0.002
+
+    # ----------- 网格 -------------- start
     # 最大网格间距
     maxGridStep: 150.0
     # 最小网格间距
@@ -78,6 +109,8 @@ pairs:
     holdPositionPeriod: 60
     # 超过持仓周期递减触发百分比
     holdPositionPeriodDecrStep: 0.02
+    # ----------- 网格 -------------- end
+
     # 移动止盈后撤比例
     profitableScale: 0.1
     # 移动止盈后撤比例-step
@@ -86,28 +119,53 @@ pairs:
     profitableTrigger: 0.2
     # 触发移动止损比例-step
     profitableTriggerIncrStep: 0.05
-    # 最大加仓后联合仓位亏损拉回比例
-    pullMarginLossRatio: 0.18
-    # 最大保证金比例
-    maxMarginRatio: 0.40
-    # 最大止损保证金比例
-    maxMarginLossRatio: 0.0038
-    # 暂停交易时常（分钟）
-    pauseCaller: 45
 # 看门狗服务grpc地址
 watchdog:
   host: "127.0.0.1:9999"
 # 策略配置
 strategies:
-  - "Grid1h"
+  #  - "Grid1h"
+  - "Resonance15m"
 # 量化caller配置
 caller:
-  # 执行模式 grid | frequency | dual | candle | interval | watchdog
-  checkMode: grid
+  # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop
+  checkMode: scoop
+  # 忽略币种
+  ignorePairs:
+    - BTCUSDT
+    - ETHUSDT
+    - BNBUSDT
+    - SOLUSDT
+    - BCHUSDT
   # watchdog模式下是否是跟随模式，其他模式下都为false
   followSymbol: false
   # 时间止损市场 单位分钟
   lossTimeDuration: 40
+  # ---------- 通用配置 --------------
+  # 杠杆倍数
+  leverage: 10.0
+  # 仓位模式
+  marginType: CROSSED
+  # 保证金模式 ROLL 滚仓｜STATIC 静态 | | MARGIN 保证金
+  marginMode: STATIC
+  # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量 | MARGIN 为USDT
+  marginSize: 0.002
+  # 移动止盈后撤比例
+  profitableScale: 0.1
+  # 移动止盈后撤比例-step
+  profitableScaleDecrStep: 0.005
+  # 触发移动止损比例
+  profitableTrigger: 0.2
+  # 触发移动止损比例-step
+  profitableTriggerIncrStep: 0.05
+  # 最大加仓后联合仓位亏损拉回比例
+  pullMarginLossRatio: 0.18
+  # 最大保证金比例
+  maxMarginRatio: 0.40
+  # 最大止损保证金比例
+  maxMarginLossRatio: 0.0038
+  # 暂停交易时常（分钟）
+  pauseCaller: 45
 # db存储位置
 storage:
   driver: sqlite

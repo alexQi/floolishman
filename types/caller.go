@@ -1,11 +1,29 @@
 package types
 
+import (
+	"floolishman/constants"
+	"github.com/adshao/go-binance/v2/futures"
+)
+
 type CallerSetting struct {
-	GuiderHost       string
-	CheckMode        string
-	FollowSymbol     bool
-	Backtest         bool
-	LossTimeDuration int
+	GuiderHost                string
+	CheckMode                 string
+	FollowSymbol              bool
+	Backtest                  bool
+	LossTimeDuration          int
+	IgnorePairs               []string
+	Leverage                  int
+	MarginType                futures.MarginType
+	MarginMode                constants.MarginMode
+	MarginSize                float64
+	ProfitableScale           float64
+	ProfitableScaleDecrStep   float64
+	ProfitableTrigger         float64
+	ProfitableTriggerIncrStep float64
+	PullMarginLossRatio       float64
+	MaxMarginRatio            float64
+	MaxMarginLossRatio        float64
+	PauseCaller               int64
 }
 
 type PairStatus struct {

@@ -42,6 +42,10 @@ func (c CSVFeed) AssetsInfo(pair string) model.AssetInfo {
 	}
 }
 
+func (c CSVFeed) AssetsInfos() map[string]model.AssetInfo {
+	return make(map[string]model.AssetInfo)
+}
+
 func parseHeaders(headers []string) (index map[string]int, additional []string, ok bool) {
 	headerMap := map[string]int{
 		"time": 0, "open": 1, "close": 2, "low": 3, "high": 4, "volume": 5,
@@ -210,4 +214,8 @@ func (c CSVFeed) CandlesSubscription(_ context.Context, pair, timeframe string) 
 		close(cerr)
 	}()
 	return ccandle, cerr
+}
+
+func (c CSVFeed) CandlesBatchSubscription(ctx context.Context, combineConfig map[string]string) (map[string]chan model.Candle, chan error) {
+	panic("implement me")
 }

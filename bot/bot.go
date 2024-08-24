@@ -20,6 +20,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type OrderSubscriber interface {
@@ -277,7 +278,6 @@ func (n *Bot) onCandle(timeframe string, candle model.Candle) {
 func (n *Bot) processCandle(timeframe string, candle model.Candle) {
 	if candle.Complete {
 		n.serviceStrategy.OnCandle(timeframe, candle)
-		n.serviceOrder.OnCandle(candle)
 	} else {
 		n.serviceStrategy.OnRealCandle(timeframe, candle, false)
 	}
@@ -299,8 +299,6 @@ func (n *Bot) backtestCandles(pair string, timeframe string) {
 		if n.paperWallet != nil {
 			n.paperWallet.OnCandle(candle)
 		}
-		// 更新订单最新价格
-		n.serviceOrder.OnCandle(candle)
 		// 监控订单数据变化
 		n.serviceOrder.ListenOrders()
 		// 处理开仓策略相关
@@ -330,39 +328,65 @@ func (n *Bot) preload(ctx context.Context, pair string, timeframe string, period
 }
 
 func (n *Bot) SettingPairs(ctx context.Context) {
-	var err error
-	for _, option := range n.settings.PairOptions {
-		utils.Log.Info(option.String())
-		if n.callerSetting.FollowSymbol == false {
-			err = n.exchange.SetPairOption(ctx, option)
-			if err != nil {
-				utils.Log.Panic(err)
-				return
-			}
-		}
+	var wg sync.WaitGroup // 用于等待所有并发任务完成
 
+	for i, option := range n.settings.PairOptions {
 		n.serviceStrategy.SetPairDataframe(option)
-
 		if _, ok := n.priorityQueueCandles[option.Pair]; !ok {
 			n.priorityQueueCandles[option.Pair] = make(map[string]*model.PriorityQueue)
 		}
-		// init loading data by http api
-		timeframaMap := n.strategy.TimeWarmupMap()
-		for timeframe, period := range timeframaMap {
-			// link to ninja bot controller
-			n.priorityQueueCandles[option.Pair][timeframe] = model.NewPriorityQueue(nil)
-			// preload candles for warmup perio 排除跟随模式和双向持仓模式
-			if n.callerSetting.FollowSymbol == false && n.callerSetting.CheckMode != "dual" {
-				err = n.preload(ctx, option.Pair, timeframe, period)
+		wg.Add(1) // 增加WaitGroup计数器
+		// 使用goroutine进行并发处理
+		go func(option model.PairOption) {
+			defer wg.Done() // 当goroutine完成时，减少WaitGroup计数器
+
+			utils.Log.Infof("[EXCHAGE - INDEX: %v] %s", i+1, option.String())
+			if n.callerSetting.FollowSymbol == false {
+				err := n.exchange.SetPairOption(ctx, option)
 				if err != nil {
-					utils.Log.Error(err)
+					utils.Log.Panic(err)
 					return
 				}
 			}
-			// link to ninja bot controller
-			n.dataFeed.Subscribe(option.Pair, timeframe, n.onCandle, false)
+		}(option) // 传入option以避免闭包问题
+		if i%20 == 0 {
+			time.Sleep(2500 * time.Millisecond)
 		}
 	}
+
+	// 等待所有并发任务完成
+	wg.Wait()
+}
+
+func (n *Bot) SettingFeed(ctx context.Context) {
+	var wg sync.WaitGroup // 用于等待所有并发任务完成
+
+	for _, option := range n.settings.PairOptions {
+		wg.Add(1) // 增加WaitGroup计数器
+		// 使用goroutine进行并发处理
+		go func(option model.PairOption) {
+			defer wg.Done() // 当goroutine完成时，减少WaitGroup计数器
+			// init loading data by http api
+			timeframaMap := n.strategy.TimeWarmupMap()
+			for timeframe, period := range timeframaMap {
+				// link to ninja bot controller
+				n.priorityQueueCandles[option.Pair][timeframe] = model.NewPriorityQueue(nil)
+				// preload candles for warmup period, 排除跟随模式和双向持仓模式
+				if n.callerSetting.FollowSymbol == false && n.callerSetting.CheckMode != "dual" {
+					err := n.preload(ctx, option.Pair, timeframe, period)
+					if err != nil {
+						utils.Log.Error(err)
+						return
+					}
+				}
+				// link to ninja bot controller
+				n.dataFeed.Subscribe(option.Pair, timeframe, n.onCandle, false)
+			}
+		}(option) // 传入option以避免闭包问题
+	}
+
+	// 等待所有并发任务完成
+	wg.Wait()
 }
 
 // Run will initialize the strategy controller, order controller, preload data and start the bot
@@ -383,11 +407,13 @@ func (n *Bot) Run(ctx context.Context) {
 
 	n.SettingPairs(ctx)
 
+	n.SettingFeed(ctx)
+
 	n.serviceStrategy.Start()
 
 	n.caller.Start()
 	// start data feed and receives new candles
-	n.dataFeed.Start(n.backtest)
+	n.dataFeed.Start(n.backtest, n.callerSetting.CheckMode == "scoop")
 
 	// Start notifies
 	if n.telegram != nil {

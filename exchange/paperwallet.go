@@ -66,6 +66,10 @@ func (p *PaperWallet) AssetsInfo(pair string) model.AssetInfo {
 	}
 }
 
+func (c *PaperWallet) AssetsInfos() map[string]model.AssetInfo {
+	return make(map[string]model.AssetInfo)
+}
+
 type PaperWalletOption func(*PaperWallet)
 
 func WithPaperAsset(pair string, amount float64) PaperWalletOption {
@@ -1007,4 +1011,8 @@ func (p *PaperWallet) CandlesByLimit(ctx context.Context, pair, period string, l
 
 func (p *PaperWallet) CandlesSubscription(ctx context.Context, pair, timeframe string) (chan model.Candle, chan error) {
 	return p.feeder.CandlesSubscription(ctx, pair, timeframe)
+}
+
+func (p *PaperWallet) CandlesBatchSubscription(ctx context.Context, combineConfig map[string]string) (map[string]chan model.Candle, chan error) {
+	panic("implement me")
 }

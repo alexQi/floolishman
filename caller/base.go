@@ -22,14 +22,17 @@ var Loc *time.Location
 type SeasonType string
 
 var (
-	SeasonTypeReverse SeasonType = "REVERSE"
-	SeasonTypeTimeout SeasonType = "TIMEOUT"
+	SeasonTypeProfitBack SeasonType = "PROFIT_BACK"
+	SeasonTypeLossMax    SeasonType = "LOSS_MAX"
+	SeasonTypeReverse    SeasonType = "REVERSE"
+	SeasonTypeTimeout    SeasonType = "TIMEOUT"
 )
 
 var (
 	AvgVolumeLimitRatio  = 1.6
 	ChangeRingCount      = 5
 	ChangeDiffInterval   = 1
+	TendencyAngleLimit   = 5.0
 	AmplitudeMinRatio    = 1.0
 	AmplitudeMaxRatio    = 3.0
 	StepMoreRatio        = 0.08
@@ -51,6 +54,7 @@ func init() {
 
 var ConstCallers = map[string]reference.Caller{
 	"candle":    &Candle{},
+	"scoop":     &Scoop{},
 	"interval":  &Interval{},
 	"frequency": &Frequency{},
 	"watchdog":  &Watchdog{},
@@ -154,7 +158,6 @@ func (c *Base) OpenTube(pair string) {
 func (c *Base) SetPair(option model.PairOption) {
 	c.pairOptions[option.Pair] = &option
 
-	// todo tsmap build
 	c.pairTubeOpen.Set(option.Pair, false)
 	c.pairOriginVolumes.Set(option.Pair, model.NewRingBuffer(ChangeRingCount))
 	c.pairOriginPrices.Set(option.Pair, model.NewRingBuffer(ChangeRingCount))
@@ -310,7 +313,7 @@ func (c *Base) CheckHasUnfilledPositionOrders(pair string, side model.SideType, 
 			}
 		}
 	}
-	pairPrice, _ := c.pairPrices.Get(exsitOrder.Pair)
+	pairPrice, _ := c.pairPrices.Get(pair)
 	// 判断当前是否已有同向挂单
 	if exsitOrder != nil {
 		utils.Log.Infof(
@@ -456,6 +459,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		return
 	}
 	var dataIndex int
+	var gridStep, emptySize float64
 	// 判断是否是强制更新
 	if isForce == false {
 		dataIndex = 0
@@ -471,6 +475,8 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	bbLower := dataframe.Metadata["bbLower"].Last(dataIndex)
 	bbWidth := dataframe.Metadata["bbWidth"].Last(dataIndex)
 	avgVolume := dataframe.Metadata["avgVolume"].Last(dataIndex)
+	tendency := dataframe.Metadata["tendency"].Last(dataIndex)
+	discrepancy := dataframe.Metadata["discrepancy"].Last(dataIndex)
 	volume := dataframe.Metadata["volume"].Last(0)
 	midPrice := dataframe.Metadata["basePrice"].Last(dataIndex)
 	// 更新平均量能
@@ -485,23 +491,47 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		utils.Log.Infof("[GRID: %s] Build - Position has exsit, wating...", pair)
 		return
 	}
-	// 判断基准线
-	if midPrice > bbMiddle {
-		// 如果上轨与均线的距离大于均线与中轨的距离，则使用中轨作为基准线
-		if (bbUpper-midPrice) > (midPrice-bbMiddle) && openPrice > closePrice {
-			midPrice = bbMiddle
+	// 当前趋势角度大于限制角度时
+	if calc.Abs(tendency) > TendencyAngleLimit {
+		// 使用最大网格
+		gridStep = c.pairOptions[pair].MaxGridStep
+		// 上升趋势时，需要更高的空单，角度每增加一度空窗网格增加一格
+		emptySize = gridStep * calc.FormatAmountToSize(calc.Abs(tendency)-TendencyAngleLimit, 0.1)
+		if tendency > 0 {
+			midPrice = calc.AccurateAdd(bbMiddle, discrepancy)
+		} else {
+			midPrice = calc.AccurateSub(bbMiddle, discrepancy)
 		}
 	} else {
-		// 如果下轨与均线的距离大于中轨与均线的距离，则使用中轨作为基准线
-		if (midPrice-bbLower) > (bbMiddle-midPrice) && closePrice > openPrice {
-			midPrice = bbMiddle
+		// 根据振幅动态计算网格大小
+		amplitude := indicator.AMP(openPrice, highPrice, lowPrice)
+		if amplitude <= AmplitudeMinRatio {
+			gridStep = c.pairOptions[pair].MaxGridStep
+			emptySize = gridStep * 1.8
+		} else if amplitude >= AmplitudeMaxRatio {
+			gridStep = c.pairOptions[pair].MinGridStep
+			emptySize = gridStep * 1.2
+		} else {
+			gridStep = float64(c.pairOptions[pair].MinGridStep) + (amplitude-AmplitudeMinRatio)*(float64(c.pairOptions[pair].MaxGridStep-c.pairOptions[pair].MinGridStep)/(AmplitudeMaxRatio-AmplitudeMinRatio))
+			emptySize = gridStep * 1.5
+		}
+		// 判断基准线
+		if midPrice > bbMiddle {
+			// 如果上轨与均线的距离大于均线与中轨的距离，则使用中轨作为基准线
+			if (bbUpper-midPrice) > (midPrice-bbMiddle) && openPrice > closePrice {
+				midPrice = bbMiddle
+			}
+		} else {
+			// 如果下轨与均线的距离大于中轨与均线的距离，则使用中轨作为基准线
+			if (midPrice-bbLower) > (bbMiddle-midPrice) && closePrice > openPrice {
+				midPrice = bbMiddle
+			}
 		}
 	}
+
 	if gridExsit && currentGrid.BasePrice == midPrice {
 		return
 	}
-	// 计算振幅
-	amplitude := indicator.AMP(openPrice, highPrice, lowPrice)
 	// 上一根蜡烛线已经破线，不在初始化网格
 	if closePrice > bbUpper || closePrice < bbLower {
 		utils.Log.Infof("[Grid: %s] Build - Bolling has cross limit, wating...", pair)
@@ -512,19 +542,6 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		utils.Log.Infof("[GRID: %s] Build - Volume bigger than avgVolume, wating...", pair)
 		c.pairGridMap.Delete(pair)
 		return
-	}
-	// 根据振幅动态计算网格大小
-	var gridStep float64
-	var stepRatio float64
-	if amplitude <= AmplitudeMinRatio {
-		stepRatio = 1.8
-		gridStep = c.pairOptions[pair].MaxGridStep
-	} else if amplitude >= AmplitudeMaxRatio {
-		stepRatio = 1.2
-		gridStep = c.pairOptions[pair].MinGridStep
-	} else {
-		stepRatio = 1.5
-		gridStep = float64(c.pairOptions[pair].MinGridStep) + (amplitude-AmplitudeMinRatio)*(float64(c.pairOptions[pair].MaxGridStep-c.pairOptions[pair].MinGridStep)/(AmplitudeMaxRatio-AmplitudeMinRatio))
 	}
 
 	// 计算网格数量
@@ -550,7 +567,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	// 计算网格上下限
 	for i := 0; i <= int(sideGridNum); i++ {
 		if dataframe.Open.Last(1) < closePrice {
-			longPrice = midPrice + float64(i)*gridStep + gridStep*stepRatio
+			longPrice = midPrice + float64(i)*gridStep + emptySize
 		} else {
 			longPrice = midPrice + float64(i)*gridStep + c.pairOptions[pair].WindowPeriod
 		}
@@ -567,7 +584,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	}
 	for i := 0; i <= int(sideGridNum); i++ {
 		if dataframe.Open.Last(1) > closePrice {
-			shortPrice = midPrice - float64(i)*gridStep - gridStep*stepRatio
+			shortPrice = midPrice - float64(i)*gridStep - emptySize
 		} else {
 			shortPrice = midPrice - float64(i)*gridStep - c.pairOptions[pair].WindowPeriod
 		}
@@ -711,4 +728,22 @@ func (c *Base) findProfitLevel(pair string, profit float64) *model.StopProfitLev
 		}
 	}
 	return bestMatch
+}
+
+func (c *Base) getPositionMargin(quotePosition, currentPrice float64, option *model.PairOption) float64 {
+	var amount float64
+	switch option.MarginMode {
+	case constants.MarginModeRoll:
+		amount = calc.OpenPositionSize(quotePosition, float64(option.Leverage), currentPrice, option.MarginSize)
+		break
+	case constants.MarginModeMargin:
+		amount = calc.PositionSize(option.MarginSize, float64(option.Leverage), currentPrice)
+		break
+	case constants.MarginModeStatic:
+		amount = option.MarginSize
+		break
+	default:
+		utils.Log.Errorf("unkown pair: %s margin mode", option.Pair)
+	}
+	return amount
 }

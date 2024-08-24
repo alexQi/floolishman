@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"context"
+	"errors"
 	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/calc"
@@ -110,6 +111,12 @@ func NewBinanceFuture(ctx context.Context, options ...BinanceFutureOption) (*Bin
 	// Initialize with orders precision and assets limits
 	exchange.assetsInfo = make(map[string]model.AssetInfo)
 	for _, info := range results.Symbols {
+		if info.Status != "TRADING" {
+			continue
+		}
+		if info.ContractType != futures.ContractTypePerpetual {
+			continue
+		}
 		tradeLimits := model.AssetInfo{
 			BaseAsset:          info.BaseAsset,
 			QuoteAsset:         info.QuoteAsset,
@@ -142,13 +149,13 @@ func NewBinanceFuture(ctx context.Context, options ...BinanceFutureOption) (*Bin
 func (b *BinanceFuture) SetPairOption(ctx context.Context, option model.PairOption) error {
 	_, err := b.client.NewChangeLeverageService().Symbol(option.Pair).Leverage(option.Leverage).Do(ctx)
 	if err != nil {
-		return err
+		return errors.New(fmt.Sprintf("%s:%s", option.Pair, err.Error()))
 	}
 
 	err = b.client.NewChangeMarginTypeService().Symbol(option.Pair).MarginType(option.MarginType).Do(ctx)
 	if err != nil {
 		if apiError, ok := err.(*common.APIError); !ok || apiError.Code != ErrNoNeedChangeMarginType {
-			return err
+			return errors.New(fmt.Sprintf("%s:%s", option.Pair, err.Error()))
 		}
 	}
 	return nil
@@ -164,6 +171,10 @@ func (b *BinanceFuture) LastQuote(ctx context.Context, pair string) (float64, er
 
 func (b *BinanceFuture) AssetsInfo(pair string) model.AssetInfo {
 	return b.assetsInfo[pair]
+}
+
+func (b *BinanceFuture) AssetsInfos() map[string]model.AssetInfo {
+	return b.assetsInfo
 }
 
 func (b *BinanceFuture) validate(pair string, quantity float64) error {
@@ -769,6 +780,69 @@ func (b *BinanceFuture) PairPosition() (map[string]map[string]*model.Position, e
 		}
 	}
 	return positions, nil
+}
+
+func (b *BinanceFuture) CandlesBatchSubscription(ctx context.Context, combineConfig map[string]string) (map[string]chan model.Candle, chan error) {
+	pairCcandle := make(map[string]chan model.Candle)
+	cerr := make(chan error)
+	for pair, timeframe := range combineConfig {
+		pairCcandle[fmt.Sprintf("%s--%s", pair, timeframe)] = make(chan model.Candle)
+	}
+
+	ha := model.NewHeikinAshi()
+
+	go func() {
+		ba := &backoff.Backoff{
+			Min: 100 * time.Millisecond,
+			Max: 1 * time.Second,
+		}
+
+		for {
+			if b.ProxyOption.Status {
+				futures.SetWsProxyUrl(b.ProxyOption.Url)
+			}
+			done, _, err := futures.WsCombinedKlineServe(combineConfig, func(event *futures.WsKlineEvent) {
+				ba.Reset()
+				candle := FutureCandleFromWsKline(event.Symbol, event.Kline)
+
+				if candle.Complete && b.HeikinAshi {
+					candle = candle.ToHeikinAshi(ha)
+				}
+
+				if candle.Complete {
+					// fetch aditional data if needed
+					for _, fetcher := range b.MetadataFetchers {
+						key, value := fetcher(event.Symbol, candle.Time)
+						candle.Metadata[key] = value
+					}
+				}
+				pairCcandle[fmt.Sprintf("%s--%s", event.Symbol, event.Kline.Interval)] <- candle
+			}, func(err error) {
+				cerr <- err
+			})
+			if err != nil {
+				cerr <- err
+				close(cerr)
+				for feed := range pairCcandle {
+					close(pairCcandle[feed])
+				}
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				close(cerr)
+				for feed := range pairCcandle {
+					close(pairCcandle[feed])
+				}
+				return
+			case <-done:
+				time.Sleep(ba.Duration())
+			}
+		}
+	}()
+
+	return pairCcandle, cerr
 }
 
 func (b *BinanceFuture) CandlesSubscription(ctx context.Context, pair, period string) (chan model.Candle, chan error) {

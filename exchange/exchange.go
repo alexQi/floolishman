@@ -25,6 +25,7 @@ type DataFeed struct {
 }
 
 type DataFeedSubscription struct {
+	mu                      sync.Mutex
 	exchange                reference.Exchange
 	Feeds                   *set.LinkedHashSetString
 	DataFeeds               map[string]*DataFeed
@@ -91,11 +92,16 @@ func (d *DataFeedSubscription) Preload(pair, timeframe string, candles []model.C
 	}
 }
 
-func (d *DataFeedSubscription) Connect() {
-	utils.Log.Infof("Connecting to the exchange.")
+func (d *DataFeedSubscription) BatchConnect() {
+	utils.Log.Infof("Batch connecting to the exchange.")
+
+	combineConfig := map[string]string{}
 	for feed := range d.Feeds.Iter() {
 		pair, timeframe := d.pairTimeframeFromKey(feed)
-		ccandle, cerr := d.exchange.CandlesSubscription(context.Background(), pair, timeframe)
+		combineConfig[pair] = timeframe
+	}
+	pairCcandle, cerr := d.exchange.CandlesBatchSubscription(context.Background(), combineConfig)
+	for feed, ccandle := range pairCcandle {
 		d.DataFeeds[feed] = &DataFeed{
 			Data: ccandle,
 			Err:  cerr,
@@ -103,8 +109,37 @@ func (d *DataFeedSubscription) Connect() {
 	}
 }
 
-func (d *DataFeedSubscription) Start(loadSync bool) {
-	d.Connect()
+func (d *DataFeedSubscription) Connect() {
+	utils.Log.Infof("Connecting to the exchange.")
+	var wg sync.WaitGroup // 用于等待所有并发任务完成
+
+	for feed := range d.Feeds.Iter() {
+		wg.Add(1) // 增加WaitGroup计数器
+
+		go func(feed string) {
+			d.mu.Lock()
+			defer func() {
+				d.mu.Unlock()
+				wg.Done() // 当goroutine完成时，减少WaitGroup计数器
+			}()
+
+			pair, timeframe := d.pairTimeframeFromKey(feed)
+			ccandle, cerr := d.exchange.CandlesSubscription(context.Background(), pair, timeframe)
+			d.DataFeeds[feed] = &DataFeed{
+				Data: ccandle,
+				Err:  cerr,
+			}
+		}(feed)
+	}
+	wg.Wait()
+}
+
+func (d *DataFeedSubscription) Start(loadSync bool, isBatch bool) {
+	if isBatch {
+		d.BatchConnect()
+	} else {
+		d.Connect()
+	}
 	wg := new(sync.WaitGroup)
 	for key, feed := range d.DataFeeds {
 		wg.Add(1)
