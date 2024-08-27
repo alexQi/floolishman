@@ -4,12 +4,10 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"floolishman/utils"
 	"fmt"
 	"github.com/spf13/viper"
 	"os"
-
-	"github.com/adshao/go-binance/v2"
-	"github.com/adshao/go-binance/v2/futures"
 )
 
 type AssetQuote struct {
@@ -35,30 +33,49 @@ func SplitAssetQuote(pair string) (asset string, quote string) {
 	return data.Asset, data.Quote
 }
 
-func updateParisFile() error {
-	client := binance.NewClient(viper.GetString("api.key"), viper.GetString("api.secret"))
-	sportInfo, err := client.NewExchangeInfoService().Do(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to get exchange info: %v", err)
-	}
+func UpdateParisFile(isFuture bool) error {
+	var (
+		ctx         = context.Background()
+		apiKeyType  = viper.GetString("api.encrypt")
+		apiKey      = viper.GetString("api.key")
+		secretKey   = viper.GetString("api.secret")
+		secretPem   = viper.GetString("api.pem")
+		proxyStatus = viper.GetBool("proxy.status")
+		proxyUrl    = viper.GetString("proxy.url")
+	)
 
-	futureClient := futures.NewClient(viper.GetString("api.key"), viper.GetString("api.secret"))
-	futureInfo, err := futureClient.NewExchangeInfoService().Do(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to get exchange info: %v", err)
-	}
-
-	for _, info := range sportInfo.Symbols {
-		pairAssetQuoteMap[info.Symbol] = AssetQuote{
-			Quote: info.QuoteAsset,
-			Asset: info.BaseAsset,
+	if apiKeyType != "HMAC" {
+		tempSecretKey, err := os.ReadFile(secretPem)
+		if err != nil {
+			utils.Log.Fatalf("error with load pem file:%s", err.Error())
 		}
+		secretKey = string(tempSecretKey)
 	}
 
-	for _, info := range futureInfo.Symbols {
-		pairAssetQuoteMap[info.Symbol] = AssetQuote{
-			Quote: info.QuoteAsset,
-			Asset: info.BaseAsset,
+	if isFuture {
+		exhangeOptions := []BinanceFutureOption{
+			WithBinanceFutureCredentials(apiKey, secretKey, apiKeyType),
+		}
+		if proxyStatus {
+			exhangeOptions = append(
+				exhangeOptions,
+				WithBinanceFutureProxy(proxyUrl),
+			)
+		}
+
+		// Initialize your exchange with futures
+		binance, err := NewBinanceFuture(ctx, exhangeOptions...)
+		if err != nil {
+			utils.Log.Fatal(err)
+		}
+		for pair, assetInfo := range binance.AssetsInfos() {
+			if assetInfo.QuoteAsset != "USDT" {
+				continue
+			}
+			pairAssetQuoteMap[pair] = AssetQuote{
+				Quote: assetInfo.QuoteAsset,
+				Asset: assetInfo.BaseAsset,
+			}
 		}
 	}
 

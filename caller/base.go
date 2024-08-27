@@ -22,13 +22,14 @@ var Loc *time.Location
 type SeasonType string
 
 var (
-	SeasonTypeProfitBack SeasonType = "PROFIT_BACK"
-	SeasonTypeLossMax    SeasonType = "LOSS_MAX"
+	SeasonTypeProfitBack SeasonType = "PROFIT-BACK"
+	SeasonTypeLossMax    SeasonType = "LOSS-MAX"
 	SeasonTypeReverse    SeasonType = "REVERSE"
 	SeasonTypeTimeout    SeasonType = "TIMEOUT"
 )
 
 var (
+	MaxPairPositions     = 5
 	AvgVolumeLimitRatio  = 1.6
 	ChangeRingCount      = 5
 	ChangeDiffInterval   = 1
@@ -156,6 +157,13 @@ func (c *Base) OpenTube(pair string) {
 }
 
 func (c *Base) SetPair(option model.PairOption) {
+	option.ProfitableScale = option.ProfitableScale * float64(option.Leverage)
+	option.ProfitableScaleDecrStep = option.ProfitableScaleDecrStep * float64(option.Leverage)
+	option.ProfitableTrigger = option.ProfitableTrigger * float64(option.Leverage)
+	option.ProfitableTriggerIncrStep = option.ProfitableTriggerIncrStep * float64(option.Leverage)
+	option.PullMarginLossRatio = option.PullMarginLossRatio * float64(option.Leverage)
+	option.MaxMarginRatio = option.MaxMarginRatio * float64(option.Leverage)
+	option.MaxMarginLossRatio = option.MaxMarginLossRatio * float64(option.Leverage)
 	c.pairOptions[option.Pair] = &option
 
 	c.pairTubeOpen.Set(option.Pair, false)
@@ -364,24 +372,6 @@ func (c *Base) CloseOrder(checkTimeout bool) {
 				utils.Log.Error(err)
 				continue
 			}
-
-			// 取消订单时将该订单锁定的网格重置回去
-			if c.pairGridMap.Exists(positionOrder.Pair) {
-				gridIndex, ok := c.pairGridMapIndex.Get(positionOrder.Pair)
-				if !ok {
-					continue
-				}
-				if gridIndex < 0 {
-					continue
-				}
-				currentGrid, ok := c.pairGridMap.Get(positionOrder.Pair)
-				if !ok {
-					continue
-				}
-				currentGrid.GridItems[gridIndex].Lock = false
-				c.pairGridMap.Set(positionOrder.Pair, currentGrid)
-				c.pairGridMapIndex.Set(positionOrder.Pair, -1)
-			}
 			utils.Log.Infof(
 				"[ORDER - %s] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v | Create: %s",
 				SeasonTypeTimeout,
@@ -392,6 +382,17 @@ func (c *Base) CloseOrder(checkTimeout bool) {
 				positionOrder.Price,
 				positionOrder.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 			)
+			// 取消订单时将该订单锁定的网格重置回去
+			if c.pairGridMap.Exists(positionOrder.Pair) {
+				currentGrid, currentExsit := c.pairGridMap.Get(positionOrder.Pair)
+				gridIndex, indexExsit := c.pairGridMapIndex.Get(positionOrder.Pair)
+				if indexExsit && gridIndex >= 0 && currentExsit {
+					currentGrid.GridItems[gridIndex].Lock = false
+					c.pairGridMap.Set(positionOrder.Pair, currentGrid)
+					c.pairGridMapIndex.Set(positionOrder.Pair, -1)
+				}
+			}
+
 			// 取消之前的止损单
 			lossLimitOrders, ok := existOrderMap[orderFlag]["lossLimit"]
 			if !ok {

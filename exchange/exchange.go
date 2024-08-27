@@ -69,6 +69,8 @@ func (d *DataFeedSubscription) pairTimeframeFromKey(key string) (pair, timeframe
 }
 
 func (d *DataFeedSubscription) Subscribe(pair, timeframe string, consumer DataFeedConsumer, onCandleClose bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	key := d.feedKey(pair, timeframe)
 	d.Feeds.Add(key)
 	d.SubscriptionsByDataFeed[key] = append(d.SubscriptionsByDataFeed[key], Subscription{
@@ -164,10 +166,11 @@ func (d *DataFeedSubscription) Start(loadSync bool, isBatch bool) {
 				}
 			}
 		}(key, feed)
+		utils.Log.Infof("Load feed : %s", key)
 	}
 
-	utils.Log.Infof("Data feed connected.")
 	if loadSync {
 		wg.Wait()
 	}
+	utils.Log.Infof("Data feed connected.")
 }

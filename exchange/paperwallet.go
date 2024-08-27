@@ -1014,5 +1014,5 @@ func (p *PaperWallet) CandlesSubscription(ctx context.Context, pair, timeframe s
 }
 
 func (p *PaperWallet) CandlesBatchSubscription(ctx context.Context, combineConfig map[string]string) (map[string]chan model.Candle, chan error) {
-	panic("implement me")
+	return p.feeder.CandlesBatchSubscription(ctx, combineConfig)
 }

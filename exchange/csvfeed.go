@@ -217,5 +217,20 @@ func (c CSVFeed) CandlesSubscription(_ context.Context, pair, timeframe string) 
 }
 
 func (c CSVFeed) CandlesBatchSubscription(ctx context.Context, combineConfig map[string]string) (map[string]chan model.Candle, chan error) {
-	panic("implement me")
+	pairCcandle := make(map[string]chan model.Candle, 2000)
+	cerr := make(chan error)
+	for pair, timeframe := range combineConfig {
+		pairCcandle[c.feedTimeframeKey(pair, timeframe)] = make(chan model.Candle)
+	}
+
+	for feedKey, candles := range c.CandlePairTimeFrame {
+		go func(feedKey string, candles []model.Candle) {
+			for _, candle := range candles {
+				pairCcandle[feedKey] <- candle
+			}
+			close(pairCcandle[feedKey])
+		}(feedKey, candles)
+	}
+	close(cerr)
+	return pairCcandle, cerr
 }

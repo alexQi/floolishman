@@ -123,9 +123,9 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, is
 		if isComplate == true {
 			// 回溯测试模式
 			if s.backtest {
+				s.caller.CloseOrder(true)
 				s.caller.EventCallOpen(candle.Pair)
 				s.caller.EventCallClose(candle.Pair)
-				s.caller.CloseOrder(true)
 			} else {
 				if s.checkMode == "grid" {
 					s.caller.BuildGird(candle.Pair, timeframe, true)

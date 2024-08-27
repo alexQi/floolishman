@@ -585,7 +585,6 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 			fmt.Sprintf("%.2f%%", pairCurrentProfit.Decrease*100),
 		)
 	} else {
-		lossRatio := option.MaxMarginLossRatio * float64(option.Leverage)
 		// 判断是否是普通模式
 		if hedgeMode == constants.PositionModeNormal {
 			// 判断在网格内时不做处理
@@ -603,12 +602,12 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 					subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 					currentPrice,
 					fmt.Sprintf("%.2f%%", profitRatio*100),
-					fmt.Sprintf("%.2f%%", lossRatio*100),
+					fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
 				)
 				return
 			}
 			// 超出网格时判断当当前亏损比例
-			if gridStatus == constants.GridStatusOut && calc.Abs(profitRatio) <= lossRatio {
+			if gridStatus == constants.GridStatusOut && calc.Abs(profitRatio) <= option.MaxMarginLossRatio {
 				utils.Log.Infof(
 					"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s <= MaxLoseRatio: %s (price out of grid)",
 					mainPosition.Pair,
@@ -622,11 +621,11 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 					subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 					currentPrice,
 					fmt.Sprintf("%.2f%%", profitRatio*100),
-					fmt.Sprintf("%.2f%%", lossRatio*100),
+					fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
 				)
 				return
 			}
-			if gridStatus == constants.GridStatusGreaterAvgVol && calc.Abs(profitRatio) <= lossRatio {
+			if gridStatus == constants.GridStatusGreaterAvgVol && calc.Abs(profitRatio) <= option.MaxMarginLossRatio {
 				utils.Log.Infof(
 					"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s <= MaxLoseRatio: %s (volume greater than avgVolume)",
 					mainPosition.Pair,
@@ -640,7 +639,7 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 					subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 					currentPrice,
 					fmt.Sprintf("%.2f%%", profitRatio*100),
-					fmt.Sprintf("%.2f%%", lossRatio*100),
+					fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
 				)
 				return
 			}
@@ -655,7 +654,7 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 				mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 				currentPrice,
 				fmt.Sprintf("%.2f%%", profitRatio*100),
-				fmt.Sprintf("%.2f%%", lossRatio*100),
+				fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
 			)
 			// 平仓操作
 			c.finishAllPosition(mainPosition, subPosition)
@@ -671,7 +670,7 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 		// 判断对冲仓位是否已存在,存在则不在加仓
 		if subPosition.Quantity > 0 {
 			// 亏损盈利比已大于最大
-			if calc.Abs(profitRatio) >= lossRatio {
+			if calc.Abs(profitRatio) >= option.MaxMarginLossRatio {
 				utils.Log.Infof(
 					"[POSITION - CLOSE: HEDGE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > MaxLoseRatio %s",
 					mainPosition.Pair,
@@ -685,7 +684,7 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 					subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 					currentPrice,
 					fmt.Sprintf("%.2f%%", profitRatio*100),
-					fmt.Sprintf("%.2f%%", lossRatio*100),
+					fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
 				)
 				// 关闭仓位
 				c.finishAllPosition(mainPosition, subPosition)
@@ -709,7 +708,7 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 					subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 					currentPrice,
 					fmt.Sprintf("%.2f%%", profitRatio*100),
-					fmt.Sprintf("%.2f%%", lossRatio*100),
+					fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
 				)
 			}
 			return
@@ -739,7 +738,7 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 			return
 		}
 		// 仓位亏损比例过大取消对冲直接平仓
-		if calc.Abs(profitRatio) >= lossRatio/2 {
+		if calc.Abs(profitRatio) >= option.MaxMarginLossRatio/2 {
 			// 超出网格或仓位最大时直接平仓
 			utils.Log.Infof(
 				"[POSITION - CLOSE：%s] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s (ignore hedge: position loss ratio more than in max %v)",
@@ -751,7 +750,7 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 				mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 				currentPrice,
 				fmt.Sprintf("%.2f%%", profitRatio*100),
-				fmt.Sprintf("%.2f%%", lossRatio*100),
+				fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
 			)
 			// 关闭仓位
 			c.finishAllPosition(mainPosition, subPosition)
@@ -784,7 +783,7 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 		pairPriceChangeRatio, _ := c.pairPriceChangeRatio.Get(option.Pair)
 		var addAmount float64
 		// 判断当前亏损比例是否小于要拉回的亏损比例 类似-18%
-		if calc.Abs(lossRatio) < option.PullMarginLossRatio {
+		if calc.Abs(profitRatio) < option.PullMarginLossRatio {
 			addAmount = mainPosition.Quantity * pairPriceChangeRatio
 		} else {
 			// 根据当前联合仓位保证金亏损比例计算加仓数量

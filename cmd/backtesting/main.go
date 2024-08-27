@@ -10,6 +10,8 @@ import (
 	"floolishman/strategies"
 	"floolishman/types"
 	"floolishman/utils"
+	"floolishman/utils/strutil"
+	"fmt"
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/glebarez/sqlite"
 	"github.com/spf13/viper"
@@ -17,6 +19,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var ConstStraties = map[string]types.Strategy{
@@ -39,6 +42,12 @@ func main() {
 	// 获取基础配置
 	var (
 		ctx           = context.Background()
+		apiKeyType    = viper.GetString("api.encrypt")
+		apiKey        = viper.GetString("api.key")
+		secretKey     = viper.GetString("api.secret")
+		secretPem     = viper.GetString("api.pem")
+		proxyStatus   = viper.GetBool("proxy.status")
+		proxyUrl      = viper.GetString("proxy.url")
 		telegramToken = viper.GetString("telegram.token")
 		telegramUser  = viper.GetInt("telegram.user")
 		callerSetting = types.CallerSetting{
@@ -63,7 +72,6 @@ func main() {
 	)
 
 	utils.Log.SetLevel(6)
-	callerSetting.CheckMode = "candle"
 
 	settings := model.Settings{
 		GuiderGrpcHost: viper.GetString("watchdog.host"),
@@ -75,23 +83,79 @@ func main() {
 		},
 	}
 	callerSetting.GuiderHost = settings.GuiderGrpcHost
-	for pair, val := range pairsSetting {
-		pairOption := model.BuildPairOption(model.PairOption{
-			Pair:                      pair,
-			Leverage:                  callerSetting.Leverage,
-			MarginType:                callerSetting.MarginType,
-			MarginMode:                callerSetting.MarginMode,
-			MarginSize:                callerSetting.MarginSize,
-			ProfitableScale:           callerSetting.ProfitableScale,
-			ProfitableScaleDecrStep:   callerSetting.ProfitableScaleDecrStep,
-			ProfitableTrigger:         callerSetting.ProfitableTrigger,
-			ProfitableTriggerIncrStep: callerSetting.ProfitableTriggerIncrStep,
-			PullMarginLossRatio:       callerSetting.PullMarginLossRatio,
-			MaxMarginRatio:            callerSetting.MaxMarginRatio,
-			MaxMarginLossRatio:        callerSetting.MaxMarginLossRatio,
-			PauseCaller:               callerSetting.PauseCaller,
-		}, val.(map[string]interface{}))
-		settings.PairOptions = append(settings.PairOptions, pairOption)
+
+	// 判断是否是选币模式
+	if callerSetting.CheckMode == "scoop" {
+		if apiKeyType != "HMAC" {
+			tempSecretKey, err := os.ReadFile(secretPem)
+			if err != nil {
+				utils.Log.Fatalf("error with load pem file:%s", err.Error())
+			}
+			secretKey = string(tempSecretKey)
+		}
+		exhangeOptions := []exchange.BinanceFutureOption{
+			exchange.WithBinanceFutureCredentials(apiKey, secretKey, apiKeyType),
+			//exchange.WithBinanceFuturesDebugMode(),
+		}
+		if proxyStatus {
+			exhangeOptions = append(
+				exhangeOptions,
+				exchange.WithBinanceFutureProxy(proxyUrl),
+			)
+		}
+		// Initialize your exchange with futures
+		binance, err := exchange.NewBinanceFuture(ctx, exhangeOptions...)
+		if err != nil {
+			utils.Log.Fatal(err)
+		}
+		coinAssetInfos := binance.AssetsInfos()
+		for pair, assetInfo := range coinAssetInfos {
+			if strutil.ContainsString(callerSetting.IgnorePairs, pair) {
+				continue
+			}
+			if assetInfo.QuoteAsset != "USDT" {
+				continue
+			}
+			pairOption := model.PairOption{
+				Pair:                      strings.ToUpper(pair),
+				Status:                    true,
+				Leverage:                  callerSetting.Leverage,
+				MarginType:                callerSetting.MarginType,
+				MarginMode:                callerSetting.MarginMode,
+				MarginSize:                callerSetting.MarginSize,
+				ProfitableScale:           callerSetting.ProfitableScale,
+				ProfitableScaleDecrStep:   callerSetting.ProfitableScaleDecrStep,
+				ProfitableTrigger:         callerSetting.ProfitableTrigger,
+				ProfitableTriggerIncrStep: callerSetting.ProfitableTriggerIncrStep,
+				PullMarginLossRatio:       callerSetting.PullMarginLossRatio,
+				MaxMarginRatio:            callerSetting.MaxMarginRatio,
+				MaxMarginLossRatio:        callerSetting.MaxMarginLossRatio,
+				PauseCaller:               callerSetting.PauseCaller,
+			}
+			settings.PairOptions = append(settings.PairOptions, pairOption)
+			if len(settings.PairOptions) == 200 {
+				break
+			}
+		}
+	} else {
+		for pair, val := range pairsSetting {
+			pairOption := model.BuildPairOption(model.PairOption{
+				Pair:                      strings.ToUpper(pair),
+				Leverage:                  callerSetting.Leverage,
+				MarginType:                callerSetting.MarginType,
+				MarginMode:                callerSetting.MarginMode,
+				MarginSize:                callerSetting.MarginSize,
+				ProfitableScale:           callerSetting.ProfitableScale,
+				ProfitableScaleDecrStep:   callerSetting.ProfitableScaleDecrStep,
+				ProfitableTrigger:         callerSetting.ProfitableTrigger,
+				ProfitableTriggerIncrStep: callerSetting.ProfitableTriggerIncrStep,
+				PullMarginLossRatio:       callerSetting.PullMarginLossRatio,
+				MaxMarginRatio:            callerSetting.MaxMarginRatio,
+				MaxMarginLossRatio:        callerSetting.MaxMarginLossRatio,
+				PauseCaller:               callerSetting.PauseCaller,
+			}, val.(map[string]interface{}))
+			settings.PairOptions = append(settings.PairOptions, pairOption)
+		}
 	}
 
 	compositesStrategy := types.CompositesStrategy{}
@@ -106,13 +170,15 @@ func main() {
 		}
 		pairFeeds = append(pairFeeds, exchange.PairFeed{
 			Pair:      option.Pair,
-			File:      "testdata/eth-15m.csv",
+			File:      fmt.Sprintf("testdata/%s-%s.csv", option.Pair, "15m"),
 			Timeframe: "15m",
 		})
 	}
 
 	csvFeed, err := exchange.NewCSVFeed(pairFeeds...)
-
+	if err != nil {
+		log.Fatal(err)
+	}
 	// initialize a database in memory
 	//memory, err := storage.FromFile("runtime/data/backtest.db")
 	//memory, err := storage.FromMemory()
@@ -143,7 +209,7 @@ func main() {
 	wallet := exchange.NewPaperWallet(
 		ctx,
 		"USDT",
-		exchange.WithPaperAsset("USDT", 10000),
+		exchange.WithPaperAsset("USDT", 850),
 		exchange.WithDataFeed(csvFeed),
 	)
 	b, err := bot.NewBot(

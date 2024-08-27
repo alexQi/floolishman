@@ -1,16 +1,28 @@
 package main
 
 import (
-	"floolishman/reference"
-	"log"
-	"os"
-
 	"floolishman/download"
 	"floolishman/exchange"
+	"floolishman/reference"
+	"floolishman/types"
+	"floolishman/utils/strutil"
+	"fmt"
+	"github.com/spf13/viper"
 	"github.com/urfave/cli/v2"
+	"log"
+	"os"
 )
 
 func main() {
+	// 获取基础配置
+	var (
+		callerSetting = types.CallerSetting{
+			CheckMode:   viper.GetString("caller.checkMode"),
+			IgnorePairs: viper.GetStringSlice("caller.ignorePairs"),
+			Leverage:    viper.GetInt("caller.leverage"),
+		}
+	)
+
 	app := &cli.App{
 		Name:     "floolishman",
 		HelpName: "floolishman",
@@ -25,7 +37,7 @@ func main() {
 						Name:     "pair",
 						Aliases:  []string{"p"},
 						Usage:    "eg. BTCUSDT",
-						Required: true,
+						Required: false,
 					},
 					&cli.IntFlag{
 						Name:     "days",
@@ -57,7 +69,7 @@ func main() {
 						Name:     "output",
 						Aliases:  []string{"o"},
 						Usage:    "eg. ./btc.csv",
-						Required: true,
+						Required: false,
 					},
 					&cli.BoolFlag{
 						Name:     "futures",
@@ -99,10 +111,47 @@ func main() {
 					} else if start != nil || end != nil {
 						log.Fatal("START and END must be informed together")
 					}
+					var output string
+					timeframe := c.String("timeframe")
+					pair := c.String("pair")
+					if len(pair) == 0 {
+						//var wg sync.WaitGroup // 用于等待所有并发任务完成
+						//sem := make(chan struct{}, 1)
+						coinAssetInfos := exc.AssetsInfos()
+						for pair, assetInfo := range coinAssetInfos {
+							//wg.Add(1) // 增加WaitGroup计数器
+							if strutil.ContainsString(callerSetting.IgnorePairs, pair) {
+								continue
+							}
+							if assetInfo.QuoteAsset != "USDT" {
+								continue
+							}
+							output = fmt.Sprintf("./testdata/%s-%s.csv", pair, c.String("timeframe"))
+							err := download.NewDownloader(exc).Download(c.Context, pair, timeframe, output, options...)
+							if err != nil {
+								return err
+							}
 
-					return download.NewDownloader(exc).Download(c.Context, c.String("pair"),
-						c.String("timeframe"), c.String("output"), options...)
-
+							//go func(pair string) {
+							//	defer wg.Done() // 当goroutine完成时，减少WaitGroup计数器
+							//	sem <- struct{}{}
+							//	defer func() { <-sem }()
+							//
+							//	err := download.NewDownloader(exc).Download(c.Context, pair, timeframe, output, options...)
+							//	if err != nil {
+							//		return
+							//	}
+							//}(pair)
+						}
+						//wg.Wait()
+						return nil
+					} else {
+						output = c.String("output")
+						if len(output) == 0 {
+							output = fmt.Sprintf("./testdata/%s-%s.csv", pair, timeframe)
+						}
+						return download.NewDownloader(exc).Download(c.Context, pair, timeframe, output, options...)
+					}
 				},
 			},
 		},

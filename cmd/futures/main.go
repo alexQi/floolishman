@@ -17,6 +17,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var ConstStraties = map[string]types.Strategy{
@@ -119,7 +120,7 @@ func main() {
 				continue
 			}
 			pairOption := model.PairOption{
-				Pair:                      pair,
+				Pair:                      strings.ToUpper(pair),
 				Status:                    true,
 				Leverage:                  callerSetting.Leverage,
 				MarginType:                callerSetting.MarginType,
@@ -142,7 +143,7 @@ func main() {
 	} else {
 		for pair, val := range pairsSetting {
 			pairOption := model.BuildPairOption(model.PairOption{
-				Pair:                      pair,
+				Pair:                      strings.ToUpper(pair),
 				Leverage:                  callerSetting.Leverage,
 				MarginType:                callerSetting.MarginType,
 				MarginMode:                callerSetting.MarginMode,

@@ -80,6 +80,7 @@ func (c *Scoop) closePosition(option *model.PairOption) {
 				)
 				// 重置交易对盈利
 				c.resetPairProfit(option.Pair)
+				//c.PausePairCall(option.Pair)
 				c.finishPosition(SeasonTypeProfitBack, openedPosition)
 				return
 			}
@@ -141,9 +142,8 @@ func (c *Scoop) closePosition(option *model.PairOption) {
 				fmt.Sprintf("%.2f%%", pairCurrentProfit.Close*100),
 			)
 		} else {
-			lossRatio := option.MaxMarginLossRatio * float64(option.Leverage)
 			// 亏损盈利比已大于最大
-			if calc.Abs(profitRatio) > lossRatio {
+			if calc.Abs(profitRatio) > option.MaxMarginLossRatio {
 				utils.Log.Infof(
 					"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > MaxLoseRatio %s",
 					openedPosition.Pair,
@@ -153,9 +153,10 @@ func (c *Scoop) closePosition(option *model.PairOption) {
 					openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 					currentPrice,
 					fmt.Sprintf("%.2f%%", profitRatio*100),
-					fmt.Sprintf("%.2f%%", lossRatio*100),
+					fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
 				)
 				c.resetPairProfit(option.Pair)
+				c.PausePairCall(option.Pair)
 				c.finishPosition(SeasonTypeLossMax, openedPosition)
 				return
 			}

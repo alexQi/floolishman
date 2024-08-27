@@ -20,7 +20,6 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"time"
 )
 
 type OrderSubscriber interface {
@@ -329,7 +328,7 @@ func (n *Bot) preload(ctx context.Context, pair string, timeframe string, period
 
 func (n *Bot) SettingPairs(ctx context.Context) {
 	var wg sync.WaitGroup // 用于等待所有并发任务完成
-
+	sem := make(chan struct{}, 8)
 	for i, option := range n.settings.PairOptions {
 		n.serviceStrategy.SetPairDataframe(option)
 		if _, ok := n.priorityQueueCandles[option.Pair]; !ok {
@@ -337,10 +336,12 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 		}
 		wg.Add(1) // 增加WaitGroup计数器
 		// 使用goroutine进行并发处理
-		go func(option model.PairOption) {
+		go func(index int, option model.PairOption) {
 			defer wg.Done() // 当goroutine完成时，减少WaitGroup计数器
+			sem <- struct{}{}
+			defer func() { <-sem }()
 
-			utils.Log.Infof("[EXCHAGE - INDEX: %v] %s", i+1, option.String())
+			utils.Log.Infof("[EXCHAGE - INDEX: %v] %s", index+1, option.String())
 			if n.callerSetting.FollowSymbol == false {
 				err := n.exchange.SetPairOption(ctx, option)
 				if err != nil {
@@ -348,12 +349,8 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 					return
 				}
 			}
-		}(option) // 传入option以避免闭包问题
-		if i%20 == 0 {
-			time.Sleep(2500 * time.Millisecond)
-		}
+		}(i, option) // 传入option以避免闭包问题
 	}
-
 	// 等待所有并发任务完成
 	wg.Wait()
 }
@@ -420,18 +417,27 @@ func (n *Bot) Run(ctx context.Context) {
 		n.telegram.Start()
 	}
 
-	for _, option := range n.settings.PairOptions {
-		timeframaMap := n.strategy.TimeWarmupMap()
-		for timeframe := range timeframaMap {
-			if n.backtest {
-				n.backtestCandles(option.Pair, timeframe)
-			} else {
+	if n.backtest {
+		var wg sync.WaitGroup // 用于等待所有并发任务完成
+		for _, option := range n.settings.PairOptions {
+			timeframaMap := n.strategy.TimeWarmupMap()
+			for timeframe := range timeframaMap {
+				wg.Add(1) // 增加WaitGroup计数器
+				go func(option model.PairOption, timeframe string) {
+					defer wg.Done()
+					n.backtestCandles(option.Pair, timeframe)
+				}(option, timeframe)
+			}
+		}
+		wg.Wait()
+		n.Summary()
+	} else {
+		for _, option := range n.settings.PairOptions {
+			timeframaMap := n.strategy.TimeWarmupMap()
+			for timeframe := range timeframaMap {
 				go n.processCandles(option.Pair, timeframe)
 			}
 		}
+		serv.StartHttpServer()
 	}
-	if n.backtest {
-		n.Summary()
-	}
-	serv.StartHttpServer()
 }

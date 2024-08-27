@@ -3,7 +3,6 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
-	"fmt"
 	"reflect"
 )
 
@@ -44,8 +43,6 @@ func (s *Resonance15m) OnCandle(df *model.Dataframe) model.Strategy {
 		Score:        s.SortScore(),
 		LastAtr:      df.Metadata["atr"].Last(1),
 	}
-	ema5 := df.Metadata["ema5"]
-	ema10 := df.Metadata["ema10"]
 	macd := df.Metadata["macd"]
 	signal := df.Metadata["signal"]
 	adx := df.Metadata["adx"].Last(0)
@@ -54,17 +51,39 @@ func (s *Resonance15m) OnCandle(df *model.Dataframe) model.Strategy {
 		return strategyPosition
 	}
 
-	// 移动平均线上穿&&金叉
-	if ema5.Crossover(ema10) && macd.Crossover(signal) && adx > 40 {
-		strategyPosition.Useable = 1
-		strategyPosition.Side = string(model.SideTypeBuy)
-		fmt.Printf("-------------- ADX : %v \n", adx)
+	previousMACD := macd.Last(1)
+	currentMACD := macd.Last(0)
+	previousSignal := signal.Last(1)
+	currentSignal := signal.Last(0)
+
+	//previousMACD := macd[len(macd)-2]
+	//currentMACD := macd[len(macd)-1]
+	//previousSignal := signal[len(signal)-2]
+	//currentSignal := signal[len(signal)-1]
+
+	// 判断MACD是否穿越0轴
+	macdCrossedAboveZero := previousMACD < 0 && currentMACD > 0
+	macdCrossedBelowZero := previousMACD > 0 && currentMACD < 0
+
+	// 判断金叉和死叉
+	isGoldenCross := previousMACD <= previousSignal && currentMACD > currentSignal
+	isDeathCross := previousMACD >= previousSignal && currentMACD < currentSignal
+
+	// 仅在0轴附近进行交易
+	if macdCrossedAboveZero && adx > 28 {
+		if isGoldenCross {
+			// 多单
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeBuy)
+		}
 	}
-	// 移动平均线下穿&&死叉
-	if ema5.Crossunder(ema10) && macd.Crossunder(signal) && adx > 40 {
-		strategyPosition.Useable = 1
-		strategyPosition.Side = string(model.SideTypeSell)
-		fmt.Printf("-------------- ADX : %v \n", adx)
+
+	if macdCrossedBelowZero && adx > 28 {
+		if isDeathCross {
+			// 空单
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeSell)
+		}
 	}
 
 	return strategyPosition
