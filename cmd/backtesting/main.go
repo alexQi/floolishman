@@ -34,7 +34,7 @@ var ConstStraties = map[string]types.Strategy{
 	"Rsi15m":            &strategies.Rsi15m{},
 	"Vibrate15m":        &strategies.Vibrate15m{},
 	"Kc15m":             &strategies.Kc15m{},
-	"Macd4h":            &strategies.Macd4h{},
+	"Macd15m":           &strategies.Macd15m{},
 	"Grid1h":            &strategies.Grid1h{},
 }
 

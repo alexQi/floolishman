@@ -36,6 +36,7 @@ func (s Vibrate15m) Indicators(df *model.Dataframe) {
 	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
 func (s *Vibrate15m) OnCandle(df *model.Dataframe) model.Strategy {

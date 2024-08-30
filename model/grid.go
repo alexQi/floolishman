@@ -10,8 +10,11 @@ type PositionGrid struct {
 	BasePrice     float64
 	CreatedAt     time.Time
 	CountGrid     int64
+	CountLong     int64
+	CountShort    int64
 	BoundaryUpper float64
 	BoundaryLower float64
+	GridStep      float64
 	GridItems     []PositionGridItem
 }
 

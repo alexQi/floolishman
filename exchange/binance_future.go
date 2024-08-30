@@ -391,6 +391,7 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, positionSide model
 		GuiderOrigin:         extra.GuiderOrigin,
 		MatcherStrategyCount: extra.MatcherStrategyCount,
 		MatcherStrategy:      extra.MatcherStrategy,
+		StopLossPrice:        extra.StopLossPrice,
 	}, nil
 }
 

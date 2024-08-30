@@ -37,6 +37,7 @@ func (s Momentum15m) Indicators(df *model.Dataframe) {
 	df.Metadata["ema8"] = indicator.EMA(df.Close, 8)
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
 func (s *Momentum15m) OnCandle(df *model.Dataframe) model.Strategy {

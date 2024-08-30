@@ -16,9 +16,13 @@ func (c *Candle) Start() {
 	go c.Listen()
 }
 
+func (s *Candle) EventCallClose(pair string) {
+	s.closePosition(s.pairOptions[pair])
+}
+
 func (c *Candle) closePosition(option *model.PairOption) {
-	c.mu.Lock()         // 加锁
-	defer c.mu.Unlock() // 解锁
+	c.mu[option.Pair].Lock()         // 加锁
+	defer c.mu[option.Pair].Unlock() // 解锁
 	// 获取当前已存在的仓位
 	openedPositions, err := c.broker.GetPositionsForPair(option.Pair)
 	if err != nil {
@@ -141,10 +145,26 @@ func (c *Candle) closePosition(option *model.PairOption) {
 				fmt.Sprintf("%.2f%%", pairCurrentProfit.Close*100),
 			)
 		} else {
-			// 亏损盈利比已大于最大
-			if calc.Abs(profitRatio) > option.MaxMarginLossRatio {
+			if option.MaxMarginLossRatio > 0 {
+				// 亏损盈利比已大于最大
+				if calc.Abs(profitRatio) > option.MaxMarginLossRatio {
+					utils.Log.Infof(
+						"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > MaxLoseRatio %s",
+						openedPosition.Pair,
+						openedPosition.OrderFlag,
+						openedPosition.Quantity,
+						openedPosition.AvgPrice,
+						openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+						currentPrice,
+						fmt.Sprintf("%.2f%%", profitRatio*100),
+						fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
+					)
+					c.resetPairProfit(option.Pair)
+					c.finishPosition(SeasonTypeLossMax, openedPosition)
+					return
+				}
 				utils.Log.Infof(
-					"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > MaxLoseRatio %s",
+					"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < MaxLoseRatio: %s",
 					openedPosition.Pair,
 					openedPosition.OrderFlag,
 					openedPosition.Quantity,
@@ -154,21 +174,38 @@ func (c *Candle) closePosition(option *model.PairOption) {
 					fmt.Sprintf("%.2f%%", profitRatio*100),
 					fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
 				)
-				c.resetPairProfit(option.Pair)
-				c.finishPosition(SeasonTypeLossMax, openedPosition)
-				return
+			} else {
+				if (openedPosition.PositionSide == string(model.PositionSideTypeLong) && currentPrice <= openedPosition.StopLossPrice) ||
+					(openedPosition.PositionSide == string(model.PositionSideTypeShort) && currentPrice >= openedPosition.StopLossPrice) {
+					utils.Log.Infof(
+						"[POSITION - CLOSE] Pair: %s | PositionSide: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v, StopLoss:%v | PR.%%: %s",
+						openedPosition.Pair,
+						openedPosition.PositionSide,
+						openedPosition.OrderFlag,
+						openedPosition.Quantity,
+						openedPosition.AvgPrice,
+						openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+						currentPrice,
+						openedPosition.StopLossPrice,
+						fmt.Sprintf("%.2f%%", profitRatio*100),
+					)
+					c.resetPairProfit(option.Pair)
+					c.finishPosition(SeasonTypeLossMax, openedPosition)
+					return
+				}
+				utils.Log.Infof(
+					"[POSITION - HOLD] Pair: %s | PositionSide: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v, StopLoss:%v | PR.%%: %s",
+					openedPosition.Pair,
+					openedPosition.PositionSide,
+					openedPosition.OrderFlag,
+					openedPosition.Quantity,
+					openedPosition.AvgPrice,
+					openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+					currentPrice,
+					openedPosition.StopLossPrice,
+					fmt.Sprintf("%.2f%%", profitRatio*100),
+				)
 			}
-			utils.Log.Infof(
-				"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < LossStepRatio: %s",
-				openedPosition.Pair,
-				openedPosition.OrderFlag,
-				openedPosition.Quantity,
-				openedPosition.AvgPrice,
-				openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-				currentPrice,
-				fmt.Sprintf("%.2f%%", profitRatio*100),
-				fmt.Sprintf("%.2f%%", StepMoreRatio*100),
-			)
 		}
 	}
 }

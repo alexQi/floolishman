@@ -41,6 +41,7 @@ func (s Range15m) Indicators(df *model.Dataframe) {
 	df.Metadata["volume"] = df.Volume
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
 func (s *Range15m) OnCandle(df *model.Dataframe) model.Strategy {

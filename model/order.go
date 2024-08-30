@@ -42,6 +42,7 @@ type OrderExtra struct {
 	GuiderPositionRate   float64
 	GuiderOrigin         string
 	PositionAmount       float64
+	StopLossPrice        float64
 	MatcherStrategyCount map[string]int
 	MatcherStrategy      []Strategy
 }
@@ -59,6 +60,7 @@ type Order struct {
 	Price              float64          `db:"price" json:"price"`
 	Quantity           float64          `db:"quantity" json:"quantity"`
 	Amount             float64          `db:"amount" json:"amount"`
+	StopLossPrice      float64          `db:"stop_loss_price" json:"stop_loss_price"`
 	PositionSide       PositionSideType `db:"position_side" json:"position_side"`
 	Leverage           int              `db:"leverage" json:"leverage"`
 	LongShortRatio     float64          `db:"long_short_ratio" json:"long_short_ratio"`

@@ -32,6 +32,7 @@ func (s Rsi15m) Indicators(df *model.Dataframe) {
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
 func (s *Rsi15m) OnCandle(df *model.Dataframe) model.Strategy {
@@ -49,15 +50,15 @@ func (s *Rsi15m) OnCandle(df *model.Dataframe) model.Strategy {
 
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
 	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 3, 1)
-	isCross, direction := s.bactchCheckVolume(volume[:len(volume)-1], avgVolume[:len(avgVolume)-1], 2.2)
+	isCross, _ := s.bactchCheckVolume(volume[:len(volume)-1], avgVolume[:len(avgVolume)-1], 1.5)
 
 	// 趋势判断 85 84
-	if strategyPosition.Tendency != "range" && rsis[0] > rsis[1] && rsis[1] > 90 && isUpperPinBar && isCross {
+	if rsis[0] > rsis[1] && rsis[1] > 90 && isUpperPinBar && isCross {
 		strategyPosition.Useable = 1
 		strategyPosition.Side = string(model.SideTypeSell)
 	}
 	// RSI 小于30，买入信号
-	if strategyPosition.Tendency != "range" && rsis[0] < rsis[1] && rsis[0] <= 8 && isLowerPinBar && isCross && direction == "fall" {
+	if rsis[0] < rsis[1] && rsis[0] <= 8 && isLowerPinBar && isCross {
 		strategyPosition.Useable = 1
 		strategyPosition.Side = string(model.SideTypeBuy)
 	}

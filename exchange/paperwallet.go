@@ -741,6 +741,7 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 		GuiderPositionRate:   extra.GuiderPositionRate,
 		MatcherStrategyCount: extra.MatcherStrategyCount,
 		MatcherStrategy:      extra.MatcherStrategy,
+		StopLossPrice:        extra.StopLossPrice,
 	}
 	p.orders = append(p.orders, order)
 	return order, nil

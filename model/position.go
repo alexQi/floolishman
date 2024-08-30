@@ -33,6 +33,7 @@ type Position struct {
 	ProfitValue          float64        `json:"profit_value" gorm:"profit_value"`
 	MarginType           string         `db:"margin_type" json:"margin_type"`
 	Leverage             int            `db:"leverage" json:"leverage"`
+	StopLossPrice        float64        `db:"stop_loss_price" json:"stop_loss_price"`
 	ChaseMode            int            `db:"chase_mode" json:"chase_mode"`
 	LongShortRatio       float64        `db:"long_short_ratio" json:"long_short_ratio"`
 	GuiderPositionRate   float64        `db:"guider_position_rate" json:"guider_position_rate"`

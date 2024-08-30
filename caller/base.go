@@ -32,8 +32,8 @@ var (
 	MaxPairPositions     = 5
 	AvgVolumeLimitRatio  = 1.6
 	ChangeRingCount      = 5
-	ChangeDiffInterval   = 1
-	TendencyAngleLimit   = 5.0
+	ChangeDiffInterval   = 2
+	TendencyAngleLimit   = 8.0
 	AmplitudeMinRatio    = 1.0
 	AmplitudeMaxRatio    = 3.0
 	StepMoreRatio        = 0.08
@@ -65,7 +65,7 @@ var ConstCallers = map[string]reference.Caller{
 
 type Base struct {
 	ctx             context.Context
-	mu              sync.Mutex
+	mu              map[string]*sync.Mutex
 	strategy        types.CompositesStrategy
 	setting         types.CallerSetting
 	broker          reference.Broker
@@ -125,7 +125,7 @@ func (c *Base) Init(
 
 	c.samples = make(map[string]map[string]map[string]*model.Dataframe)
 	c.positionJudgers = make(map[string]*PositionJudger)
-
+	c.mu = make(map[string]*sync.Mutex)
 	// build tsmap
 	c.pairTubeOpen = model.NewThreadSafeMap[string, bool]()
 	c.lastUpdate = model.NewThreadSafeMap[string, time.Time]()
@@ -165,6 +165,7 @@ func (c *Base) SetPair(option model.PairOption) {
 	option.MaxMarginRatio = option.MaxMarginRatio * float64(option.Leverage)
 	option.MaxMarginLossRatio = option.MaxMarginLossRatio * float64(option.Leverage)
 	c.pairOptions[option.Pair] = &option
+	c.mu[option.Pair] = &sync.Mutex{}
 
 	c.pairTubeOpen.Set(option.Pair, false)
 	c.pairOriginVolumes.Set(option.Pair, model.NewRingBuffer(ChangeRingCount))
@@ -339,8 +340,6 @@ func (c *Base) CheckHasUnfilledPositionOrders(pair string, side model.SideType, 
 }
 
 func (c *Base) CloseOrder(checkTimeout bool) {
-	c.mu.Lock()         // 加锁
-	defer c.mu.Unlock() // 解锁
 	existOrderMap, err := c.broker.GetOrdersForUnfilled()
 	if err != nil {
 		utils.Log.Error(err)
@@ -551,12 +550,16 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		utils.Log.Infof("[GRID: %s] Build - Grid spacing too large for the given price width, wating...", pair)
 		return
 	}
-	sideGridNum := numGrids / 2
+	// 改为固定
+	//sideGridNum := numGrids / 2
 	//sideGridNum := c.pairOptions[pair].MaxAddPosition
 
 	// 初始化网格
 	grid := model.PositionGrid{
 		BasePrice:     midPrice,
+		GridStep:      gridStep,
+		CountLong:     c.pairOptions[pair].MaxAddPosition,
+		CountShort:    c.pairOptions[pair].MaxAddPosition,
 		CreatedAt:     dataframe.Time[len(dataframe.Time)-dataIndex-1],
 		GridItems:     []model.PositionGridItem{},
 		BoundaryUpper: bbUpper,
@@ -565,40 +568,43 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 
 	var longPrice, shortPrice float64
 	var longGridItems, shortGridItems []model.PositionGridItem
+	// 获取网格固定数量
 	// 计算网格上下限
-	for i := 0; i <= int(sideGridNum); i++ {
+	for i := 0; i <= int(grid.CountShort); i++ {
 		if dataframe.Open.Last(1) < closePrice {
-			longPrice = midPrice + float64(i)*gridStep + emptySize
+			shortPrice = midPrice + float64(i)*gridStep + emptySize
 		} else {
-			longPrice = midPrice + float64(i)*gridStep + c.pairOptions[pair].WindowPeriod
+			shortPrice = midPrice + float64(i)*gridStep + c.pairOptions[pair].WindowPeriod
 		}
 		shortGridItems = append(shortGridItems, model.PositionGridItem{
 			Side:         model.SideTypeSell,
 			PositionSide: model.PositionSideTypeShort,
-			Price:        longPrice,
-			Lock:         false,
-		})
-		// 突破线后多给一个网格
-		if longPrice > grid.BoundaryUpper {
-			break
-		}
-	}
-	for i := 0; i <= int(sideGridNum); i++ {
-		if dataframe.Open.Last(1) > closePrice {
-			shortPrice = midPrice - float64(i)*gridStep - emptySize
-		} else {
-			shortPrice = midPrice - float64(i)*gridStep - c.pairOptions[pair].WindowPeriod
-		}
-		longGridItems = append(longGridItems, model.PositionGridItem{
-			Side:         model.SideTypeBuy,
-			PositionSide: model.PositionSideTypeLong,
 			Price:        shortPrice,
 			Lock:         false,
 		})
 		// 突破线后多给一个网格
-		if shortPrice < grid.BoundaryLower {
-			break
+		// todo 不限制布林带网格
+		//if longPrice > bbUpper {
+		//	break
+		//}
+	}
+	for i := 0; i <= int(grid.CountLong); i++ {
+		if dataframe.Open.Last(1) > closePrice {
+			longPrice = midPrice - float64(i)*gridStep - emptySize
+		} else {
+			longPrice = midPrice - float64(i)*gridStep - c.pairOptions[pair].WindowPeriod
 		}
+		longGridItems = append(longGridItems, model.PositionGridItem{
+			Side:         model.SideTypeBuy,
+			PositionSide: model.PositionSideTypeLong,
+			Price:        longPrice,
+			Lock:         false,
+		})
+		// 突破线后多给一个网格
+		// todo 不限制布林带网格
+		//if shortPrice < bbLower {
+		//	break
+		//}
 	}
 	if len(longGridItems) < int(c.pairOptions[pair].MinAddPosition) || len(shortGridItems) < int(c.pairOptions[pair].MinAddPosition) {
 		utils.Log.Infof(
@@ -615,6 +621,8 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	grid.GridItems = append(grid.GridItems, shortGridItems...)
 	grid.SortGridItemsByPrice(true)
 	grid.CountGrid = int64(len(grid.GridItems))
+	grid.CountLong = int64(len(longGridItems))
+	grid.CountShort = int64(len(shortGridItems))
 	utils.Log.Infof(
 		"[GRID: %s] Build - BasePrice: %v | Upper: %v | Lower: %v | Count: %v | CreatedAt: %s (Index: %v, Force: %v, Tube: %v)",
 		pair,

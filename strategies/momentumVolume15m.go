@@ -34,6 +34,7 @@ func (s MomentumVolume15m) Indicators(df *model.Dataframe) {
 	df.Metadata["volume"] = df.Volume
 
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
 func (s *MomentumVolume15m) OnCandle(df *model.Dataframe) model.Strategy {
@@ -52,10 +53,10 @@ func (s *MomentumVolume15m) OnCandle(df *model.Dataframe) model.Strategy {
 
 	momentumsDistance := momentums[1] - momentums[0]
 
-	isCross, _ := s.bactchCheckVolume(volume, avgVolume, 2)
+	isCross, _ := s.bactchCheckVolume(volume, avgVolume, 2.2)
 
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
-	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 1)
+	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 1.3)
 	// 趋势判断
 	// 动量正向增长
 	// 7 35

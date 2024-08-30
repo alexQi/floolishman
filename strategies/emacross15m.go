@@ -34,6 +34,7 @@ func (s Emacross15m) Indicators(df *model.Dataframe) {
 	df.Metadata["dea"] = dea
 	df.Metadata["dif"] = dif
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
 func (s *Emacross15m) OnCandle(df *model.Dataframe) model.Strategy {

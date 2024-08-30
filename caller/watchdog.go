@@ -134,8 +134,9 @@ func (c *Watchdog) openWithLongShortRatio(option *model.PairOption, longShortRat
 }
 
 func (s *Watchdog) openWatchdogPosition(guiderPosition model.GuiderPosition, assetPosition, quotePosition float64) {
-	s.mu.Lock()         // 加锁
-	defer s.mu.Unlock() // 解锁
+
+	s.mu[guiderPosition.Symbol].Lock()         // 加锁
+	defer s.mu[guiderPosition.Symbol].Unlock() // 解锁
 	currentPrice, _ := s.pairPrices.Get(guiderPosition.Symbol)
 	// 当前仓位为多，最近策略为多，保持仓位
 	// 当前仓位为空，最近策略为空，保持仓位

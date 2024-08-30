@@ -48,8 +48,8 @@ func (c *Dual) Listen() {
 //"MaxMarginLossRatio": 0.002,
 
 func (c *Dual) openDualPosition(option *model.PairOption) {
-	c.mu.Lock()         // 加锁
-	defer c.mu.Unlock() // 解锁
+	c.mu[option.Pair].Lock()         // 加锁
+	defer c.mu[option.Pair].Unlock() // 解锁
 	currentPrice, _ := c.pairPrices.Get(option.Pair)
 	// 判断当前资产
 	_, quotePosition, err := c.broker.PairAsset(option.Pair)
@@ -154,8 +154,8 @@ func (c *Dual) openDualPosition(option *model.PairOption) {
 }
 
 func (c *Dual) closePosition(option *model.PairOption) {
-	c.mu.Lock()         // 加锁
-	defer c.mu.Unlock() // 解锁
+	c.mu[option.Pair].Lock()         // 加锁
+	defer c.mu[option.Pair].Unlock() // 解锁
 	// 获取当前已存在的仓位
 	openedPositions, err := c.broker.GetPositionsForPair(option.Pair)
 	if err != nil {

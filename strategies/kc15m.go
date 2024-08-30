@@ -35,6 +35,7 @@ func (s Kc15m) Indicators(df *model.Dataframe) {
 
 	df.Metadata["rsi"] = indicator.RSI(df.Close, 14)
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
 func (s *Kc15m) OnCandle(df *model.Dataframe) model.Strategy {

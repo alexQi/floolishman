@@ -93,8 +93,8 @@ func (c *Frequency) checkPosition(option *model.PairOption) {
 }
 
 func (c *Frequency) Process(pair string) string {
-	c.mu.Lock()         // 加锁
-	defer c.mu.Unlock() // 解锁
+	c.mu[pair].Lock()         // 加锁
+	defer c.mu[pair].Unlock() // 解锁
 	// 如果 pair 在 positionJudgers 中不存在，则初始化
 	if _, ok := c.positionJudgers[pair]; !ok {
 		c.ResetJudger(pair)

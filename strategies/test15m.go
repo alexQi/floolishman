@@ -24,6 +24,7 @@ func (s Test15m) WarmupPeriod() int {
 }
 
 func (s Test15m) Indicators(df *model.Dataframe) {
+	_, bbMiddle, _ := indicator.BB(df.Close, 21, 2.0, 0)
 	// 计算ema
 	df.Metadata["ema5"] = indicator.EMA(df.Close, 5)
 	df.Metadata["ema10"] = indicator.EMA(df.Close, 10)
@@ -34,6 +35,7 @@ func (s Test15m) Indicators(df *model.Dataframe) {
 	df.Metadata["hist"] = hist
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 	df.Metadata["adx"] = indicator.ADX(df.High, df.Low, df.Close, 14)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
 func (s *Test15m) OnCandle(df *model.Dataframe) model.Strategy {

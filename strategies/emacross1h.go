@@ -33,6 +33,7 @@ func (s Emacross1h) Indicators(df *model.Dataframe) {
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
 func (s *Emacross1h) OnCandle(df *model.Dataframe) model.Strategy {

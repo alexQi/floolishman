@@ -666,6 +666,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 				ChaseMode:            o.ChaseMode,
 				CreatedAt:            o.CreatedAt,
 				MatcherStrategyCount: o.MatcherStrategyCount,
+				StopLossPrice:        o.StopLossPrice,
 			}
 			c.positionMap[o.Pair][o.OrderFlag] = position
 			// 插入数据
@@ -818,6 +819,7 @@ func (c *ServiceOrder) ListenOrders() {
 		excOrder.GuiderPositionRate = order.GuiderPositionRate
 		excOrder.GuiderOrigin = order.GuiderOrigin
 		excOrder.ChaseMode = order.ChaseMode
+		excOrder.StopLossPrice = order.StopLossPrice
 
 		err = c.storage.UpdateOrder(&excOrder)
 		if err != nil {

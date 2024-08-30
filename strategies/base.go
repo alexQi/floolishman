@@ -4,6 +4,7 @@ import (
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/utils/calc"
+	"fmt"
 )
 
 type BaseStrategy struct {
@@ -40,25 +41,20 @@ func (bs *BaseStrategy) handleIndicatos(df *model.Dataframe) error {
 }
 
 func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
-	bbMiddles := df.Metadata["bbMiddle"]
-	bbMiddlesNotZero := []float64{}
-	for _, val := range bbMiddles.LastValues(30) {
-		if val > 0 {
-			bbMiddlesNotZero = append(bbMiddlesNotZero, val)
-		}
-	}
-	if len(bbMiddlesNotZero) < 10 {
-		return "ambiguity"
-	}
-	tendencyAngle := calc.CalculateAngle(bbMiddlesNotZero[len(bbMiddlesNotZero)-5:])
+	tendency := df.Metadata["tendency"].Last(0)
+	if calc.Abs(tendency) > 8 {
+		if tendency > 0 {
+			return fmt.Sprintf("rise - %v", tendency)
 
-	if calc.Abs(tendencyAngle) > 10 {
-		if tendencyAngle > 0 {
 			return "rise"
 		} else {
+			return fmt.Sprintf("down - %v", tendency)
+
 			return "down"
 		}
 	}
+	return fmt.Sprintf("range - %v", tendency)
+
 	return "range"
 }
 
@@ -158,10 +154,7 @@ func (bs *BaseStrategy) getCandleColor(open, close float64) string {
 	return "neutral" // 十字线
 }
 
-func (bs *BaseStrategy) checkCandleTendency(df *model.Dataframe, count int) string {
-	historyOpens := df.Open.LastValues(count)
-	historyCloses := df.Close.LastValues(count)
-
+func (bs *BaseStrategy) checkCandleTendency(historyOpens, historyCloses []float64, count int, part int) string {
 	tendency := "neutral"
 	// 检查数据长度是否足够
 	if len(historyOpens) < count || len(historyCloses) < count {
@@ -179,10 +172,10 @@ func (bs *BaseStrategy) checkCandleTendency(df *model.Dataframe, count int) stri
 			historyColorCount[color] = 1
 		}
 	}
-	if historyColorCount["bullish"] > count/2 {
+	if historyColorCount["bullish"] >= count/part {
 		return "bullish"
 	}
-	if historyColorCount["bearish"] > count/2 {
+	if historyColorCount["bearish"] >= count/part {
 		return "bearish"
 	}
 	return tendency
