@@ -56,19 +56,19 @@ func (s *Resonance15m) OnCandle(df *model.Dataframe) model.Strategy {
 		return strategyPosition
 	}
 
-	previousMACD := macd.Last(1)
-	currentMACD := macd.Last(0)
+	lastMacd := macd.Last(0)
+	lastSignal := signal.Last(0)
 
 	historyOpens := df.Open.LastValues(4)
 	historyCloses := df.Close.LastValues(4)
 
 	historyTendency := s.checkCandleTendency(historyOpens[:len(historyOpens)-1], historyCloses[:len(historyCloses)-1], 3, 1)
-	if macd.Crossover(signal) && previousMACD < 0 && currentMACD < 0 && rsi < 50 && historyTendency != "bullish" {
+	if macd.Crossover(signal) && lastMacd < 0 && lastSignal < 0 && rsi < 50 && historyTendency != "bullish" {
 		strategyPosition.Useable = 1
 		strategyPosition.Side = string(model.SideTypeBuy)
 	}
 
-	if macd.Crossunder(signal) && previousMACD > 0 && currentMACD > 0 && rsi > 50 && historyTendency != "bearish" {
+	if macd.Crossunder(signal) && lastMacd > 0 && lastSignal > 0 && rsi > 50 && historyTendency != "bearish" {
 		strategyPosition.Useable = 1
 		strategyPosition.Side = string(model.SideTypeSell)
 	}

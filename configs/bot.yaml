@@ -3,9 +3,9 @@ mode: online
 # 交易对配置
 pairs:
   # 交易对名称
-  DUSKUSDT:
+  FILUSDT:
     # 状态
-    status: true
+    status: false
     # 杠杆倍数 需要带上小数点
     leverage: 20.0
     # 仓位模式
@@ -17,7 +17,7 @@ pairs:
   # 交易对名称
   ETHUSDT:
     # 状态
-    status: false
+    status: true
     # 杠杆倍数 需要带上小数点
     leverage: 100.0
     # 仓位模式
@@ -121,7 +121,7 @@ strategies:
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop
-  checkMode: scoop
+  checkMode: grid
   # 忽略币种
   ignorePairs:
     - BTCUSDT

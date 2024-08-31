@@ -29,7 +29,7 @@ var (
 )
 
 var (
-	MaxPairPositions     = 5
+	MaxPairPositions     = 3
 	AvgVolumeLimitRatio  = 1.6
 	ChangeRingCount      = 5
 	ChangeDiffInterval   = 2
@@ -150,6 +150,7 @@ func (c *Base) Init(
 	c.guider = service.NewServiceGuider(ctx, setting.GuiderHost)
 
 	go c.RegiterPairOption()
+	go c.RegiterPairGridBuilder()
 }
 
 func (c *Base) OpenTube(pair string) {
@@ -221,6 +222,17 @@ func (c *Base) RegiterPairOption() {
 	}
 }
 
+func (c *Base) RegiterPairGridBuilder() {
+	for {
+		select {
+		case buildPairGrid := <-types.PairGridBuilderParamChan:
+			c.gridBuilder(buildPairGrid.Pair, buildPairGrid.Timeframe, buildPairGrid.IsForce)
+		default:
+			time.Sleep(1 * time.Second)
+		}
+	}
+}
+
 func (c *Base) PausePairCall(pair string) {
 	if c.pairOptions[pair].Status == false {
 		return
@@ -256,7 +268,7 @@ func (c *Base) tickCheckOrderTimeout() {
 	}
 }
 
-func (c *Base) WatchPriceChange() {
+func (c *Base) ListenIndicator() {
 	for {
 		select {
 		case <-time.After(CHeckPriceUndulateInterval * time.Millisecond):
@@ -447,7 +459,7 @@ func (c *Base) finishAllPosition(mainPosition *model.Position, subPosition *mode
 	}
 }
 
-func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
+func (c *Base) gridBuilder(pair string, timeframe string, isForce bool) {
 	currentGrid, gridExsit := c.pairGridMap.Get(pair)
 	pairTubeOpen, _ := c.pairTubeOpen.Get(pair)
 	if isForce == true && pairTubeOpen == false {
@@ -477,7 +489,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 	avgVolume := dataframe.Metadata["avgVolume"].Last(dataIndex)
 	tendency := dataframe.Metadata["tendency"].Last(dataIndex)
 	discrepancy := dataframe.Metadata["discrepancy"].Last(dataIndex)
-	volume := dataframe.Metadata["volume"].Last(0)
+	volume := dataframe.Metadata["volume"].Last(dataIndex)
 	midPrice := dataframe.Metadata["basePrice"].Last(dataIndex)
 	// 更新平均量能
 	c.lastAvgVolume.Set(pair, avgVolume)
@@ -538,6 +550,7 @@ func (c *Base) BuildGird(pair string, timeframe string, isForce bool) {
 		c.pairGridMap.Delete(pair)
 		return
 	}
+	// 上根线量能是否过大，过大时不在初始化网格
 	if (volume / avgVolume) > AvgVolumeLimitRatio {
 		utils.Log.Infof("[GRID: %s] Build - Volume bigger than avgVolume, wating...", pair)
 		c.pairGridMap.Delete(pair)

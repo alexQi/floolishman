@@ -25,14 +25,27 @@ func NewThreadSafeMap[K comparable, V any]() *ThreadSafeMap[K, V] {
 
 // getLock 返回指定键的锁，若不存在则创建新锁
 func (tsm *ThreadSafeMap[K, V]) getLock(key K) *sync.RWMutex {
-	tsm.lockMap.mu.Lock()
-	defer tsm.lockMap.mu.Unlock()
+	// 使用读锁先检查锁是否存在
+	tsm.lockMap.mu.RLock()
+	lock, exists := tsm.lockMap.m[key]
+	tsm.lockMap.mu.RUnlock()
 
-	if lock, exists := tsm.lockMap.m[key]; exists {
+	// 如果存在，直接返回该锁
+	if exists {
 		return lock
 	}
 
-	lock := &sync.RWMutex{}
+	// 否则，加写锁创建新锁
+	tsm.lockMap.mu.Lock()
+	defer tsm.lockMap.mu.Unlock()
+
+	// 双重检查以避免在加锁期间其他 goroutine 创建了锁
+	if lock, exists = tsm.lockMap.m[key]; exists {
+		return lock
+	}
+
+	// 创建新锁并添加到 map 中
+	lock = &sync.RWMutex{}
 	tsm.lockMap.m[key] = lock
 	return lock
 }

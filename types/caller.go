@@ -31,4 +31,12 @@ type PairStatus struct {
 	Status bool
 }
 
+type PairGridBuilderParam struct {
+	Pair      string
+	Timeframe string
+	IsForce   bool
+}
+
 var PairStatusChan = make(chan PairStatus, 10)
+
+var PairGridBuilderParamChan = make(chan PairGridBuilderParam, 100)

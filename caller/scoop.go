@@ -138,6 +138,7 @@ func (c *Scoop) closePosition(option *model.PairOption) {
 				fmt.Sprintf("%.2f%%", profitRatio*100),
 			)
 			c.resetPairProfit(option.Pair)
+			c.PausePairCall(option.Pair)
 			c.finishPosition(SeasonTypeTimeout, openedPosition)
 			continue
 		}
@@ -160,7 +161,7 @@ func (c *Scoop) closePosition(option *model.PairOption) {
 				)
 				// 重置交易对盈利
 				c.resetPairProfit(option.Pair)
-				//c.PausePairCall(option.Pair)
+				c.PausePairCall(option.Pair)
 				c.finishPosition(SeasonTypeProfitBack, openedPosition)
 				return
 			}
@@ -237,6 +238,7 @@ func (c *Scoop) closePosition(option *model.PairOption) {
 						fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
 					)
 					c.resetPairProfit(option.Pair)
+					c.PausePairCall(option.Pair)
 					c.finishPosition(SeasonTypeLossMax, openedPosition)
 					return
 				}
@@ -267,6 +269,7 @@ func (c *Scoop) closePosition(option *model.PairOption) {
 						fmt.Sprintf("%.2f%%", profitRatio*100),
 					)
 					c.resetPairProfit(option.Pair)
+					c.PausePairCall(option.Pair)
 					c.finishPosition(SeasonTypeLossMax, openedPosition)
 					return
 				}

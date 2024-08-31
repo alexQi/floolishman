@@ -162,9 +162,14 @@ func main() {
 	}
 
 	compositesStrategy := types.CompositesStrategy{}
-	for _, strategyName := range strategiesSetting {
-		compositesStrategy.Strategies = append(compositesStrategy.Strategies, ConstStraties[strategyName])
+	if callerSetting.CheckMode == "grid" {
+		compositesStrategy.Strategies = append(compositesStrategy.Strategies, &strategies.Grid1h{})
+	} else {
+		for _, strategyName := range strategiesSetting {
+			compositesStrategy.Strategies = append(compositesStrategy.Strategies, ConstStraties[strategyName])
+		}
 	}
+
 	storagePath := viper.GetString("storage.path")
 	dir := filepath.Dir(storagePath)
 	// 判断文件目录是否存在

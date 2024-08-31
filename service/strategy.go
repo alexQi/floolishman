@@ -128,7 +128,11 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, is
 				s.caller.EventCallClose(candle.Pair)
 			} else {
 				if s.checkMode == "grid" {
-					s.caller.BuildGird(candle.Pair, timeframe, true)
+					types.PairGridBuilderParamChan <- types.PairGridBuilderParam{
+						Pair:      candle.Pair,
+						Timeframe: timeframe,
+						IsForce:   true,
+					}
 				}
 				if s.checkMode == "candle" {
 					s.caller.EventCallOpen(candle.Pair)
@@ -139,7 +143,11 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, is
 		}
 	} else {
 		if s.checkMode == "grid" {
-			s.caller.BuildGird(candle.Pair, timeframe, false)
+			types.PairGridBuilderParamChan <- types.PairGridBuilderParam{
+				Pair:      candle.Pair,
+				Timeframe: timeframe,
+				IsForce:   false,
+			}
 		}
 	}
 }

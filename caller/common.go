@@ -124,7 +124,7 @@ func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosi
 		utils.Log.Error(err)
 		return
 	}
-	if len(totalOpenedPositions) > MaxPairPositions {
+	if len(totalOpenedPositions) >= MaxPairPositions {
 		utils.Log.Infof("[POSITION - MAX PAIR] pair position reach to max, waiting...")
 		return
 	}

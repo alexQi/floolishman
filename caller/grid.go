@@ -3,6 +3,7 @@ package caller
 import (
 	"floolishman/constants"
 	"floolishman/model"
+	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/calc"
 	"fmt"
@@ -46,7 +47,7 @@ func (c *Grid) Start() {
 		}
 	}()
 	go c.Listen()
-	go c.WatchPriceChange()
+	go c.ListenIndicator()
 }
 
 func (c *Grid) Listen() {
@@ -370,12 +371,13 @@ func (c *Grid) closeGridPosition(option *model.PairOption) {
 		utils.Log.Error(err)
 		return
 	}
-	// 当前没有仓位
+	// 当前没有仓位 重新生成网格
 	if len(openedPositions) == 0 {
-		// 重置利润比
-		c.resetPairProfit(option.Pair)
-		// 重新生成网格
-		c.BuildGird(option.Pair, "1h", true)
+		types.PairGridBuilderParamChan <- types.PairGridBuilderParam{
+			Pair:      option.Pair,
+			Timeframe: "1h",
+			IsForce:   true,
+		}
 		return
 	}
 
