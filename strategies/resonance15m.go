@@ -3,6 +3,7 @@ package strategies
 import (
 	"floolishman/indicator"
 	"floolishman/model"
+	"floolishman/utils/calc"
 	"reflect"
 )
 
@@ -10,7 +11,7 @@ type Resonance15m struct {
 	BaseStrategy
 }
 
-func (s Resonance15m) SortScore() int {
+func (s Resonance15m) SortScore() float64 {
 	return 90
 }
 
@@ -39,6 +40,7 @@ func (s Resonance15m) Indicators(df *model.Dataframe) {
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
 	df.Metadata["adx"] = indicator.ADX(df.High, df.Low, df.Close, 14)
 	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
+	df.Metadata["macdAngle"] = indicator.TendencyAngles(macdLine, 3)
 }
 
 func (s *Resonance15m) OnCandle(df *model.Dataframe) model.Strategy {
@@ -46,11 +48,11 @@ func (s *Resonance15m) OnCandle(df *model.Dataframe) model.Strategy {
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
-		Score:        s.SortScore(),
 		LastAtr:      df.Metadata["atr"].Last(1),
 	}
 	macd := df.Metadata["macd"]
 	signal := df.Metadata["signal"]
+	macdAngle := df.Metadata["macdAngle"]
 	rsi := df.Metadata["rsi"].Last(0)
 	if len(macd) < 2 || len(signal) < 2 {
 		return strategyPosition
@@ -63,14 +65,18 @@ func (s *Resonance15m) OnCandle(df *model.Dataframe) model.Strategy {
 	historyCloses := df.Close.LastValues(4)
 
 	historyTendency := s.checkCandleTendency(historyOpens[:len(historyOpens)-1], historyCloses[:len(historyCloses)-1], 3, 1)
-	if macd.Crossover(signal) && lastMacd < 0 && lastSignal < 0 && rsi < 50 && historyTendency != "bullish" {
-		strategyPosition.Useable = 1
-		strategyPosition.Side = string(model.SideTypeBuy)
-	}
 
-	if macd.Crossunder(signal) && lastMacd > 0 && lastSignal > 0 && rsi > 50 && historyTendency != "bearish" {
-		strategyPosition.Useable = 1
-		strategyPosition.Side = string(model.SideTypeSell)
+	if calc.Abs(macdAngle.Last(0)) > 80 {
+		strategyPosition.Score = calc.Abs(macdAngle.Last(0))
+		if macd.Crossover(signal) && lastMacd < 0 && lastSignal < 0 && rsi < 55 && historyTendency != "bullish" {
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeBuy)
+		}
+
+		if macd.Crossunder(signal) && lastMacd > 0 && lastSignal > 0 && rsi > 50 && historyTendency != "bearish" {
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeSell)
+		}
 	}
 
 	return strategyPosition

@@ -13,7 +13,7 @@ type Strategy struct {
 	ChaseMode    int       `db:"chase_mode" json:"chase_mode"`
 	Side         string    `db:"side" json:"side"`
 	StrategyName string    `db:"strategy_name" json:"strategy_name"`
-	Score        int       `db:"score" json:"score"`
+	Score        float64   `db:"score" json:"score"`
 	Tendency     string    `db:"tendency" json:"tendency"`
 	LastAtr      float64   `db:"last_atr" json:"last_atr"`
 	IsFinal      int       `db:"is_final" json:"is_final"`

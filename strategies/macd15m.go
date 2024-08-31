@@ -10,7 +10,7 @@ type Macd15m struct {
 	BaseStrategy
 }
 
-func (s Macd15m) SortScore() int {
+func (s Macd15m) SortScore() float64 {
 	return 90
 }
 

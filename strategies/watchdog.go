@@ -9,7 +9,7 @@ type Watchdog struct {
 	BaseStrategy
 }
 
-func (s Watchdog) SortScore() int {
+func (s Watchdog) SortScore() float64 {
 	return 1000
 }
 

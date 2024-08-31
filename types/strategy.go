@@ -19,7 +19,7 @@ type StrategyPosition struct {
 
 type Strategy interface {
 	// 策略排序得分
-	SortScore() int
+	SortScore() float64
 	// Timeframe is the time interval in which the strategy will be executed. eg: 1h, 1d, 1w
 	Timeframe() string
 	// WarmupPeriod is the necessary time to wait before executing the strategy, to load data for indicators.

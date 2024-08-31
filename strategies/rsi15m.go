@@ -10,7 +10,7 @@ type Rsi15m struct {
 	BaseStrategy
 }
 
-func (s Rsi15m) SortScore() int {
+func (s Rsi15m) SortScore() float64 {
 	return 80
 }
 

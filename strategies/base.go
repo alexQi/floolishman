@@ -4,7 +4,6 @@ import (
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/utils/calc"
-	"fmt"
 )
 
 type BaseStrategy struct {
@@ -44,17 +43,11 @@ func (bs *BaseStrategy) checkMarketTendency(df *model.Dataframe) string {
 	tendency := df.Metadata["tendency"].Last(0)
 	if calc.Abs(tendency) > 8 {
 		if tendency > 0 {
-			return fmt.Sprintf("rise - %v", tendency)
-
 			return "rise"
 		} else {
-			return fmt.Sprintf("down - %v", tendency)
-
 			return "down"
 		}
 	}
-	return fmt.Sprintf("range - %v", tendency)
-
 	return "range"
 }
 

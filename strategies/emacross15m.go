@@ -10,7 +10,7 @@ type Emacross15m struct {
 	BaseStrategy
 }
 
-func (s Emacross15m) SortScore() int {
+func (s Emacross15m) SortScore() float64 {
 	return 70
 }
 

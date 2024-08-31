@@ -10,7 +10,7 @@ type Kc15m struct {
 	BaseStrategy
 }
 
-func (s Kc15m) SortScore() int {
+func (s Kc15m) SortScore() float64 {
 	return 90
 }
 

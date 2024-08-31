@@ -10,7 +10,7 @@ type Rsi1h struct {
 	BaseStrategy
 }
 
-func (s Rsi1h) SortScore() int {
+func (s Rsi1h) SortScore() float64 {
 	return 90
 }
 

@@ -29,7 +29,7 @@ var (
 )
 
 var (
-	MaxPairPositions     = 3
+	MaxPairPositions     = 5
 	AvgVolumeLimitRatio  = 1.6
 	ChangeRingCount      = 5
 	ChangeDiffInterval   = 2
@@ -227,8 +227,6 @@ func (c *Base) RegiterPairGridBuilder() {
 		select {
 		case buildPairGrid := <-types.PairGridBuilderParamChan:
 			c.gridBuilder(buildPairGrid.Pair, buildPairGrid.Timeframe, buildPairGrid.IsForce)
-		default:
-			time.Sleep(1 * time.Second)
 		}
 	}
 }

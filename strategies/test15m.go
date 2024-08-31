@@ -11,7 +11,7 @@ type Test15m struct {
 	BaseStrategy
 }
 
-func (s Test15m) SortScore() int {
+func (s Test15m) SortScore() float64 {
 	return 90
 }
 

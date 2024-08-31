@@ -11,7 +11,7 @@ type Range15m struct {
 	BaseStrategy
 }
 
-func (s Range15m) SortScore() int {
+func (s Range15m) SortScore() float64 {
 	return 65
 }
 

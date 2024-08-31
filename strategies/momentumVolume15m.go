@@ -11,7 +11,7 @@ type MomentumVolume15m struct {
 	BaseStrategy
 }
 
-func (s MomentumVolume15m) SortScore() int {
+func (s MomentumVolume15m) SortScore() float64 {
 	return 90
 }
 

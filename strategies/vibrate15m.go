@@ -11,7 +11,7 @@ type Vibrate15m struct {
 	BaseStrategy
 }
 
-func (s Vibrate15m) SortScore() int {
+func (s Vibrate15m) SortScore() float64 {
 	return 85
 }
 

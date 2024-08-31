@@ -119,15 +119,6 @@ func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosi
 		utils.Log.Errorf("Balance is not enough to create order: %v", quotePosition)
 		return
 	}
-	totalOpenedPositions, err := c.broker.GetPositionsForOpened()
-	if err != nil {
-		utils.Log.Error(err)
-		return
-	}
-	if len(totalOpenedPositions) >= MaxPairPositions {
-		utils.Log.Infof("[POSITION - MAX PAIR] pair position reach to max, waiting...")
-		return
-	}
 	var finalSide model.SideType
 	var postionSide model.PositionSideType
 
@@ -527,8 +518,8 @@ func (c *Common) Sanitizer(matchers []model.Strategy) (string, []model.Strategy)
 	if len(matchers) == 0 {
 		return finalTendency, currentMatchers
 	}
-	totalScore := 0
-	matcherMapScore := make(map[string]int)
+	var totalScore float64
+	matcherMapScore := make(map[string]float64)
 	// 初始化本次趋势计数器
 	// 初始化多空双方map
 	tendencyCounts := make(map[string]map[string]int)
@@ -574,8 +565,8 @@ func (c *Common) Sanitizer(matchers []model.Strategy) (string, []model.Strategy)
 
 func (c *Common) getStrategyLongShortRatio(finalTendency string, currentMatchers []model.Strategy) (float64, map[string]int) {
 	longShortRatio := -1.0
-	totalScore := 0
-	matcherMapScore := make(map[string]int)
+	totalScore := 0.0
+	matcherMapScore := make(map[string]float64)
 	matcherStrategy := make(map[string]int)
 	// 无检查结果
 	if len(currentMatchers) == 0 {

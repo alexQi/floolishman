@@ -4,95 +4,47 @@ import (
 	"sync"
 )
 
-type lockShard[K comparable] struct {
-	mu sync.RWMutex
-	m  map[K]*sync.RWMutex
-}
-
 type ThreadSafeMap[K comparable, V any] struct {
-	data    map[K]V
-	lockMap lockShard[K]
+	data sync.Map
 }
 
+// NewThreadSafeMap 创建一个新的 ThreadSafeMap
 func NewThreadSafeMap[K comparable, V any]() *ThreadSafeMap[K, V] {
-	return &ThreadSafeMap[K, V]{
-		data: make(map[K]V),
-		lockMap: lockShard[K]{
-			m: make(map[K]*sync.RWMutex),
-		},
-	}
-}
-
-// getLock 返回指定键的锁，若不存在则创建新锁
-func (tsm *ThreadSafeMap[K, V]) getLock(key K) *sync.RWMutex {
-	// 使用读锁先检查锁是否存在
-	tsm.lockMap.mu.RLock()
-	lock, exists := tsm.lockMap.m[key]
-	tsm.lockMap.mu.RUnlock()
-
-	// 如果存在，直接返回该锁
-	if exists {
-		return lock
-	}
-
-	// 否则，加写锁创建新锁
-	tsm.lockMap.mu.Lock()
-	defer tsm.lockMap.mu.Unlock()
-
-	// 双重检查以避免在加锁期间其他 goroutine 创建了锁
-	if lock, exists = tsm.lockMap.m[key]; exists {
-		return lock
-	}
-
-	// 创建新锁并添加到 map 中
-	lock = &sync.RWMutex{}
-	tsm.lockMap.m[key] = lock
-	return lock
+	return &ThreadSafeMap[K, V]{}
 }
 
 // Set 设置键值对
 func (tsm *ThreadSafeMap[K, V]) Set(key K, value V) {
-	lock := tsm.getLock(key)
-	lock.Lock()
-	defer lock.Unlock()
-
-	tsm.data[key] = value
+	tsm.data.Store(key, value)
 }
 
 // Get 获取键对应的值
 func (tsm *ThreadSafeMap[K, V]) Get(key K) (V, bool) {
-	lock := tsm.getLock(key)
-	lock.RLock()
-	defer lock.RUnlock()
-
-	value, ok := tsm.data[key]
-	return value, ok
+	value, ok := tsm.data.Load(key)
+	if !ok {
+		var zero V
+		return zero, false
+	}
+	return value.(V), true
 }
 
 // Delete 删除键
 func (tsm *ThreadSafeMap[K, V]) Delete(key K) {
-	lock := tsm.getLock(key)
-	lock.Lock()
-	defer lock.Unlock()
-
-	delete(tsm.data, key)
-	delete(tsm.lockMap.m, key)
+	tsm.data.Delete(key)
 }
 
 // Len 返回 map 的长度
 func (tsm *ThreadSafeMap[K, V]) Len() int {
-	tsm.lockMap.mu.RLock()
-	defer tsm.lockMap.mu.RUnlock()
-
-	return len(tsm.data)
+	length := 0
+	tsm.data.Range(func(_, _ any) bool {
+		length++
+		return true
+	})
+	return length
 }
 
 // Exists 检查键是否存在
 func (tsm *ThreadSafeMap[K, V]) Exists(key K) bool {
-	lock := tsm.getLock(key)
-	lock.RLock()
-	defer lock.RUnlock()
-
-	_, ok := tsm.data[key]
+	_, ok := tsm.data.Load(key)
 	return ok
 }

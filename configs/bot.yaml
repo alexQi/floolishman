@@ -3,9 +3,9 @@ mode: online
 # 交易对配置
 pairs:
   # 交易对名称
-  FILUSDT:
+  RLCUSDT:
     # 状态
-    status: false
+    status: true
     # 杠杆倍数 需要带上小数点
     leverage: 20.0
     # 仓位模式
@@ -17,7 +17,7 @@ pairs:
   # 交易对名称
   ETHUSDT:
     # 状态
-    status: true
+    status: false
     # 杠杆倍数 需要带上小数点
     leverage: 100.0
     # 仓位模式
@@ -121,7 +121,7 @@ strategies:
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop
-  checkMode: grid
+  checkMode: scoop
   # 忽略币种
   ignorePairs:
     - BTCUSDT
@@ -143,19 +143,19 @@ caller:
   # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量 | MARGIN 为USDT
   marginSize: 0.2
   # 移动止盈后撤比例
-  profitableScale: 0.0075
+  profitableScale: 0.004
   # 移动止盈后撤比例-step
   profitableScaleDecrStep: 0.00025
   # 触发移动止损比例
-  profitableTrigger: 0.01
+  profitableTrigger: 0.0075
   # 触发移动止损比例-step
-  profitableTriggerIncrStep: 0.004
+  profitableTriggerIncrStep: 0.0015
   # 最大加仓后联合仓位亏损拉回比例
   pullMarginLossRatio: 0.0018
   # 最大保证金比例
   maxMarginRatio: 0.0040
-  # 最大止损保证金比例 default:0.002
-  maxMarginLossRatio: 0.00
+  # 最大止损保证金比例
+  maxMarginLossRatio: 0.0075
   # 暂停交易时常（分钟）
   pauseCaller: 45
 # db存储位置

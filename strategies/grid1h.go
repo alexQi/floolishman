@@ -10,7 +10,7 @@ type Grid1h struct {
 	BaseStrategy
 }
 
-func (s Grid1h) SortScore() int {
+func (s Grid1h) SortScore() float64 {
 	return 90
 }
 
