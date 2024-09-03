@@ -12,6 +12,7 @@ type CallerSetting struct {
 	Backtest                  bool
 	LossTimeDuration          int
 	IgnorePairs               []string
+	IgnoreHours               []int
 	Leverage                  int
 	MarginType                futures.MarginType
 	MarginMode                constants.MarginMode

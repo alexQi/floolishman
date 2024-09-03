@@ -6,6 +6,7 @@ import (
 	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/calc"
+	"floolishman/utils/strutil"
 	"fmt"
 	"time"
 )
@@ -26,8 +27,12 @@ func (c *Grid) Start() {
 		for {
 			select {
 			case <-tickerCheck.C:
+				currentHour := time.Now().Hour()
 				for _, option := range c.pairOptions {
 					if option.Status == false {
+						continue
+					}
+					if strutil.IsInArray(option.IgnoreHours, currentHour) {
 						continue
 					}
 					go c.openGridPosition(option)

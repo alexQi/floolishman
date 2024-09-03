@@ -11,7 +11,7 @@ type Grid1h struct {
 }
 
 func (s Grid1h) SortScore() float64 {
-	return 90
+	return 90.0
 }
 
 func (s Grid1h) Timeframe() string {

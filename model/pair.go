@@ -12,6 +12,7 @@ type PairOption struct {
 	Status                     bool
 	Pair                       string
 	Leverage                   int
+	IgnoreHours                []int
 	MarginType                 futures.MarginType
 	MarginMode                 constants.MarginMode
 	MarginSize                 float64

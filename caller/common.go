@@ -261,15 +261,13 @@ func (c *Common) closePosition(option *model.PairOption) {
 	}
 
 	currentPrice, _ := c.pairPrices.Get(option.Pair)
-	var currentTime time.Time
+	currentTime := time.Now()
+	if c.setting.CheckMode == "candle" {
+		currentTime, _ = c.lastUpdate.Get(option.Pair)
+	}
 	// 与当前方向相反有仓位,计算相对分界线距离，多空比达到反手标准平仓
 	// ***********************
 	for _, openedPosition := range openedPositions {
-		// 监控已成交仓位，记录订单成交时间+指定时间作为时间止损
-		_, ok := c.lossLimitTimes.Get(openedPosition.OrderFlag)
-		if !ok {
-			c.lossLimitTimes.Set(openedPosition.OrderFlag, openedPosition.UpdatedAt.Add(time.Duration(c.setting.LossTimeDuration)*time.Minute))
-		}
 		// 记录利润比
 		profitRatio := calc.ProfitRatio(
 			model.SideType(openedPosition.Side),
@@ -278,7 +276,12 @@ func (c *Common) closePosition(option *model.PairOption) {
 			float64(option.Leverage),
 			openedPosition.Quantity,
 		)
-		lossLimitTime, _ := c.lossLimitTimes.Get(openedPosition.OrderFlag)
+		// 监控已成交仓位，记录订单成交时间+指定时间作为时间止损
+		lossLimitTime, ok := c.lossLimitTimes.Get(openedPosition.OrderFlag)
+		if !ok {
+			lossLimitTime = openedPosition.UpdatedAt.Add(time.Duration(c.setting.LossTimeDuration) * time.Minute)
+			c.lossLimitTimes.Set(openedPosition.OrderFlag, lossLimitTime)
+		}
 		if c.setting.Backtest == false {
 			utils.Log.Infof(
 				"[POSITION - WATCH] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v | PR.%%: %s | Create: %s | Stop Cut-off: %s",
@@ -293,10 +296,7 @@ func (c *Common) closePosition(option *model.PairOption) {
 				lossLimitTime.In(Loc).Format("2006-01-02 15:04:05"),
 			)
 		}
-		currentTime = time.Now()
-		if c.setting.CheckMode == "candle" {
-			currentTime, _ = c.lastUpdate.Get(option.Pair)
-		}
+
 		// 时间未达到新的止损限制时间
 		if currentTime.After(lossLimitTime) {
 			utils.Log.Infof(
@@ -381,6 +381,8 @@ func (c *Common) closePosition(option *model.PairOption) {
 
 			pairCurrentProfit.Close = profitRatio - pairCurrentProfit.Decrease
 			c.pairCurrentProfit.Set(option.Pair, pairCurrentProfit)
+			// 盈利递增时修改时间止损结束时间
+			c.lossLimitTimes.Set(openedPosition.OrderFlag, currentTime.Add(time.Duration(c.setting.LossTimeDuration)*time.Minute))
 			utils.Log.Infof(
 				"[POSITION - PROFIT] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > NewProfitRatio: %s",
 				openedPosition.Pair,

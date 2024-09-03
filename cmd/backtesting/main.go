@@ -54,6 +54,7 @@ func main() {
 			CheckMode:                 viper.GetString("caller.checkMode"),
 			LossTimeDuration:          viper.GetInt("caller.lossTimeDuration"),
 			IgnorePairs:               viper.GetStringSlice("caller.ignorePairs"),
+			IgnoreHours:               viper.GetIntSlice("caller.ignoreHours"),
 			Leverage:                  viper.GetInt("caller.leverage"),
 			MarginType:                futures.MarginType(viper.GetString("caller.marginType")),
 			MarginMode:                constants.MarginMode(viper.GetString("caller.marginMode")),
@@ -119,6 +120,7 @@ func main() {
 			pairOption := model.PairOption{
 				Pair:                      strings.ToUpper(pair),
 				Status:                    true,
+				IgnoreHours:               callerSetting.IgnoreHours,
 				Leverage:                  callerSetting.Leverage,
 				MarginType:                callerSetting.MarginType,
 				MarginMode:                callerSetting.MarginMode,
@@ -141,6 +143,7 @@ func main() {
 		for pair, val := range pairsSetting {
 			pairOption := model.BuildPairOption(model.PairOption{
 				Pair:                      strings.ToUpper(pair),
+				IgnoreHours:               callerSetting.IgnoreHours,
 				Leverage:                  callerSetting.Leverage,
 				MarginType:                callerSetting.MarginType,
 				MarginMode:                callerSetting.MarginMode,

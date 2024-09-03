@@ -3,7 +3,7 @@ mode: online
 # 交易对配置
 pairs:
   # 交易对名称
-  RLCUSDT:
+  UNIUSDT:
     # 状态
     status: true
     # 杠杆倍数 需要带上小数点
@@ -121,7 +121,14 @@ strategies:
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop
-  checkMode: scoop
+  checkMode: candle
+  # 忽略开单时段
+  ignoreHours:
+    - 2
+    - 19
+    - 20
+    - 21
+    - 22
   # 忽略币种
   ignorePairs:
     - BTCUSDT

@@ -32,7 +32,7 @@ func (s Resonance15m) Indicators(df *model.Dataframe) {
 	df.Metadata["ema5"] = indicator.EMA(df.Close, 5)
 	df.Metadata["ema10"] = indicator.EMA(df.Close, 10)
 	// 计算MACD指标
-	macdLine, signalLine, hist := indicator.MACD(df.Close, 12, 26, 9)
+	macdLine, signalLine, hist := indicator.MACD(df.Close, 8, 17, 5)
 	df.Metadata["macd"] = macdLine
 	df.Metadata["signal"] = signalLine
 	df.Metadata["hist"] = hist
@@ -50,6 +50,7 @@ func (s *Resonance15m) OnCandle(df *model.Dataframe) model.Strategy {
 		Pair:         df.Pair,
 		LastAtr:      df.Metadata["atr"].Last(1),
 	}
+	price := df.Close.Last(0)
 	macd := df.Metadata["macd"]
 	signal := df.Metadata["signal"]
 	macdAngle := df.Metadata["macdAngle"]
@@ -64,16 +65,17 @@ func (s *Resonance15m) OnCandle(df *model.Dataframe) model.Strategy {
 	historyOpens := df.Open.LastValues(4)
 	historyCloses := df.Close.LastValues(4)
 
+	macdPriceRatio := (lastMacd / price) * 100
 	historyTendency := s.checkCandleTendency(historyOpens[:len(historyOpens)-1], historyCloses[:len(historyCloses)-1], 3, 1)
 
-	if calc.Abs(macdAngle.Last(0)) > 80 {
-		strategyPosition.Score = calc.Abs(macdAngle.Last(0))
-		if macd.Crossover(signal) && lastMacd < 0 && lastSignal < 0 && rsi < 55 && historyTendency != "bullish" {
+	if calc.Abs(macdAngle.Last(0)) > 80 && calc.Abs(macdPriceRatio) > 0.75 {
+		strategyPosition.Score = calc.Abs(macdAngle.Last(0)) * calc.Abs(macdPriceRatio)
+		if macd.Crossover(signal) && lastMacd < 0 && lastSignal < 0 && rsi < 35 && historyTendency != "bullish" {
 			strategyPosition.Useable = 1
 			strategyPosition.Side = string(model.SideTypeBuy)
 		}
 
-		if macd.Crossunder(signal) && lastMacd > 0 && lastSignal > 0 && rsi > 50 && historyTendency != "bearish" {
+		if macd.Crossunder(signal) && lastMacd > 0 && lastSignal > 0 && rsi > 60 && historyTendency != "bearish" {
 			strategyPosition.Useable = 1
 			strategyPosition.Side = string(model.SideTypeSell)
 		}
