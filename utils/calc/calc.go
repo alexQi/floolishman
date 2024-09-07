@@ -91,6 +91,22 @@ func AccurateSub(a, b float64) float64 {
 	return result
 }
 
+func CheckPinBar(weight, n, prevBodyLength, open, close, hight, low float64) (bool, bool, float64, float64) {
+	upperShadow := hight - Max(open, close)
+	lowerShadow := Min(open, close) - low
+	bodyLength := Abs(open - close)
+
+	if prevBodyLength != 0 && bodyLength/prevBodyLength > n {
+		weight = weight / n
+	}
+	// 上插针条件
+	isUpperPinBar := upperShadow >= weight*bodyLength && lowerShadow <= upperShadow/weight
+	// 下插针条件
+	isLowerPinBar := lowerShadow >= weight*bodyLength && upperShadow <= lowerShadow/weight
+
+	return isUpperPinBar, isLowerPinBar, upperShadow, lowerShadow
+}
+
 func MulFloat64(a, b float64) float64 {
 	// 将 float64 转换为 *big.Float
 	priceBig := new(big.Float).SetFloat64(a)
@@ -117,7 +133,7 @@ func CalculateAngle(sequence []float64) float64 {
 		if baseValue == 0 {
 			y = 0
 		} else {
-			y = (value - baseValue) / baseValue * 100 // 计算百分比变化
+			y = ((value - baseValue) / math.Abs(baseValue)) * 100 // 计算百分比变化
 		}
 		sumX += x
 		sumY += y

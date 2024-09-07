@@ -56,7 +56,7 @@ func (s *MomentumVolume15m) OnCandle(df *model.Dataframe) model.Strategy {
 	isCross, _ := s.bactchCheckVolume(volume, avgVolume, 2.2)
 
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
-	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 1.3)
+	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 1.3, true)
 	// 趋势判断
 	// 动量正向增长
 	// 7 35

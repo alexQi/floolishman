@@ -3,7 +3,7 @@ mode: online
 # 交易对配置
 pairs:
   # 交易对名称
-  UNIUSDT:
+  ATAUSDT:
     # 状态
     status: true
     # 杠杆倍数 需要带上小数点
@@ -162,7 +162,7 @@ caller:
   # 最大保证金比例
   maxMarginRatio: 0.0040
   # 最大止损保证金比例
-  maxMarginLossRatio: 0.0075
+  maxMarginLossRatio: 0.0035
   # 暂停交易时常（分钟）
   pauseCaller: 45
 # db存储位置

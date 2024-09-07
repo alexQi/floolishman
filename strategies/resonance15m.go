@@ -61,25 +61,63 @@ func (s *Resonance15m) OnCandle(df *model.Dataframe) model.Strategy {
 
 	lastMacd := macd.Last(0)
 	lastSignal := signal.Last(0)
-
+	lastMacdAngle := macdAngle.Last(0)
 	historyOpens := df.Open.LastValues(4)
 	historyCloses := df.Close.LastValues(4)
 
+	prevMacdAngle := macdAngle.Last(1)
+	prevOpen := df.Open.Last(1)
+	prevCLose := df.Open.Last(1)
+
 	macdPriceRatio := (lastMacd / price) * 100
 	historyTendency := s.checkCandleTendency(historyOpens[:len(historyOpens)-1], historyCloses[:len(historyCloses)-1], 3, 1)
+	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 0.85, false)
+	prevCandleColor := s.getCandleColor(prevOpen, prevCLose)
 
-	if calc.Abs(macdAngle.Last(0)) > 80 && calc.Abs(macdPriceRatio) > 0.75 {
-		strategyPosition.Score = calc.Abs(macdAngle.Last(0)) * calc.Abs(macdPriceRatio)
-		if macd.Crossover(signal) && lastMacd < 0 && lastSignal < 0 && rsi < 35 && historyTendency != "bullish" {
+	// 判断当前macd和信号线是否处于0轴上方
+	if lastMacd > 0 && lastSignal > 0 {
+		// 金叉信号，追多
+		if macd.Crossover(signal) && rsi < 60 && lastMacdAngle > 80.0 && prevMacdAngle > 0 && historyTendency != "bullish" && !isUpperPinBar && prevCandleColor == "bullish" {
 			strategyPosition.Useable = 1
 			strategyPosition.Side = string(model.SideTypeBuy)
+			strategyPosition.Score = calc.Abs(lastMacdAngle)
 		}
-
-		if macd.Crossunder(signal) && lastMacd > 0 && lastSignal > 0 && rsi > 60 && historyTendency != "bearish" {
+		// 死叉信号，博反转
+		if macd.Crossunder(signal) && rsi > 60 && calc.Abs(lastMacdAngle) > 80.0 && lastMacdAngle < 0 && historyTendency != "bearish" && calc.Abs(macdPriceRatio) > 0.80 && !isLowerPinBar {
 			strategyPosition.Useable = 1
 			strategyPosition.Side = string(model.SideTypeSell)
+			strategyPosition.Score = calc.Abs(lastMacdAngle) * (calc.Abs(macdPriceRatio) + 1)
 		}
 	}
+	// 判断当前macd和信号线是否处于0轴下方
+	if lastMacd < 0 && lastSignal < 0 {
+		// 金叉信号，博反转
+		if macd.Crossover(signal) && rsi < 35 && lastMacdAngle > 80.0 && historyTendency != "bullish" && calc.Abs(macdPriceRatio) > 0.80 && !isUpperPinBar {
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeBuy)
+			strategyPosition.Score = calc.Abs(lastMacdAngle) * (calc.Abs(macdPriceRatio) + 1)
+		}
+		// 死叉信号，追空
+		if macd.Crossunder(signal) && rsi > 35 && calc.Abs(lastMacdAngle) > 80.0 && lastMacdAngle < 0 && prevMacdAngle < 0 && historyTendency != "bearish" && !isLowerPinBar && prevCandleColor == "bearish" {
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeSell)
+			strategyPosition.Score = calc.Abs(lastMacdAngle)
+		}
+	}
+
+	//if calc.Abs(lastMacdAngle) > 80 && calc.Abs(macdPriceRatio) > 0.75 {
+	//	strategyPosition.Score = calc.Abs(lastMacdAngle) * calc.Abs(macdPriceRatio)
+	//
+	//	if macd.Crossover(signal) && lastMacd < 0 && lastSignal < 0 && rsi < 35 && historyTendency != "bullish" && !isUpperPinBar {
+	//		strategyPosition.Useable = 1
+	//		strategyPosition.Side = string(model.SideTypeBuy)
+	//	}
+	//
+	//	if macd.Crossunder(signal) && lastMacd > 0 && lastSignal > 0 && rsi > 60 && historyTendency != "bearish" && !isLowerPinBar {
+	//		strategyPosition.Useable = 1
+	//		strategyPosition.Side = string(model.SideTypeSell)
+	//	}
+	//}
 
 	return strategyPosition
 }

@@ -47,7 +47,7 @@ func (s *Rsi1h) OnCandle(df *model.Dataframe) model.Strategy {
 	volume := df.Metadata["volume"].Last(1)
 	avgVolume := df.Metadata["avgVolume"].Last(1)
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
-	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 3, 1.5)
+	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 3, 1.5, true)
 	// 趋势判断
 	if strategyPosition.Tendency != "range" && rsi >= 80 && isUpperPinBar && volume > avgVolume*1.2 {
 		strategyPosition.Useable = 1

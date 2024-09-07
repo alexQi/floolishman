@@ -61,7 +61,6 @@ func (c *Scoop) tickCheckForOpen() {
 				continue
 			}
 			// 检查所有币种,获取可以开仓的币种
-
 			var tempMatcherScore float64
 			openAliablePairs := []ScoopCheckItem{}
 			scoopCheckSlice := []ScoopCheckItem{}
@@ -103,7 +102,22 @@ func (c *Scoop) tickCheckForOpen() {
 			} else {
 				openAliablePairs = scoopCheckSlice
 			}
+			// 本次同向单只开一个
+			var positionSide model.PositionSideType
+			opendPositionSide := map[model.PositionSideType]float64{}
 			for _, openItem := range openAliablePairs {
+				if openItem.LongShortRatio > 0.5 {
+					positionSide = model.PositionSideTypeLong
+				} else {
+					positionSide = model.PositionSideTypeShort
+				}
+				// 当前开单币种暂停防止在同一根蜡烛线内再次开单
+				if _, ok := opendPositionSide[positionSide]; ok {
+					c.PausePairCall(openItem.PairOption.Pair)
+					continue
+				}
+				opendPositionSide[positionSide] = openItem.LongShortRatio
+				// 执行开仓
 				go c.openScoopPosition(openItem.PairOption, openItem.LongShortRatio, openItem.Matchers)
 			}
 		}
@@ -168,7 +182,6 @@ func (c *Scoop) openScoopPosition(option *model.PairOption, longShortRatio float
 	if longShortRatio > 0.5 {
 		finalSide = model.SideTypeBuy
 		postionSide = model.PositionSideTypeLong
-
 	} else {
 		finalSide = model.SideTypeSell
 		postionSide = model.PositionSideTypeShort

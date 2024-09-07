@@ -79,11 +79,19 @@ func (bs *BaseStrategy) bactchCheckVolume(volume, avgVolume []float64, weight fl
 	return isCross, direction
 }
 
-func (bs *BaseStrategy) bactchCheckPinBar(df *model.Dataframe, count int, weight float64) (bool, bool) {
-	opens := df.Open.LastValues(count)
-	closes := df.Close.LastValues(count)
-	hights := df.High.LastValues(count)
-	lows := df.Low.LastValues(count)
+func (bs *BaseStrategy) bactchCheckPinBar(df *model.Dataframe, count int, weight float64, includeLatest bool) (bool, bool) {
+	var opens, closes, highs, lows []float64
+	if includeLatest {
+		opens = df.Open.LastValues(count)
+		closes = df.Close.LastValues(count)
+		highs = df.High.LastValues(count)
+		lows = df.Low.LastValues(count)
+	} else {
+		opens = df.Open.GetLastValues(count, 1)
+		closes = df.Close.GetLastValues(count, 1)
+		highs = df.High.GetLastValues(count, 1)
+		lows = df.Low.GetLastValues(count, 1)
+	}
 
 	upperPinBars := []float64{}
 	lowerPinBars := []float64{}
@@ -92,7 +100,7 @@ func (bs *BaseStrategy) bactchCheckPinBar(df *model.Dataframe, count int, weight
 		if i > 0 {
 			prevBodyLength = calc.Abs(opens[i] - closes[i])
 		}
-		isUpperPinBar, isLowerPinBar, upperShadow, lowerShadow := bs.checkPinBar(weight, 4, prevBodyLength, opens[i], closes[i], hights[i], lows[i])
+		isUpperPinBar, isLowerPinBar, upperShadow, lowerShadow := calc.CheckPinBar(weight, 4, prevBodyLength, opens[i], closes[i], highs[i], lows[i])
 		if isUpperPinBar && isLowerPinBar {
 			continue
 		}
@@ -118,23 +126,6 @@ func (bs *BaseStrategy) bactchCheckPinBar(df *model.Dataframe, count int, weight
 	} else {
 		return false, false
 	}
-}
-
-// checkPinBar 是否上方插针，是否上方插针，最终方向 true-方向向下，false-方向上香
-func (bs *BaseStrategy) checkPinBar(weight, n, prevBodyLength, open, close, hight, low float64) (bool, bool, float64, float64) {
-	upperShadow := hight - calc.Max(open, close)
-	lowerShadow := calc.Min(open, close) - low
-	bodyLength := calc.Abs(open - close)
-
-	if prevBodyLength != 0 && bodyLength/prevBodyLength > n {
-		weight = weight / n
-	}
-	// 上插针条件
-	isUpperPinBar := upperShadow >= weight*bodyLength && lowerShadow <= upperShadow/weight
-	// 下插针条件
-	isLowerPinBar := lowerShadow >= weight*bodyLength && upperShadow <= lowerShadow/weight
-
-	return isUpperPinBar, isLowerPinBar, upperShadow, lowerShadow
 }
 
 func (bs *BaseStrategy) getCandleColor(open, close float64) string {

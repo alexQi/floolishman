@@ -33,6 +33,14 @@ func (s Series[T]) LastValues(size int) []T {
 	return s
 }
 
+func (s Series[T]) GetLastValues(size int, reversalStart int) []T {
+	l := len(s)
+	if l > size {
+		return s[l-size : l-reversalStart]
+	}
+	return s[:l-reversalStart]
+}
+
 // Crossover returns true if the last value of the series is greater than the last value of the reference series
 func (s Series[T]) Crossover(ref Series[T]) bool {
 	return s.Last(0) > ref.Last(0) && s.Last(1) <= ref.Last(1)
