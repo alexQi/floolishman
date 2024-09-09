@@ -12,9 +12,11 @@ type StopProfitLevel struct {
 }
 
 type PairProfit struct {
-	Close    float64
-	Decrease float64
-	Floor    float64
+	IsLock    bool
+	Close     float64
+	Decrease  float64
+	Floor     float64
+	MaxProfit float64
 }
 
 type Position struct {

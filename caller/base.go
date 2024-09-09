@@ -56,7 +56,6 @@ func init() {
 var ConstCallers = map[string]reference.Caller{
 	"candle":    &Candle{},
 	"scoop":     &Scoop{},
-	"interval":  &Interval{},
 	"frequency": &Frequency{},
 	"watchdog":  &Watchdog{},
 	"dual":      &Dual{},
@@ -730,9 +729,11 @@ func (c *Base) generateTriggerSequence(initialTriggerRatio, triggerIncrement, to
 func (c *Base) resetPairProfit(pair string) {
 	pairProfitLevels, _ := c.pairProfitLevels.Get(pair)
 	c.pairCurrentProfit.Set(pair, &model.PairProfit{
-		Close:    0,
-		Floor:    pairProfitLevels[0].TriggerRatio,
-		Decrease: pairProfitLevels[0].DrawdownRatio,
+		Close:     0,
+		MaxProfit: 0,
+		Floor:     pairProfitLevels[0].TriggerRatio,
+		Decrease:  pairProfitLevels[0].DrawdownRatio,
+		IsLock:    false,
 	})
 }
 

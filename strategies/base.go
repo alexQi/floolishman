@@ -148,19 +148,51 @@ func (bs *BaseStrategy) checkCandleTendency(historyOpens, historyCloses []float6
 	for i := 0; i < count; i++ {
 		historyCandleColors = append(historyCandleColors, bs.getCandleColor(historyOpens[i], historyCloses[i]))
 	}
-	historyColorCount := map[string]int{}
+	historyColorCount := map[string]float64{}
 	for _, color := range historyCandleColors {
 		if _, ok := historyColorCount[color]; ok {
-			historyColorCount[color] += 1
+			historyColorCount[color] += 1.0
 		} else {
-			historyColorCount[color] = 1
+			historyColorCount[color] = 1.0
 		}
 	}
-	if historyColorCount["bullish"] >= count/part {
+	if historyColorCount["bullish"] >= float64(count)/float64(part) {
 		return "bullish"
 	}
-	if historyColorCount["bearish"] >= count/part {
+	if historyColorCount["bearish"] >= float64(count)/float64(part) {
 		return "bearish"
 	}
 	return tendency
+}
+
+func (bs *BaseStrategy) checkBollingCross(df *model.Dataframe, period int, endIndex int, position string) (bool, bool) {
+	hasCross := false
+	hasBack := false
+	var high, low, limits []float64
+	if position == "up" {
+		limits = df.Metadata["bbUpper"].GetLastValues(period, endIndex)
+		high = df.High.GetLastValues(period, endIndex)
+		for i, price := range high {
+			if hasCross == false && price >= limits[i] {
+				hasCross = true
+				continue
+			}
+			if hasCross == true {
+				hasBack = price < limits[i]
+			}
+		}
+	} else {
+		limits = df.Metadata["bbLower"].GetLastValues(period, endIndex)
+		low = df.Low.GetLastValues(period, endIndex)
+		for i, price := range low {
+			if hasCross == false && price <= limits[i] {
+				hasCross = true
+				continue
+			}
+			if hasCross == true {
+				hasBack = price > limits[i]
+			}
+		}
+	}
+	return hasCross, hasBack
 }

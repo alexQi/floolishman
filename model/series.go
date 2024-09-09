@@ -35,26 +35,26 @@ func (s Series[T]) LastValues(size int) []T {
 
 func (s Series[T]) GetLastValues(size int, reversalStart int) []T {
 	l := len(s)
-	if l > size {
-		return s[l-size : l-reversalStart]
+	if l > size+reversalStart {
+		return s[l-size-reversalStart : l-reversalStart]
 	}
 	return s[:l-reversalStart]
 }
 
 // Crossover returns true if the last value of the series is greater than the last value of the reference series
-func (s Series[T]) Crossover(ref Series[T]) bool {
-	return s.Last(0) > ref.Last(0) && s.Last(1) <= ref.Last(1)
+func (s Series[T]) Crossover(ref Series[T], stopIndex int) bool {
+	return s.Last(stopIndex) > ref.Last(stopIndex) && s.Last(1+stopIndex) <= ref.Last(1+stopIndex)
 }
 
 // Crossunder returns true if the last value of the series is less than the last value of the reference series
-func (s Series[T]) Crossunder(ref Series[T]) bool {
-	return s.Last(0) <= ref.Last(0) && s.Last(1) > ref.Last(1)
+func (s Series[T]) Crossunder(ref Series[T], stopIndex int) bool {
+	return s.Last(stopIndex) <= ref.Last(stopIndex) && s.Last(1+stopIndex) > ref.Last(1+stopIndex)
 }
 
 // Cross returns true if the last value of the series is greater than the last value of the
 // reference series or less than the last value of the reference series
-func (s Series[T]) Cross(ref Series[T]) bool {
-	return s.Crossover(ref) || s.Crossunder(ref)
+func (s Series[T]) Cross(ref Series[T], stopIndex int) bool {
+	return s.Crossover(ref, stopIndex) || s.Crossunder(ref, stopIndex)
 }
 
 // NumDecPlaces returns the number of decimal places of a float64

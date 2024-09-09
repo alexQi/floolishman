@@ -50,12 +50,12 @@ func (s *Emacross15m) OnCandle(df *model.Dataframe) model.Strategy {
 	dea := df.Metadata["dea"]
 	dif := df.Metadata["dif"]
 	// 判断量价关系
-	if ema8.Crossover(ema21) && dif.Crossover(dea) {
+	if ema8.Crossover(ema21, 0) && dif.Crossover(dea, 0) {
 		strategyPosition.Useable = 1
 		strategyPosition.Side = string(model.SideTypeBuy)
 	}
 
-	if ema8.Crossunder(ema21) && dif.Crossunder(dea) {
+	if ema8.Crossunder(ema21, 0) && dif.Crossunder(dea, 0) {
 		strategyPosition.Useable = 1
 		strategyPosition.Side = string(model.SideTypeSell)
 	}

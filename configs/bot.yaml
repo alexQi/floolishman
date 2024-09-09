@@ -3,7 +3,7 @@ mode: online
 # 交易对配置
 pairs:
   # 交易对名称
-  ATAUSDT:
+  LQTYUSDT:
     # 状态
     status: true
     # 杠杆倍数 需要带上小数点

@@ -57,13 +57,13 @@ func (s *Test15m) OnCandle(df *model.Dataframe) model.Strategy {
 	}
 
 	// 移动平均线上穿&&金叉
-	if ema5.Crossover(ema10) && macd.Crossover(signal) && adx > 40 {
+	if ema5.Crossover(ema10, 0) && macd.Crossover(signal, 0) && adx > 40 {
 		strategyPosition.Useable = 1
 		strategyPosition.Side = string(model.SideTypeBuy)
 		fmt.Printf("-------------- ADX : %v \n", adx)
 	}
 	// 移动平均线下穿&&死叉
-	if ema5.Crossunder(ema10) && macd.Crossunder(signal) && adx > 40 {
+	if ema5.Crossunder(ema10, 0) && macd.Crossunder(signal, 0) && adx > 40 {
 		strategyPosition.Useable = 1
 		strategyPosition.Side = string(model.SideTypeSell)
 		fmt.Printf("-------------- ADX : %v \n", adx)

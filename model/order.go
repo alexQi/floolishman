@@ -43,6 +43,7 @@ type OrderExtra struct {
 	GuiderOrigin         string
 	PositionAmount       float64
 	StopLossPrice        float64
+	MaxProfit            float64
 	MatcherStrategyCount map[string]int
 	MatcherStrategy      []Strategy
 }

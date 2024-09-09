@@ -50,12 +50,12 @@ func (s *Emacross1h) OnCandle(df *model.Dataframe) model.Strategy {
 	volume := df.Metadata["volume"].Last(0)
 
 	// 判断量价关系
-	if strategyPosition.Tendency == "rise" && ema8.Crossover(ema21) && volume > avgVolume*2 {
+	if strategyPosition.Tendency == "rise" && ema8.Crossover(ema21, 0) && volume > avgVolume*2 {
 		strategyPosition.Useable = 1
 		strategyPosition.Side = string(model.SideTypeBuy)
 	}
 
-	if strategyPosition.Tendency == "down" && ema8.Crossunder(ema21) && volume > avgVolume*2 {
+	if strategyPosition.Tendency == "down" && ema8.Crossunder(ema21, 0) && volume > avgVolume*2 {
 		strategyPosition.Useable = 1
 		strategyPosition.Side = string(model.SideTypeSell)
 	}
