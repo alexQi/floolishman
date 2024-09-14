@@ -166,7 +166,6 @@ func (d *DataFeedSubscription) Start(loadSync bool, isBatch bool) {
 				}
 			}
 		}(key, feed)
-		utils.Log.Infof("Load feed : %s", key)
 	}
 
 	if loadSync {

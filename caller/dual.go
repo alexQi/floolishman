@@ -70,15 +70,7 @@ func (c *Dual) openDualPosition(option *model.PairOption) {
 	}
 	if len(openedPositions) > 0 {
 		for _, openedPosition := range openedPositions {
-			utils.Log.Infof(
-				"[POSITION - EXSIT %s] OrderFlag: %s | Pair: %s | Quantity: %v | Price: %v, Current: %v",
-				openedPosition.PositionSide,
-				openedPosition.OrderFlag,
-				openedPosition.Pair,
-				openedPosition.Quantity,
-				openedPosition.AvgPrice,
-				currentPrice,
-			)
+			utils.Log.Infof("[POSITION - EXSIT] %s | Current: %v", openedPosition.String(), currentPrice)
 		}
 		return
 	}
@@ -91,30 +83,14 @@ func (c *Dual) openDualPosition(option *model.PairOption) {
 	unfillePositionOrders, ok := existUnfilledOrderMap["position"]
 	if ok == true && len(unfillePositionOrders) > 0 {
 		for _, unfillePositionOrder := range unfillePositionOrders {
-			utils.Log.Infof(
-				"[POSITION - EXSIT %s] OrderFlag: %s | Pair: %s | Quantity: %v | Price: %v, Current: %v | (UNFILLED)",
-				unfillePositionOrder.PositionSide,
-				unfillePositionOrder.OrderFlag,
-				unfillePositionOrder.Pair,
-				unfillePositionOrder.Quantity,
-				unfillePositionOrder.Price,
-				currentPrice,
-			)
+			utils.Log.Infof("[POSITION - EXSIT] %s | Current: %v | (UNFILLED)", unfillePositionOrder.String(), currentPrice)
 		}
 		return
 	}
 	unfilleLossOrders, ok := existUnfilledOrderMap["lossLimit"]
 	if ok == true && len(unfilleLossOrders) > 0 {
 		for _, unfilleLossOrder := range unfilleLossOrders {
-			utils.Log.Infof(
-				"[POSITION - EXSIT %s] OrderFlag: %s | Pair: %s | Quantity: %v | Price: %v, Current: %v | (CLOSE PENDING)",
-				unfilleLossOrder.PositionSide,
-				unfilleLossOrder.OrderFlag,
-				unfilleLossOrder.Pair,
-				unfilleLossOrder.Quantity,
-				unfilleLossOrder.Price,
-				currentPrice,
-			)
+			utils.Log.Infof("[POSITION - EXSIT] %s | Current: %v | (CLOSE PENDING)", unfilleLossOrder.String(), currentPrice)
 		}
 		return
 	}
@@ -187,11 +163,8 @@ func (c *Dual) closePosition(option *model.PairOption) {
 			// 未成交的加仓订单方向与要加仓的方向一致,不在加仓
 			if _, exsit := unfillePositionOrders[model.PositionSideType(subPosition.PositionSide)]; exsit {
 				utils.Log.Infof(
-					"[POSITION - EXSIT] OrderFlag: %s | Pair: %s | Quantity: %v | Price: %v, Current: %v | (UNFILLED MORE)",
-					unfillePositionOrders[model.PositionSideType(subPosition.PositionSide)].OrderFlag,
-					unfillePositionOrders[model.PositionSideType(subPosition.PositionSide)].Pair,
-					unfillePositionOrders[model.PositionSideType(subPosition.PositionSide)].Quantity,
-					unfillePositionOrders[model.PositionSideType(subPosition.PositionSide)].Price,
+					"[POSITION - EXSIT] %s, Current: %v | (UNFILLED MORE)",
+					unfillePositionOrders[model.PositionSideType(subPosition.PositionSide)].String(),
 					currentPrice,
 				)
 				return
@@ -229,19 +202,12 @@ func (c *Dual) closePosition(option *model.PairOption) {
 		// 判断利润比小于等于上次设置的利润比，则平仓 初始时为0
 		if profitRatio <= pairCurrentProfit.Close && pairCurrentProfit.Close > 0 {
 			utils.Log.Infof(
-				"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Sub OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < ProfitClose: %s",
-				mainPosition.Pair,
-				mainPosition.OrderFlag,
-				mainPosition.Quantity,
-				mainPosition.AvgPrice,
-				mainPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
-				subPosition.OrderFlag,
-				subPosition.Quantity,
-				subPosition.AvgPrice,
-				subPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				"[POSITION - CLOSE] Main %s | Sub %s | Current: %v | PR.%%: %.2f%% < ProfitClose: %s",
+				mainPosition.String(),
+				subPosition.String(),
 				currentPrice,
-				fmt.Sprintf("%.2f%%", profitRatio*100),
-				fmt.Sprintf("%.2f%%", pairCurrentProfit.Close*100),
+				profitRatio*100,
+				pairCurrentProfit.Close*100,
 			)
 			// 重置交易对盈利
 			c.resetPairProfit(option.Pair)

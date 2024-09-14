@@ -85,10 +85,12 @@ type OrderParam struct {
 }
 
 func (o Order) String() string {
-	loc, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		panic(err)
-	}
-	return fmt.Sprintf("[%s] %s %s %s %s | OrderFlag: %s, ID: %d,ClientOrderId: %s, Type: %s, %f x $%f (~$%.f)",
-		o.Status, o.UpdatedAt.In(loc).Format("2006-01-02 15:04:05"), o.Side, o.PositionSide, o.Pair, o.OrderFlag, o.ExchangeID, o.ClientOrderId, o.Type, o.Quantity, o.Price, o.Quantity*o.Price)
+	return fmt.Sprintf("Pair: %s | PositionSide: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s",
+		o.Pair,
+		o.PositionSide,
+		o.OrderFlag,
+		o.Quantity,
+		o.Price,
+		o.UpdatedAt.In(TimeLoc).Format("2006-01-02 15:04:05"),
+	)
 }
