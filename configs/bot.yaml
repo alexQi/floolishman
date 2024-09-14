@@ -3,7 +3,7 @@ mode: online
 # 交易对配置
 pairs:
   # 交易对名称
-  LQTYUSDT:
+  REEFUSDT:
     # 状态
     status: true
     # 杠杆倍数 需要带上小数点
@@ -117,18 +117,19 @@ strategies:
   #  - Rsi15m
   #  - Macd15m
   #  - "Grid1h"
-  - "Resonance15m"
+  #  - "Resonance15m"
+  - "Scoop15m"
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop
-  checkMode: candle
+  checkMode: scoop
   # 忽略开单时段
   ignoreHours:
-    - 2
-    - 19
-    - 20
-    - 21
-    - 22
+  # - 2
+  # - 19
+  # - 20
+  #    - 21
+  # - 22
   # 忽略币种
   ignorePairs:
     - BTCUSDT
@@ -136,10 +137,11 @@ caller:
     - BNBUSDT
     - SOLUSDT
     - BCHUSDT
+    - YFIUSDT
   # watchdog模式下是否是跟随模式，其他模式下都为false
   followSymbol: false
   # 时间止损市场 单位分钟
-  lossTimeDuration: 40
+  lossTimeDuration: 60
   # ---------- 通用配置 --------------
   # 杠杆倍数
   leverage: 20.0
@@ -150,21 +152,21 @@ caller:
   # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量 | MARGIN 为USDT
   marginSize: 0.2
   # 移动止盈后撤比例
-  profitableScale: 0.004
-  # 移动止盈后撤比例-step
-  profitableScaleDecrStep: 0.00025
+  profitableScale: 0.0075
+  # 移动止盈后撤比例-step 0.000125
+  profitableScaleDecrStep: 0.0002
   # 触发移动止损比例
-  profitableTrigger: 0.0075
+  profitableTrigger: 0.005
   # 触发移动止损比例-step
-  profitableTriggerIncrStep: 0.0015
+  profitableTriggerIncrStep: 0.001
   # 最大加仓后联合仓位亏损拉回比例
   pullMarginLossRatio: 0.0018
   # 最大保证金比例
   maxMarginRatio: 0.0040
-  # 最大止损保证金比例
-  maxMarginLossRatio: 0.0035
+  # 最大止损保证金比例 0.0075 为0：atr止损
+  maxMarginLossRatio: 0.0075
   # 暂停交易时常（分钟）
-  pauseCaller: 45
+  pauseCaller: 15
 # db存储位置
 storage:
   driver: sqlite

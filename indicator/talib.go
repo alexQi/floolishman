@@ -593,3 +593,16 @@ func Alteration(data []float64, period int) []float64 {
 
 	return alterations
 }
+
+func PinBars(opens, closes, highs, lows []float64) ([]float64, []float64, []float64, []float64) {
+	var upperPinRate, lowPinRate, upperShadow, lowShadow float64
+	var upperPinRates, lowPinRates, upperShadows, lowShadows []float64
+	for i := range opens {
+		upperPinRate, lowPinRate, upperShadow, lowShadow = calc.GetPinBarRate(opens[i], closes[i], highs[i], lows[i])
+		upperPinRates = append(upperPinRates, upperPinRate)
+		lowPinRates = append(lowPinRates, lowPinRate)
+		upperShadows = append(upperShadows, upperShadow)
+		lowShadows = append(lowShadows, lowShadow)
+	}
+	return upperPinRates, lowPinRates, upperShadows, lowShadows
+}

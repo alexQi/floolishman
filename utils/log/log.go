@@ -16,14 +16,13 @@ func InitLogger() *logrus.Logger {
 
 	logLevel := viper.GetString("log.level")
 	Log := logrus.New()
-
-	formatter := &logrus.TextFormatter{
+	Log.SetFormatter(&logrus.TextFormatter{
+		ForceColors:     true,
+		DisableColors:   false,
 		FullTimestamp:   true,
 		DisableQuote:    true,
 		TimestampFormat: "15:04:05",
-	}
-	Log.SetFormatter(formatter)
-	Log.Out = os.Stdout
+	})
 
 	err := loglevel.UnmarshalText([]byte(logLevel))
 	if err != nil {
@@ -32,19 +31,25 @@ func InitLogger() *logrus.Logger {
 	}
 	Log.SetLevel(loglevel)
 
-	logSwitch := viper.GetBool("log.stdout")
-	if logSwitch == true {
-		dataPath := viper.GetString("log.path")
-		// 判断文件目录是否存在
-		_, err := os.Stat(dataPath)
-		if err != nil {
-			err = os.MkdirAll(dataPath, os.ModePerm)
-			if err != nil {
-				Log.Panicf("mkdir error : %s", err.Error())
-			}
-		}
-		NewSimpleLogger(Log, dataPath, 30, formatter)
+	if viper.GetBool("log.stdout") == true {
+		Log.Out = os.Stdout
 	}
+	dataPath := viper.GetString("log.path")
+	_, err = os.Stat(dataPath)
+	if err != nil {
+		err = os.MkdirAll(dataPath, os.ModePerm)
+		if err != nil {
+			Log.Panicf("mkdir error : %s", err.Error())
+		}
+	}
+	NewSimpleLogger(Log, dataPath, 30, &logrus.TextFormatter{
+		ForceColors:     true,
+		DisableColors:   false,
+		FullTimestamp:   true,
+		DisableQuote:    true,
+		TimestampFormat: "15:04:05",
+	})
+
 	return Log
 }
 

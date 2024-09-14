@@ -4,11 +4,17 @@ import (
 	"floolishman/indicator"
 	"floolishman/model"
 	"floolishman/utils/calc"
+	"time"
 )
 
 type BaseStrategy struct {
 }
 
+var Loc *time.Location
+
+func init() {
+	Loc, _ = time.LoadLocation("Asia/Shanghai")
+}
 func (bs *BaseStrategy) handleIndicatos(df *model.Dataframe) error {
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 0)
 	// 计算布林带宽度
@@ -163,6 +169,46 @@ func (bs *BaseStrategy) checkCandleTendency(historyOpens, historyCloses []float6
 		return "bearish"
 	}
 	return tendency
+}
+
+func (bs *BaseStrategy) checkBollingNearCross(df *model.Dataframe, period int, endIndex int, position string) (bool, bool) {
+	isNearBand := true      // 默认设为true，表示所有蜡烛都未突破布林带
+	isCrossAndBack := false // 检测到突破后回归的信号
+	var high, low, limits []float64
+	closes := df.Close.GetLastValues(period, endIndex)
+	if position == "up" {
+		// 获取布林带上轨、高点和收盘价序列
+		limits = df.Metadata["bbUpper"].GetLastValues(period, endIndex)
+		high = df.High.GetLastValues(period, endIndex)
+
+		for i, price := range high {
+			// 如果当前价格突破了布林带上轨
+			if price > limits[i] {
+				isNearBand = false // 如果任何一根蜡烛突破，取消靠近布林带的信号
+				// 检查收盘价是否回归到布林带内
+				if closes[i] < limits[i] {
+					isCrossAndBack = true
+				}
+			}
+		}
+	} else {
+		// 获取布林带下轨、低点和收盘价序列
+		limits = df.Metadata["bbLower"].GetLastValues(period, endIndex)
+		low = df.Low.GetLastValues(period, endIndex)
+
+		for i, price := range low {
+			// 如果当前价格突破了布林带下轨
+			if price < limits[i] {
+				isNearBand = false // 如果任何一根蜡烛突破，取消靠近布林带的信号
+				// 检查收盘价是否回归到布林带内
+				if closes[i] > limits[i] {
+					isCrossAndBack = true
+				}
+			}
+		}
+	}
+
+	return isNearBand, isCrossAndBack
 }
 
 func (bs *BaseStrategy) checkBollingCross(df *model.Dataframe, period int, endIndex int, position string) (bool, bool) {

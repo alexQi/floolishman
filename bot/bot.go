@@ -68,6 +68,7 @@ func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchang
 	for _, option := range options {
 		option(bot)
 	}
+	callerSetting.Backtest = bot.backtest
 	// 加载订单服务
 	bot.serviceOrder = service.NewServiceOrder(ctx, exch, bot.storage, bot.orderFeed)
 	// 加载caller
@@ -329,6 +330,7 @@ func (n *Bot) preload(ctx context.Context, pair string, timeframe string, period
 func (n *Bot) SettingPairs(ctx context.Context) {
 	var wg sync.WaitGroup // 用于等待所有并发任务完成
 	sem := make(chan struct{}, 8)
+
 	for i, option := range n.settings.PairOptions {
 		n.serviceStrategy.SetPairDataframe(option)
 		if _, ok := n.priorityQueueCandles[option.Pair]; !ok {
@@ -341,7 +343,6 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			utils.Log.Infof("[EXCHAGE - INDEX: %v] %s", index+1, option.String())
 			if n.callerSetting.FollowSymbol == false {
 				err := n.exchange.SetPairOption(ctx, option)
 				if err != nil {
@@ -349,7 +350,9 @@ func (n *Bot) SettingPairs(ctx context.Context) {
 					return
 				}
 			}
+			utils.Log.Infof("[EXCHAGE - INDEX: %v] %s", index+1, option.String())
 		}(i, option) // 传入option以避免闭包问题
+
 	}
 	// 等待所有并发任务完成
 	wg.Wait()
@@ -388,10 +391,6 @@ func (n *Bot) SettingFeed(ctx context.Context) {
 
 // Run will initialize the strategy controller, order controller, preload data and start the bot
 func (n *Bot) Run(ctx context.Context) {
-	// 输出策略详情
-	if n.callerSetting.FollowSymbol == false || n.callerSetting.CheckMode != "dual" {
-		n.strategy.Stdout()
-	}
 	n.orderFeed.Start()
 
 	// 启动订单服务
@@ -411,6 +410,11 @@ func (n *Bot) Run(ctx context.Context) {
 	n.caller.Start()
 	// start data feed and receives new candles
 	n.dataFeed.Start(n.backtest, n.callerSetting.CheckMode == "scoop")
+
+	// 输出策略详情
+	if n.callerSetting.FollowSymbol == false || n.callerSetting.CheckMode != "dual" {
+		n.strategy.Stdout()
+	}
 
 	// Start notifies
 	if n.telegram != nil {

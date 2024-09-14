@@ -486,15 +486,7 @@ func (c *Common) finishPosition(seasonType SeasonType, position *model.Position)
 	}
 	// 删除止损时间限制配置
 	c.lossLimitTimes.Delete(position.OrderFlag)
-	utils.Log.Infof(
-		"[POSITION - %s] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v",
-		seasonType,
-		position.OrderFlag,
-		position.Pair,
-		position.PositionSide,
-		position.Quantity,
-		position.AvgPrice,
-	)
+	utils.Log.Infof("[POSITION - %s] %s", seasonType, position.String())
 	// 查询当前orderFlag所有的止损单，全部取消
 	lossOrders, err := c.broker.GetOrdersForPostionLossUnfilled(position.OrderFlag)
 	if err != nil {

@@ -91,6 +91,14 @@ func AccurateSub(a, b float64) float64 {
 	return result
 }
 
+func GetPinBarRate(open, close, hight, low float64) (float64, float64, float64, float64) {
+	upperShadow := hight - Max(open, close)
+	lowerShadow := Min(open, close) - low
+	bodyLength := Abs(open - close)
+
+	return upperShadow / bodyLength, lowerShadow / bodyLength, upperShadow, lowerShadow
+}
+
 func CheckPinBar(weight, n, prevBodyLength, open, close, hight, low float64) (bool, bool, float64, float64) {
 	upperShadow := hight - Max(open, close)
 	lowerShadow := Min(open, close) - low
@@ -127,13 +135,13 @@ func CalculateAngle(sequence []float64) float64 {
 	}
 
 	var x, y, sumX, sumY, sumXY, sumX2 float64
-	baseValue := sequence[0]
+	//baseValue := sequence[0]
 	for i, value := range sequence {
 		x = float64(i)
-		if baseValue == 0 {
+		if i == 0 || sequence[i-1] == 0 {
 			y = 0
 		} else {
-			y = ((value - baseValue) / math.Abs(baseValue)) * 100 // 计算百分比变化
+			y = ((value - sequence[i-1]) / math.Abs(sequence[i-1])) * 100 // 计算百分比变化
 		}
 		sumX += x
 		sumY += y

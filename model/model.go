@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+var TimeLoc *time.Location
+
+func init() {
+	TimeLoc, _ = time.LoadLocation("Asia/Shanghai")
+}
+
 type TelegramSettings struct {
 	Enabled bool
 	Token   string

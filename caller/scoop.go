@@ -5,7 +5,6 @@ import (
 	"floolishman/utils"
 	"floolishman/utils/calc"
 	"floolishman/utils/strutil"
-	"fmt"
 	"sort"
 	"time"
 )
@@ -29,10 +28,12 @@ func (c *Scoop) Start() {
 	next := now.Truncate(time.Minute * ExecStart).Add(time.Minute * ExecStart)
 	duration := time.Until(next)
 	// 在下一个5分钟倍数时执行任务
-	time.AfterFunc(duration, func() {
-		c.tickCheckForOpen()
-	})
-	go c.Listen()
+	if c.setting.Backtest == false {
+		time.AfterFunc(duration, func() {
+			c.tickCheckForOpen()
+		})
+		go c.Listen()
+	}
 }
 
 func (c *Scoop) Listen() {
@@ -205,15 +206,7 @@ func (c *Scoop) openScoopPosition(option *model.PairOption, longShortRatio float
 	// 当前方向已存在仓位，不在开仓
 	if existPosition != nil {
 		if c.setting.Backtest == false {
-			utils.Log.Infof(
-				"[POSITION - EXSIT] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v",
-				existPosition.OrderFlag,
-				existPosition.Pair,
-				existPosition.PositionSide,
-				existPosition.Quantity,
-				existPosition.AvgPrice,
-				currentPrice,
-			)
+			utils.Log.Infof("[POSITION - EXSIT] %s | Current: %v", existPosition.String(), currentPrice)
 		}
 		return
 	}
@@ -341,12 +334,8 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 		// 时间未达到新的止损限制时间
 		if currentTime.After(lossLimitTime) {
 			utils.Log.Infof(
-				"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %.2f%%, MaxProfit: %.2f%% (Position Timeout)",
-				openedPosition.Pair,
-				openedPosition.OrderFlag,
-				openedPosition.Quantity,
-				openedPosition.AvgPrice,
-				openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				"[POSITION - CLOSE] %s | Current: %v | PR.%%: %.2f%%, MaxProfit: %.2f%% (Position Timeout)",
+				openedPosition.String(),
 				currentPrice,
 				profitRatio*100,
 				pairCurrentProfit.MaxProfit*100,
@@ -359,12 +348,8 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 		// 判断当前利润比是否小于锁定利润比，小于则平仓
 		if profitRatio <= pairCurrentProfit.Close && pairCurrentProfit.IsLock {
 			utils.Log.Infof(
-				"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %.2f%% < ProfitClose: %.2f%%, MaxProfit: %.2f%%",
-				openedPosition.Pair,
-				openedPosition.OrderFlag,
-				openedPosition.Quantity,
-				openedPosition.AvgPrice,
-				openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				"[POSITION - CLOSE] %s | Current: %v | PR.%%: %.2f%% < ProfitClose: %.2f%%, MaxProfit: %.2f%%",
+				openedPosition.String(),
 				currentPrice,
 				profitRatio*100,
 				pairCurrentProfit.Close*100,
@@ -383,12 +368,8 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 				// 当前未锁定利润比，且利润比未达到触发利润比---直接返回
 				if profitRatio < pairCurrentProfit.Floor {
 					utils.Log.Infof(
-						"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %.2f%% < ProfitTriggerRatio: %.2f%%",
-						openedPosition.Pair,
-						openedPosition.OrderFlag,
-						openedPosition.Quantity,
-						openedPosition.AvgPrice,
-						openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+						"[POSITION - WATCH] %s | Current: %v | PR.%%: %.2f%% < ProfitTriggerRatio: %.2f%%",
+						openedPosition.String(),
 						currentPrice,
 						profitRatio*100,
 						pairCurrentProfit.Floor*100,
@@ -400,14 +381,11 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 					// 当前利润比触发值，之前已经有Close时，判断当前利润比是否比上次设置的利润比大
 					if profitRatio <= pairCurrentProfit.Close+pairCurrentProfit.Decrease {
 						utils.Log.Infof(
-							"[POSITION - WATCH] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %.2f%% < ProfitFloorRatio: %.2f%%, MaxProfit: %.2f%%",
-							openedPosition.Pair,
-							openedPosition.OrderFlag,
-							openedPosition.Quantity,
-							openedPosition.AvgPrice,
-							openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+							"[POSITION - WATCH] %s | Current: %v | PR.%%: %.2f%% < ProfitFloorRatio: %.2f%%, LockProfit: %.2f%%, MaxProfit: %.2f%%",
+							openedPosition.String(),
 							currentPrice,
 							profitRatio*100,
+							pairCurrentProfit.Floor*100,
 							pairCurrentProfit.Close*100,
 							pairCurrentProfit.MaxProfit*100,
 						)
@@ -429,12 +407,8 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 			c.lossLimitTimes.Set(openedPosition.OrderFlag, currentTime.Add(time.Duration(c.setting.LossTimeDuration)*time.Minute))
 
 			utils.Log.Infof(
-				"[POSITION - PROFIT] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %.2f%% > NewProfitRatio: %.2f%%",
-				openedPosition.Pair,
-				openedPosition.OrderFlag,
-				openedPosition.Quantity,
-				openedPosition.AvgPrice,
-				openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				"[POSITION - PROFIT] %s | Current: %v | PR.%%: %.2f%% > NewProfitRatio: %.2f%%",
+				openedPosition.String(),
 				currentPrice,
 				profitRatio*100,
 				pairCurrentProfit.Close*100,
@@ -442,12 +416,8 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 		} else {
 			if pairCurrentProfit.IsLock {
 				utils.Log.Infof(
-					"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %.2f%% < ProfitCloseRatio: %.2f%%, MaxProfit: %.2f%%",
-					openedPosition.Pair,
-					openedPosition.OrderFlag,
-					openedPosition.Quantity,
-					openedPosition.AvgPrice,
-					openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+					"[POSITION - HOLD] %s | Current: %v | PR.%%: %.2f%% < ProfitCloseRatio: %.2f%%, MaxProfit: %.2f%%",
+					openedPosition.String(),
 					currentPrice,
 					profitRatio*100,
 					pairCurrentProfit.Close*100,
@@ -458,15 +428,12 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 					// 亏损盈利比已大于最大
 					if calc.Abs(profitRatio) > option.MaxMarginLossRatio {
 						utils.Log.Infof(
-							"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s > MaxLoseRatio %s",
-							openedPosition.Pair,
-							openedPosition.OrderFlag,
-							openedPosition.Quantity,
-							openedPosition.AvgPrice,
-							openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+							"[POSITION - CLOSE] %s | Current: %v | PR.%%: %.2f%% > MaxLoseRatio %.2f%%, MaxProfit: %.2f%%",
+							openedPosition.String(),
 							currentPrice,
-							fmt.Sprintf("%.2f%%", profitRatio*100),
-							fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
+							profitRatio*100,
+							option.MaxMarginLossRatio*100,
+							pairCurrentProfit.MaxProfit*100,
 						)
 						c.resetPairProfit(option.Pair)
 						c.PausePairCall(option.Pair)
@@ -474,30 +441,23 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 						return
 					}
 					utils.Log.Infof(
-						"[POSITION - HOLD] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s < MaxLoseRatio: %s",
-						openedPosition.Pair,
-						openedPosition.OrderFlag,
-						openedPosition.Quantity,
-						openedPosition.AvgPrice,
-						openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+						"[POSITION - HOLD] %s | Current: %v | PR.%%: %.2f%% < MaxLoseRatio: %.2f%%, MaxProfit: %.2f%%",
+						openedPosition.String(),
 						currentPrice,
-						fmt.Sprintf("%.2f%%", profitRatio*100),
-						fmt.Sprintf("%.2f%%", option.MaxMarginLossRatio*100),
+						profitRatio*100,
+						option.MaxMarginLossRatio*100,
+						pairCurrentProfit.MaxProfit*100,
 					)
 				} else {
 					if (openedPosition.PositionSide == string(model.PositionSideTypeLong) && currentPrice <= openedPosition.StopLossPrice) ||
 						(openedPosition.PositionSide == string(model.PositionSideTypeShort) && currentPrice >= openedPosition.StopLossPrice) {
 						utils.Log.Infof(
-							"[POSITION - CLOSE] Pair: %s | PositionSide: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v, StopLoss:%v | PR.%%: %s",
-							openedPosition.Pair,
-							openedPosition.PositionSide,
-							openedPosition.OrderFlag,
-							openedPosition.Quantity,
-							openedPosition.AvgPrice,
-							openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+							"[POSITION - CLOSE] %s | Current: %v, StopLoss:%v | PR.%%: %.2f%%, MaxProfit: %.2f%%",
+							openedPosition.String(),
 							currentPrice,
 							openedPosition.StopLossPrice,
-							fmt.Sprintf("%.2f%%", profitRatio*100),
+							profitRatio*100,
+							pairCurrentProfit.MaxProfit*100,
 						)
 						c.resetPairProfit(option.Pair)
 						c.PausePairCall(option.Pair)
@@ -505,16 +465,12 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 						return
 					}
 					utils.Log.Infof(
-						"[POSITION - HOLD] Pair: %s | PositionSide: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v, StopLoss:%v | PR.%%: %s",
-						openedPosition.Pair,
-						openedPosition.PositionSide,
-						openedPosition.OrderFlag,
-						openedPosition.Quantity,
-						openedPosition.AvgPrice,
-						openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+						"[POSITION - HOLD] %s | Current: %v, StopLoss:%v | PR.%%: %.2f%%, MaxProfit: %.2f%%",
+						openedPosition.String(),
 						currentPrice,
 						openedPosition.StopLossPrice,
-						fmt.Sprintf("%.2f%%", profitRatio*100),
+						profitRatio*100,
+						pairCurrentProfit.MaxProfit*100,
 					)
 				}
 			}

@@ -57,27 +57,18 @@ func (c *Candle) closePosition(option *model.PairOption) {
 		}
 		if c.setting.Backtest == false {
 			utils.Log.Infof(
-				"[POSITION - WATCH] OrderFlag: %s | Pair: %s | P.Side: %s | Quantity: %v | Price: %v, Current: %v | PR.%%: %s | Create: %s | Stop Cut-off: %s",
-				openedPosition.OrderFlag,
-				openedPosition.Pair,
-				openedPosition.PositionSide,
-				openedPosition.Quantity,
-				openedPosition.AvgPrice,
+				"[POSITION - WATCH] %s | Current: %v | PR.%%: %.2f%% | Stop Cut-off: %s",
+				openedPosition.String(),
 				currentPrice,
-				fmt.Sprintf("%.2f%%", profitRatio*100),
-				openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				profitRatio*100,
 				lossLimitTime.In(Loc).Format("2006-01-02 15:04:05"),
 			)
 		}
 		// 时间未达到新的止损限制时间
 		if currentTime.After(lossLimitTime) {
 			utils.Log.Infof(
-				"[POSITION - CLOSE] Pair: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s | Current: %v | PR.%%: %s (time out)",
-				openedPosition.Pair,
-				openedPosition.OrderFlag,
-				openedPosition.Quantity,
-				openedPosition.AvgPrice,
-				openedPosition.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
+				"[POSITION - CLOSE] %s | Current: %v | PR.%%: %s (Position Timeout)",
+				openedPosition.String(),
 				currentPrice,
 				fmt.Sprintf("%.2f%%", profitRatio*100),
 			)

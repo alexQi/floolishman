@@ -35,6 +35,7 @@ var ConstStraties = map[string]types.Strategy{
 	"Vibrate15m":        &strategies.Vibrate15m{},
 	"Kc15m":             &strategies.Kc15m{},
 	"Macd15m":           &strategies.Macd15m{},
+	"Scoop15m":          &strategies.Scoop15m{},
 	"Grid1h":            &strategies.Grid1h{},
 }
 
@@ -84,7 +85,6 @@ func main() {
 		},
 	}
 	callerSetting.GuiderHost = settings.GuiderGrpcHost
-
 	// 判断是否是选币模式
 	if callerSetting.CheckMode == "scoop" {
 		if apiKeyType != "HMAC" {

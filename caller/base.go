@@ -146,7 +146,9 @@ func (c *Base) Init(
 	c.pairVolumeGrowRatio = model.NewThreadSafeMap[string, float64]()
 	c.lastAvgVolume = model.NewThreadSafeMap[string, float64]()
 
-	c.guider = service.NewServiceGuider(ctx, setting.GuiderHost)
+	if c.setting.CheckMode == "watchdog" {
+		c.guider = service.NewServiceGuider(ctx, setting.GuiderHost)
+	}
 
 	go c.RegiterPairOption()
 	go c.RegiterPairGridBuilder()

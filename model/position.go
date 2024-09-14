@@ -47,6 +47,12 @@ type Position struct {
 }
 
 func (p Position) String() string {
-	return fmt.Sprintf("[%s] %s | ID: %d, AvgPrice: %.2f, Quantity: %.2f",
-		p.OrderFlag, p.Side, p.ID, p.AvgPrice, p.Quantity)
+	return fmt.Sprintf("Pair: %s | PositionSide: %s | Main OrderFlag: %s, Quantity: %v, Price: %v, Time: %s",
+		p.Pair,
+		p.PositionSide,
+		p.OrderFlag,
+		p.Quantity,
+		p.AvgPrice,
+		p.UpdatedAt.In(TimeLoc).Format("2006-01-02 15:04:05"),
+	)
 }

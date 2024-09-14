@@ -728,12 +728,19 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		}
 		_, quote := exchange.SplitAssetQuote(o.Pair)
 		c.notify(fmt.Sprintf(
-			"[SUMMARY] %f %s (%.2f%%) \n `%s`",
+			"[SUMMARY] %f %s %.2f%%) \n %s",
 			result.ProfitValue,
 			quote,
-			result.ProfitPercent*100,
+			result.ProfitPercent*100.00,
 			c.Results[o.Pair].String(),
 		))
+		//c.notify(fmt.Sprintf(
+		//	"[SUMMARY] %f %s (%.2f%%) \n `%s`",
+		//	result.ProfitValue,
+		//	quote,
+		//	result.ProfitPercent*100,
+		//	c.Results[o.Pair].String(),
+		//))
 	}
 }
 

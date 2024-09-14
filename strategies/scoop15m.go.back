@@ -1,0 +1,160 @@
+package strategies
+
+import (
+	"floolishman/indicator"
+	"floolishman/model"
+	"floolishman/utils"
+	"reflect"
+)
+
+type Scoop15m struct {
+	BaseStrategy
+}
+
+func (s Scoop15m) SortScore() float64 {
+	return 90
+}
+
+func (s Scoop15m) Timeframe() string {
+	return "15m"
+}
+
+func (s Scoop15m) WarmupPeriod() int {
+	return 96 // 预热期设定为50个数据点
+}
+
+func (s Scoop15m) Indicators(df *model.Dataframe) {
+	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 0)
+	// 计算布林带宽度
+	bbWidth := make([]float64, len(bbUpper))
+	for i := 0; i < len(bbUpper); i++ {
+		bbWidth[i] = bbUpper[i] - bbLower[i]
+	}
+	df.Metadata["bbUpper"] = bbUpper
+	df.Metadata["bbMiddle"] = bbMiddle
+	df.Metadata["bbLower"] = bbLower
+	df.Metadata["bbWidth"] = bbWidth
+	// 计算MACD指标
+	macdLine, signalLine, hist := indicator.MACD(df.Close, 8, 17, 5)
+	df.Metadata["macd"] = macdLine
+	df.Metadata["signal"] = signalLine
+	df.Metadata["hist"] = hist
+	df.Metadata["rsi"] = indicator.RSI(df.Close, 7)
+	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["adx"] = indicator.ADX(df.High, df.Low, df.Close, 14)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
+	df.Metadata["macdAngle"] = indicator.TendencyAngles(macdLine, 4)
+}
+
+func (s *Scoop15m) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
+		Tendency:     s.checkMarketTendency(df),
+		StrategyName: reflect.TypeOf(s).Elem().Name(),
+		Pair:         df.Pair,
+		LastAtr:      df.Metadata["atr"].Last(1) * 1.5,
+	}
+	macd := df.Metadata["macd"]
+	hist := df.Metadata["hist"]
+	adx := df.Metadata["adx"]
+
+	prevTendencyAngle := df.Metadata["macdAngle"].Last(1)
+	lastTendencyAngle := df.Metadata["macdAngle"].Last(0)
+	prevBbWidth := df.Metadata["bbWidth"].Last(1)
+	prevBbMiddle := df.Metadata["bbMiddle"].Last(1)
+	//lastBbWidth := df.Metadata["bbWidth"].Last(1)
+	//lastBbMiddle := df.Metadata["bbMiddle"].Last(1)
+	prevPrice := df.Close.Last(1)
+	prevMacd := macd.Last(1)
+	//prevSignal := signal.Last(1)
+	prevHist := hist.Last(1)
+	prevRsi := df.Metadata["rsi"].Last(1)
+	lastRsi := df.Metadata["rsi"].Last(0)
+
+	signalChangeRatio := (prevHist / prevPrice) * 100
+	macdPriceRatio := (prevMacd / prevPrice) * 100
+	prevBollWidthRatio := 100 * prevBbWidth / prevBbMiddle
+	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 0.85, false)
+	//lastIsUpperPinBar, lastIsLowerPinBar, _, _ := calc.CheckPinBar(0.65, 4, 0, df.Open.Last(0), df.Close.Last(0), df.High.Last(0), df.Low.Last(0))
+	// 判断实时数据死叉
+	if prevRsi > 85 {
+		isNearBand, isCrossAndBack := s.checkBollingNearCross(df, 2, 1, "up")
+		//if (isNearBand != isCrossAndBack) &&
+		//	(isNearBand || isCrossAndBack) &&
+		//	prevPrice > prevBbMiddle &&
+		//	//prevBollWidthRatio >= 1.2 &&
+		//	//prevBollWidthRatio <= 2.0 &&
+		//	//calc.Abs(macdPriceRatio) < 0.1 &&
+		//	//prevTendencyAngle < -75 &&
+		//	//lastTendencyAngle < -85 &&
+		//	//lastRsi >= 35 &&
+		//	//prevRsi > 50 &&
+		//	lastTendencyAngle < prevTendencyAngle &&
+		//	prevTendencyAngle < 70 &&
+		//	lastTendencyAngle < -83 &&
+		//	!isLowerPinBar {
+
+		//}
+		if prevRsi > 85 &&
+			(prevRsi-lastRsi) > 10 &&
+			prevBollWidthRatio >= 4 &&
+			isUpperPinBar {
+			utils.Log.Tracef(
+				"[PARAMS] PositionSide: %s | isNearBand: %v | isCrossAndBack: %v | isUpperPinBar: %v | isLowerPinBar: %v | prevAdx: %v | lastAdx: %v | signalChangeRatio: %v | prevBollWidthRatio: %v | macdPriceRatio: %v | prevTendencyAngle: %v | lastTendencyAngle: %v | prevRsi: %v | lastRsi: %v | Time: %s",
+				model.SideTypeSell,
+				isNearBand,
+				isCrossAndBack,
+				isUpperPinBar,
+				isLowerPinBar,
+				adx.Last(1),
+				adx.Last(0),
+				signalChangeRatio,
+				prevBollWidthRatio,
+				macdPriceRatio,
+				prevTendencyAngle,
+				lastTendencyAngle,
+				prevRsi,
+				lastRsi,
+				df.LastUpdate.In(Loc).Format("2006-01-02 15:04:05"),
+			)
+
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeSell)
+			strategyPosition.Score = lastRsi
+		}
+	}
+	// 判断实时数据金叉
+	if prevRsi < 0 {
+		// 获取下轨突破情况，反转做单
+		isNearBand, isCrossAndBack := s.checkBollingNearCross(df, 2, 1, "down")
+		if prevRsi < 22 &&
+			(lastRsi-prevRsi) > 15 &&
+			prevBollWidthRatio >= 2 &&
+			isLowerPinBar {
+			utils.Log.Tracef(
+				"[PARAMS] PositionSide: %s | isNearBand: %v | isCrossAndBack: %v | isUpperPinBar: %v | isLowerPinBar: %v | prevAdx: %v | lastAdx: %v | signalChangeRatio: %v | prevBollWidthRatio: %v | macdPriceRatio: %v | prevTendencyAngle: %v | lastTendencyAngle: %v | prevRsi: %v | lastRsi: %v | Time: %s",
+				model.SideTypeBuy,
+				isNearBand,
+				isCrossAndBack,
+				isUpperPinBar,
+				isLowerPinBar,
+				adx.Last(1),
+				adx.Last(0),
+				signalChangeRatio,
+				prevBollWidthRatio,
+				macdPriceRatio,
+				prevTendencyAngle,
+				lastTendencyAngle,
+				prevRsi,
+				lastRsi,
+				df.LastUpdate.In(Loc).Format("2006-01-02 15:04:05"),
+			)
+
+			strategyPosition.Useable = 1
+			strategyPosition.Side = string(model.SideTypeBuy)
+			strategyPosition.Score = lastRsi
+		}
+
+	}
+
+	return strategyPosition
+}
