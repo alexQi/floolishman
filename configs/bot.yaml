@@ -118,7 +118,7 @@ strategies:
   #  - Macd15m
   #  - "Grid1h"
   #  - "Resonance15m"
-  - "Scoop15m"
+  - "Scoop"
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop

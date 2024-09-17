@@ -41,7 +41,7 @@ var (
 )
 
 var (
-	CancelLimitDuration        time.Duration = 60
+	CancelLimitDuration        time.Duration = 180
 	CheckCloseInterval         time.Duration = 500
 	CheckLeverageInterval      time.Duration = 1000
 	CheckTimeoutInterval       time.Duration = 500
@@ -232,17 +232,17 @@ func (c *Base) RegiterPairGridBuilder() {
 	}
 }
 
-func (c *Base) PausePairCall(pair string) {
+func (c *Base) PausePairCall(pair string, minutes time.Duration) {
 	if c.pairOptions[pair].Status == false {
 		return
 	}
 	utils.Log.Infof(
 		"[CALLER - PAUSE：%s] Caller paused, will be resume at %v mins",
 		pair,
-		c.pairOptions[pair].PauseCaller,
+		minutes,
 	)
 	c.pairOptions[pair].Status = false
-	time.AfterFunc(time.Duration(c.pairOptions[pair].PauseCaller)*time.Minute, func() {
+	time.AfterFunc(minutes*time.Minute, func() {
 		c.pairOptions[pair].Status = true
 	})
 }

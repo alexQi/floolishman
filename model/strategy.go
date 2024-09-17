@@ -16,6 +16,7 @@ type Strategy struct {
 	Score        float64   `db:"score" json:"score"`
 	Tendency     string    `db:"tendency" json:"tendency"`
 	LastAtr      float64   `db:"last_atr" json:"last_atr"`
+	OpenPrice    float64   `db:"open_price" json:"open_price"`
 	IsFinal      int       `db:"is_final" json:"is_final"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
