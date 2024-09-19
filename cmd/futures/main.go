@@ -20,21 +20,6 @@ import (
 	"strings"
 )
 
-var ConstStraties = map[string]types.Strategy{
-	"Range15m":          &strategies.Range15m{},
-	"Momentum15m":       &strategies.Momentum15m{},
-	"MomentumVolume15m": &strategies.MomentumVolume15m{},
-	"Rsi1h":             &strategies.Rsi1h{},
-	"Emacross15m":       &strategies.Emacross15m{},
-	"Emacross1h":        &strategies.Emacross1h{},
-	"Rsi15m":            &strategies.Rsi15m{},
-	"Vibrate15m":        &strategies.Vibrate15m{},
-	"Kc15m":             &strategies.Kc15m{},
-	"Resonance15m":      &strategies.Resonance15m{},
-	"Scoop":             &strategies.Scoop{},
-	"Grid1h":            &strategies.Grid1h{},
-}
-
 func main() {
 	// 获取基础配置
 	var (
@@ -55,7 +40,7 @@ func main() {
 			IgnoreHours:               viper.GetIntSlice("caller.ignoreHours"),
 			Leverage:                  viper.GetInt("caller.leverage"),
 			MarginType:                futures.MarginType(viper.GetString("caller.marginType")),
-			MarginMode:                constants.MarginMode(viper.GetString("caller.marginMode")),
+			MarginMode:                model.MarginMode(viper.GetString("caller.marginMode")),
 			MarginSize:                viper.GetFloat64("caller.marginSize"),
 			ProfitableScale:           viper.GetFloat64("caller.profitableScale"),
 			ProfitableScaleDecrStep:   viper.GetFloat64("caller.profitableScaleDecrStep"),
@@ -165,12 +150,12 @@ func main() {
 		}
 	}
 
-	compositesStrategy := types.CompositesStrategy{}
+	compositesStrategy := model.CompositesStrategy{}
 	if callerSetting.CheckMode == "grid" {
 		compositesStrategy.Strategies = append(compositesStrategy.Strategies, &strategies.Grid1h{})
 	} else {
 		for _, strategyName := range strategiesSetting {
-			compositesStrategy.Strategies = append(compositesStrategy.Strategies, ConstStraties[strategyName])
+			compositesStrategy.Strategies = append(compositesStrategy.Strategies, constants.ConstStraties[strategyName])
 		}
 	}
 

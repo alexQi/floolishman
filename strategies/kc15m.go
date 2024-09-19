@@ -38,8 +38,8 @@ func (s Kc15m) Indicators(df *model.Dataframe) {
 	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
-func (s *Kc15m) OnCandle(df *model.Dataframe) model.Strategy {
-	strategyPosition := model.Strategy{
+func (s *Kc15m) OnCandle(df *model.Dataframe) model.PositionStrategy {
+	strategyPosition := model.PositionStrategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,

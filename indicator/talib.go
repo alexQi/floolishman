@@ -606,3 +606,11 @@ func PinBars(opens, closes, highs, lows []float64) ([]float64, []float64, []floa
 	}
 	return upperPinRates, lowPinRates, upperShadows, lowShadows
 }
+
+func PriceRate(opens, closes []float64) []float64 {
+	priceRates := []float64{}
+	for i := range opens {
+		priceRates = append(priceRates, calc.CalculatePriceRate(opens[i], closes[i]))
+	}
+	return priceRates
+}

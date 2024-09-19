@@ -3,7 +3,7 @@ mode: online
 # 交易对配置
 pairs:
   # 交易对名称
-  REEFUSDT:
+  1000PEPEUSDT:
     # 状态
     status: true
     # 杠杆倍数 需要带上小数点
@@ -118,11 +118,11 @@ strategies:
   #  - Macd15m
   #  - "Grid1h"
   #  - "Resonance15m"
-  - "Scoop"
+  - "Radicalization"
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop
-  checkMode: scoop
+  checkMode: candle
   # 忽略开单时段
   ignoreHours:
   # - 2
@@ -148,13 +148,13 @@ caller:
   # 仓位模式
   marginType: CROSSED
   # 保证金模式 ROLL 滚仓｜STATIC 静态 | | MARGIN 保证金
-  marginMode: ROLL
+  marginMode: STATIC
   # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量 | MARGIN 为USDT
-  marginSize: 0.2
+  marginSize: 150
   # 移动止盈后撤比例
   profitableScale: 0.0075
   # 移动止盈后撤比例-step 0.000125
-  profitableScaleDecrStep: 0.0002
+  profitableScaleDecrStep: 0.00025
   # 触发移动止损比例
   profitableTrigger: 0.005
   # 触发移动止损比例-step
@@ -163,10 +163,10 @@ caller:
   pullMarginLossRatio: 0.0018
   # 最大保证金比例
   maxMarginRatio: 0.0040
-  # 最大止损保证金比例 0.0075 为0：atr止损
-  maxMarginLossRatio: 0.0075
+  # 最大止损保证金比例 0.005 为0：atr止损
+  maxMarginLossRatio: 0.0
   # 暂停交易时常（分钟）
-  pauseCaller: 15
+  pauseCaller: 45
 # db存储位置
 storage:
   driver: sqlite

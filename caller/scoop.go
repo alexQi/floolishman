@@ -20,7 +20,7 @@ type ScoopCheckItem struct {
 	PairOption     *model.PairOption
 	Score          float64
 	LongShortRatio float64
-	Matchers       []model.Strategy
+	Matchers       []model.PositionStrategy
 }
 
 func (c *Scoop) Start() {
@@ -167,11 +167,11 @@ func (c *Scoop) EventCallClose(pair string) {
 	c.closeScoopPosition(c.pairOptions[pair])
 }
 
-func (s *Scoop) checkScoopPosition(option *model.PairOption) (float64, []model.Strategy) {
+func (s *Scoop) checkScoopPosition(option *model.PairOption) (float64, []model.PositionStrategy) {
 	s.mu[option.Pair].Lock()         // 加锁
 	defer s.mu[option.Pair].Unlock() // 解锁
 	if _, ok := s.samples[option.Pair]; !ok {
-		return -1, []model.Strategy{}
+		return -1, []model.PositionStrategy{}
 	}
 	matchers := s.strategy.CallMatchers(s.samples[option.Pair])
 	finalTendency, currentMatchers := s.Sanitizer(matchers)
@@ -189,7 +189,7 @@ func (s *Scoop) checkScoopPosition(option *model.PairOption) (float64, []model.S
 	return longShortRatio, currentMatchers
 }
 
-func (c *Scoop) openScoopPosition(option *model.PairOption, longShortRatio float64, strategies []model.Strategy) {
+func (c *Scoop) openScoopPosition(option *model.PairOption, longShortRatio float64, strategies []model.PositionStrategy) {
 	c.mu[option.Pair].Lock()         // 加锁
 	defer c.mu[option.Pair].Unlock() // 解锁
 
@@ -300,9 +300,10 @@ func (c *Scoop) openScoopPosition(option *model.PairOption, longShortRatio float
 	}
 	// 根据最新价格创建限价单
 	_, err = c.broker.CreateOrderLimit(finalSide, postionSide, option.Pair, amount, avgOpenPrice, model.OrderExtra{
-		Leverage:       option.Leverage,
-		LongShortRatio: longShortRatio,
-		StopLossPrice:  stopLossPrice,
+		Leverage:        option.Leverage,
+		LongShortRatio:  longShortRatio,
+		StopLossPrice:   stopLossPrice,
+		MatcherStrategy: strategies,
 	})
 	if err != nil {
 		utils.Log.Error(err)

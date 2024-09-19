@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"floolishman/indicator"
 	"floolishman/model"
-	"floolishman/utils"
 	"fmt"
 	"reflect"
 )
@@ -53,8 +52,8 @@ func (s Scoop) Indicators(df *model.Dataframe) {
 	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
-func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
-	strategyPosition := model.PositionStrategy{
+func (s *Scoop) OnCandle(df *model.Dataframe) model.Strategy {
+	strategyPosition := model.Strategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),
 		Pair:         df.Pair,
@@ -75,27 +74,13 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 
 	prevUpperPinRate := upperPinRates.Last(1)
 	prevLowerPinRate := lowPinRates.Last(1)
-
-	var upperShadowChangeRate, lowerShadowChangeRate float64
-	prevUpperShadow := upperShadows.Last(1)
-	prevLowerShadow := lowShadows.Last(1)
-	if prevUpperShadow == 0 {
-		upperShadowChangeRate = 0
-	} else {
-		upperShadowChangeRate = upperShadows.Last(0) / prevUpperShadow
-	}
-	if prevLowerShadow == 0 {
-		lowerShadowChangeRate = 0
-	} else {
-		lowerShadowChangeRate = lowShadows.Last(0) / prevLowerShadow
-	}
+	upperShadowChangeRate := upperShadows.Last(0) / upperShadows.Last(1)
+	lowerShadowChangeRate := lowShadows.Last(0) / lowShadows.Last(1)
 
 	amplitude := indicator.AMP(df.Open.Last(1), df.High.Last(1), df.Low.Last(1))
 	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 1, false)
 
 	openParams := map[string]interface{}{
-		"prevPrice":             df.Close.Last(1),
-		"lastPrice":             lastPrice,
 		"isUpperPinBar":         isUpperPinBar,
 		"isLowerPinBar":         isLowerPinBar,
 		"lastRsi":               lastRsi,
@@ -105,7 +90,6 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		"prevLowerPinRate":      prevLowerPinRate,
 		"upperShadowChangeRate": upperShadowChangeRate,
 		"lowerShadowChangeRate": lowerShadowChangeRate,
-		"openAt":                df.LastUpdate.In(Loc).Format("2006-01-02 15:04:05"),
 	}
 
 	// 将 map 转换为 JSON 字符串
@@ -115,8 +99,8 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	}
 	strategyPosition.OpenParams = string(openParamsBytes)
 
-	if isUpperPinBar && (prevRsi-lastRsi) > 10 && amplitude > 0.65 && prevUpperPinRate > 0.25 {
-		if prevRsi >= 80 && prevRsi < 85 {
+	if isUpperPinBar && (lastRsi-prevRsi) > 10 && amplitude > 0.65 && prevUpperPinRate > 0.25 {
+		if prevRsi >= 75 && prevRsi < 80 {
 			if amplitude < 1.2 {
 				if upperShadowChangeRate > 0.5 {
 					strategyPosition.Useable = 1
@@ -183,7 +167,7 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	}
 
 	if isLowerPinBar && (lastRsi-prevRsi) > 10 && amplitude > 0.65 && prevLowerPinRate > 0.25 {
-		if prevRsi >= 15 && prevRsi < 20 {
+		if prevRsi >= 18 && prevRsi < 24 {
 			if amplitude < 1.0 {
 				if lowerShadowChangeRate > 0.5 {
 					strategyPosition.Useable = 1
@@ -212,7 +196,7 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 				}
 			}
 		}
-		if prevRsi >= 10 && prevRsi < 15 {
+		if prevRsi >= 10 && prevRsi < 17 {
 			if amplitude < 1.0 {
 				if lowerShadowChangeRate > 0.4 {
 					strategyPosition.Useable = 1
@@ -247,10 +231,6 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 			strategyPosition.Score = 100 - lastRsi
 			strategyPosition.OpenPrice = lastPrice
 		}
-	}
-
-	if strategyPosition.Useable > 0 {
-		utils.Log.Tracef("[PARAMS] PositionSide:%s, %s", strategyPosition.Side, strategyPosition.OpenParams)
 	}
 
 	return strategyPosition

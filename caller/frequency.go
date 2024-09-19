@@ -11,11 +11,11 @@ var (
 )
 
 type PositionJudger struct {
-	Pair          string           //交易对
-	Matchers      []model.Strategy // 策略通过结果数组
-	TendencyCount map[string]int   // 趋势得分Map
-	Count         int              // 当前周期执行次数
-	CreatedAt     time.Time        // 本次Counter创建时间
+	Pair          string                   //交易对
+	Matchers      []model.PositionStrategy // 策略通过结果数组
+	TendencyCount map[string]int           // 趋势得分Map
+	Count         int                      // 当前周期执行次数
+	CreatedAt     time.Time                // 本次Counter创建时间
 }
 
 type Frequency struct {

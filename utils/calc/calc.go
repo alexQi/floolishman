@@ -91,12 +91,22 @@ func AccurateSub(a, b float64) float64 {
 	return result
 }
 
+func CalculatePriceRate(open, close float64) float64 {
+	return (close - open) / open
+}
+
 func GetPinBarRate(open, close, hight, low float64) (float64, float64, float64, float64) {
 	upperShadow := hight - Max(open, close)
 	lowerShadow := Min(open, close) - low
 	bodyLength := Abs(open - close)
 
-	return upperShadow / bodyLength, lowerShadow / bodyLength, upperShadow, lowerShadow
+	var upperBodyRate, lowerBodyRate float64
+	if bodyLength > 0 {
+		upperBodyRate = upperShadow / bodyLength
+		lowerBodyRate = lowerShadow / bodyLength
+	}
+
+	return upperBodyRate, lowerBodyRate, upperShadow, lowerShadow
 }
 
 func CheckPinBar(weight, n, prevBodyLength, open, close, hight, low float64) (bool, bool, float64, float64) {

@@ -45,7 +45,7 @@ type OrderExtra struct {
 	StopLossPrice        float64
 	MaxProfit            float64
 	MatcherStrategyCount map[string]int
-	MatcherStrategy      []Strategy
+	MatcherStrategy      []PositionStrategy
 }
 
 type Order struct {
@@ -71,8 +71,8 @@ type Order struct {
 	CreatedAt          time.Time        `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time        `db:"updated_at" json:"updated_at"`
 
-	MatcherStrategyCount map[string]int `json:"-" gorm:"-"`
-	MatcherStrategy      []Strategy     `json:"-" gorm:"-"`
+	MatcherStrategyCount map[string]int     `json:"-" gorm:"-"`
+	MatcherStrategy      []PositionStrategy `json:"-" gorm:"-"`
 }
 
 type OrderParam struct {

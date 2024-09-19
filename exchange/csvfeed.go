@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"github.com/xhit/go-str2duration/v2"
 	"math"
 	"os"
 	"strconv"
@@ -67,7 +68,7 @@ func parseHeaders(headers []string) (index map[string]int, additional []string, 
 }
 
 // NewCSVFeed creates a new data feed from CSV files and resample
-func NewCSVFeed(feeds ...PairFeed) (*CSVFeed, error) {
+func NewCSVFeed(targetTimeframe string, feeds ...PairFeed) (*CSVFeed, error) {
 	csvFeed := &CSVFeed{
 		Feeds:               make(map[string]PairFeed),
 		CandlePairTimeFrame: make(map[string][]model.Candle),
@@ -151,6 +152,10 @@ func NewCSVFeed(feeds ...PairFeed) (*CSVFeed, error) {
 		}
 
 		csvFeed.CandlePairTimeFrame[csvFeed.feedTimeframeKey(feed.Pair, feed.Timeframe)] = candles
+		err = csvFeed.resample(feed.Pair, feed.Timeframe, targetTimeframe)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return csvFeed, nil
@@ -176,6 +181,107 @@ func (c *CSVFeed) Limit(duration time.Duration) *CSVFeed {
 		})
 	}
 	return c
+}
+
+func isFistCandlePeriod(t time.Time, fromTimeframe, targetTimeframe string) (bool, error) {
+	fromDuration, err := str2duration.ParseDuration(fromTimeframe)
+	if err != nil {
+		return false, err
+	}
+
+	prev := t.Add(-fromDuration).UTC()
+
+	return isLastCandlePeriod(prev, fromTimeframe, targetTimeframe)
+}
+
+func isLastCandlePeriod(t time.Time, fromTimeframe, targetTimeframe string) (bool, error) {
+	if fromTimeframe == targetTimeframe {
+		return true, nil
+	}
+
+	fromDuration, err := str2duration.ParseDuration(fromTimeframe)
+	if err != nil {
+		return false, err
+	}
+
+	next := t.Add(fromDuration).UTC()
+
+	switch targetTimeframe {
+	case "1m":
+		return next.Second()%60 == 0, nil
+	case "5m":
+		return next.Minute()%5 == 0, nil
+	case "10m":
+		return next.Minute()%10 == 0, nil
+	case "15m":
+		return next.Minute()%15 == 0, nil
+	case "30m":
+		return next.Minute()%30 == 0, nil
+	case "1h":
+		return next.Minute()%60 == 0, nil
+	case "2h":
+		return next.Minute() == 0 && next.Hour()%2 == 0, nil
+	case "4h":
+		return next.Minute() == 0 && next.Hour()%4 == 0, nil
+	case "12h":
+		return next.Minute() == 0 && next.Hour()%12 == 0, nil
+	case "1d":
+		return next.Minute() == 0 && next.Hour()%24 == 0, nil
+	case "1w":
+		return next.Minute() == 0 && next.Hour()%24 == 0 && next.Weekday() == time.Sunday, nil
+	}
+
+	return false, fmt.Errorf("invalid timeframe: %s", targetTimeframe)
+}
+
+func (c *CSVFeed) resample(pair, sourceTimeframe, targetTimeframe string) error {
+	sourceKey := c.feedTimeframeKey(pair, sourceTimeframe)
+	targetKey := c.feedTimeframeKey(pair, targetTimeframe)
+
+	if sourceKey == targetKey {
+		return nil
+	}
+
+	var i int
+	for ; i < len(c.CandlePairTimeFrame[sourceKey]); i++ {
+		if ok, err := isFistCandlePeriod(c.CandlePairTimeFrame[sourceKey][i].Time, sourceTimeframe,
+			targetTimeframe); err != nil {
+			return err
+		} else if ok {
+			break
+		}
+	}
+
+	candles := make([]model.Candle, 0)
+	for ; i < len(c.CandlePairTimeFrame[sourceKey]); i++ {
+		candle := c.CandlePairTimeFrame[sourceKey][i]
+		if last, err := isLastCandlePeriod(candle.Time, sourceTimeframe, targetTimeframe); err != nil {
+			return err
+		} else if last {
+			candle.Complete = true
+		} else {
+			candle.Complete = false
+		}
+
+		lastIndex := len(candles) - 1
+		if lastIndex >= 0 && !candles[lastIndex].Complete {
+			candle.Time = candles[lastIndex].Time
+			candle.Open = candles[lastIndex].Open
+			candle.High = math.Max(candles[lastIndex].High, candle.High)
+			candle.Low = math.Min(candles[lastIndex].Low, candle.Low)
+			candle.Volume += candles[lastIndex].Volume
+		}
+		candles = append(candles, candle)
+	}
+
+	// remove last candle if not complete
+	if !candles[len(candles)-1].Complete {
+		candles = candles[:len(candles)-1]
+	}
+
+	c.CandlePairTimeFrame[targetKey] = candles
+
+	return nil
 }
 
 func (c CSVFeed) CandlesByPeriod(_ context.Context, pair, timeframe string,

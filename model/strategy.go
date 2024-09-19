@@ -1,23 +1,62 @@
 package model
 
 import (
-	"time"
+	"floolishman/utils"
+	"reflect"
 )
 
-type Strategy struct {
-	ID           int64     `db:"id" json:"id" gorm:"primaryKey,autoIncrement"`
-	Pair         string    `db:"pair" json:"pair"`
-	OrderFlag    string    `db:"order_flag" json:"order_flag"`
-	Type         string    `db:"type" json:"type"`
-	Useable      int       `db:"useable" json:"useable"`
-	ChaseMode    int       `db:"chase_mode" json:"chase_mode"`
-	Side         string    `db:"side" json:"side"`
-	StrategyName string    `db:"strategy_name" json:"strategy_name"`
-	Score        float64   `db:"score" json:"score"`
-	Tendency     string    `db:"tendency" json:"tendency"`
-	LastAtr      float64   `db:"last_atr" json:"last_atr"`
-	OpenPrice    float64   `db:"open_price" json:"open_price"`
-	IsFinal      int       `db:"is_final" json:"is_final"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+type Strategy interface {
+	// 策略排序得分
+	SortScore() float64
+	// Timeframe is the time interval in which the strategy will be executed. eg: 1h, 1d, 1w
+	Timeframe() string
+	// WarmupPeriod is the necessary time to wait before executing the strategy, to load data for indicators.
+	// This time is measured in the period specified in the `Timeframe` function.
+	WarmupPeriod() int
+	// Indicators will be executed for each new candle, in order to fill indicators before `OnCandle` function is called.
+	Indicators(df *Dataframe)
+	// OnCandle will be executed for each new candle, after indicators are filled, here you can do your trading logic.
+	// OnCandle is executed after the candle close.
+	OnCandle(df *Dataframe) PositionStrategy
+}
+
+type CompositesStrategy struct {
+	Strategies   []Strategy
+	PositionSize float64 // 每次交易的仓位大小
+}
+
+func (cs *CompositesStrategy) Stdout() {
+	for _, strategy := range cs.Strategies {
+		utils.Log.Infof("[STRATEGY] Loaded Strategy: %s, Timeframe: %s", reflect.TypeOf(strategy).Elem().Name(), strategy.Timeframe())
+	}
+}
+
+// TimeFrameMap 获取当前策略时间周期对应的热启动区间数
+func (cs *CompositesStrategy) TimeWarmupMap() map[string]int {
+	timeFrames := make(map[string]int)
+	for _, strategy := range cs.Strategies {
+		originPeriod, ok := timeFrames[strategy.Timeframe()]
+		if ok {
+			if strategy.WarmupPeriod() <= originPeriod {
+				continue
+			}
+		}
+		timeFrames[strategy.Timeframe()] = strategy.WarmupPeriod()
+	}
+	return timeFrames
+}
+
+func (cs *CompositesStrategy) CallMatchers(dataframes map[string]map[string]*Dataframe) []PositionStrategy {
+	var strategyName string
+	matchers := []PositionStrategy{}
+	for _, strategy := range cs.Strategies {
+		strategyName = reflect.TypeOf(strategy).Elem().Name()
+		if dataframes[strategy.Timeframe()][strategyName].Close == nil ||
+			len(dataframes[strategy.Timeframe()][strategyName].Close) < strategy.WarmupPeriod() {
+			continue
+		}
+		strategyPosition := strategy.OnCandle(dataframes[strategy.Timeframe()][strategyName])
+		matchers = append(matchers, strategyPosition)
+	}
+	return matchers
 }

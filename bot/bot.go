@@ -40,7 +40,7 @@ type Bot struct {
 	exchange             reference.Exchange
 	notifier             reference.Notifier
 	telegram             reference.Telegram
-	strategy             types.CompositesStrategy
+	strategy             model.CompositesStrategy
 	paperWallet          *exchange.PaperWallet
 	serviceOrder         *service.ServiceOrder
 	serviceStrategy      *service.ServiceStrategy
@@ -52,7 +52,7 @@ type Bot struct {
 
 type Option func(*Bot)
 
-func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, callerSetting types.CallerSetting, strategy types.CompositesStrategy,
+func NewBot(ctx context.Context, settings model.Settings, exch reference.Exchange, callerSetting types.CallerSetting, strategy model.CompositesStrategy,
 	options ...Option) (*Bot, error) {
 	// 初始化bot参数
 	bot := &Bot{

@@ -53,7 +53,7 @@ func (c *Candle) closePosition(option *model.PairOption) {
 		// 监控已成交仓位，记录订单成交时间+指定时间作为时间止损
 		lossLimitTime, ok := c.lossLimitTimes.Get(openedPosition.OrderFlag)
 		if !ok {
-			lossLimitTime = openedPosition.UpdatedAt.Add(time.Duration(c.setting.LossTimeDuration) * time.Minute)
+			lossLimitTime = openedPosition.CreatedAt.Add(time.Duration(c.setting.LossTimeDuration) * time.Minute)
 			c.lossLimitTimes.Set(openedPosition.OrderFlag, lossLimitTime)
 		}
 		// 时间未达到新的止损限制时间

@@ -728,7 +728,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		}
 		_, quote := exchange.SplitAssetQuote(o.Pair)
 		c.notify(fmt.Sprintf(
-			"[SUMMARY] %f %s %.2f%%) \n %s",
+			"[SUMMARY] %+f %s %.2f%%) \n %s",
 			result.ProfitValue,
 			quote,
 			result.ProfitPercent*100.00,
@@ -943,9 +943,6 @@ func (c *ServiceOrder) CreateOrderLimit(side model.SideType, positionSide model.
 			}
 			extra.MatcherStrategy[i].OrderFlag = order.OrderFlag
 		}
-		if len(extra.MatcherStrategy) > 1 {
-			fmt.Print(extra.MatcherStrategyCount)
-		}
 		err := c.storage.CreateStrategy(extra.MatcherStrategy)
 		if err != nil {
 			utils.Log.Error(err)
@@ -953,6 +950,12 @@ func (c *ServiceOrder) CreateOrderLimit(side model.SideType, positionSide model.
 		}
 	}()
 	utils.Log.Infof("[ORDER CREATED] %s", order)
+	if order.Status == model.OrderStatusTypeFilled {
+		utils.Log.Infof("[ORDER %s] %s", order.Status, order)
+
+		c.processTrade(&order)
+		go c.orderFeed.Publish(order, true)
+	}
 	return order, nil
 }
 

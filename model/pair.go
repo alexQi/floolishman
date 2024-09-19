@@ -1,11 +1,18 @@
 package model
 
 import (
-	"floolishman/constants"
 	"fmt"
 	"github.com/adshao/go-binance/v2/futures"
 	"log"
 	"strings"
+)
+
+type MarginMode string
+
+var (
+	MarginModeRoll   MarginMode = "ROLL"
+	MarginModeStatic MarginMode = "STATIC"
+	MarginModeMargin MarginMode = "MARGIN"
 )
 
 type PairOption struct {
@@ -14,7 +21,7 @@ type PairOption struct {
 	Leverage                   int
 	IgnoreHours                []int
 	MarginType                 futures.MarginType
-	MarginMode                 constants.MarginMode
+	MarginMode                 MarginMode
 	MarginSize                 float64
 	MaxGridStep                float64
 	MinGridStep                float64
@@ -40,6 +47,9 @@ func (o PairOption) String() string {
 }
 
 func BuildPairOption(defaultOption PairOption, valMap map[string]interface{}) PairOption {
+	if valMap == nil {
+		return defaultOption
+	}
 	// 检查并处理 status
 	status, ok := valMap["status"].(bool)
 	if !ok {
@@ -84,7 +94,7 @@ func BuildPairOption(defaultOption PairOption, valMap map[string]interface{}) Pa
 	// 保证金模式
 	marginMode, ok := valMap["marginmode"].(string)
 	if ok {
-		defaultOption.MarginMode = constants.MarginMode(strings.ToUpper(marginMode))
+		defaultOption.MarginMode = MarginMode(strings.ToUpper(marginMode))
 	}
 	// 保证金大小
 	marginSize, ok := valMap["marginsize"].(float64)

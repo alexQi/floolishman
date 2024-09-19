@@ -1,7 +1,7 @@
 package types
 
 import (
-	"floolishman/constants"
+	"floolishman/model"
 	"github.com/adshao/go-binance/v2/futures"
 )
 
@@ -15,7 +15,7 @@ type CallerSetting struct {
 	IgnoreHours               []int
 	Leverage                  int
 	MarginType                futures.MarginType
-	MarginMode                constants.MarginMode
+	MarginMode                model.MarginMode
 	MarginSize                float64
 	ProfitableScale           float64
 	ProfitableScaleDecrStep   float64

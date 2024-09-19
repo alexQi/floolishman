@@ -42,7 +42,7 @@ func FromSQL(dialect gorm.Dialector, opts ...gorm.Option) (Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = db.AutoMigrate(&model.Strategy{})
+	err = db.AutoMigrate(&model.PositionStrategy{})
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func FromSQL(dialect gorm.Dialector, opts ...gorm.Option) (Storage, error) {
 func (s *SQL) ResetTables() error {
 	tables := []interface{}{
 		&model.Order{},
-		&model.Strategy{},
+		&model.PositionStrategy{},
 		&model.Position{},
 		&model.GuiderItem{},
 		&model.GuiderSymbolConfig{},
@@ -95,7 +95,7 @@ func (s *SQL) ResetTables() error {
 	return nil
 }
 
-func (s *SQL) CreateStrategy(strategies []model.Strategy) error {
+func (s *SQL) CreateStrategy(strategies []model.PositionStrategy) error {
 	for _, strategy := range strategies {
 		//新增
 		result := s.db.Create(&strategy)
@@ -106,8 +106,8 @@ func (s *SQL) CreateStrategy(strategies []model.Strategy) error {
 	return nil
 }
 
-func (s *SQL) Strategies(filterParams StrategyFilterParams) ([]*model.Strategy, error) {
-	strategies := make([]*model.Strategy, 0)
+func (s *SQL) Strategies(filterParams StrategyFilterParams) ([]*model.PositionStrategy, error) {
+	strategies := make([]*model.PositionStrategy, 0)
 	query := s.db
 	if len(filterParams.Pair) > 0 {
 		query = query.Where("pair=?", filterParams.Pair)

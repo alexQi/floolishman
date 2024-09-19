@@ -129,7 +129,7 @@ func (c *Watchdog) openWithLongShortRatio(option *model.PairOption, longShortRat
 		quotePosition,
 		longShortRatio,
 		map[string]int{"watchdog": 1},
-		[]model.Strategy{},
+		[]model.PositionStrategy{},
 	)
 }
 

@@ -59,7 +59,7 @@ func (c *Common) RegisterOrderSignal() {
 func (c *Common) ResetJudger(pair string) {
 	c.positionJudgers[pair] = &PositionJudger{
 		Pair:          pair,
-		Matchers:      []model.Strategy{},
+		Matchers:      []model.PositionStrategy{},
 		TendencyCount: make(map[string]int),
 		Count:         0,
 		CreatedAt:     time.Now(),
@@ -80,11 +80,11 @@ func (s *Common) EventCallClose(pair string) {
 	s.closePosition(s.pairOptions[pair])
 }
 
-func (s *Common) checkPosition(option *model.PairOption) (float64, float64, float64, []model.Strategy, map[string]int) {
+func (s *Common) checkPosition(option *model.PairOption) (float64, float64, float64, []model.PositionStrategy, map[string]int) {
 	s.mu[option.Pair].Lock()         // 加锁
 	defer s.mu[option.Pair].Unlock() // 解锁
 	if _, ok := s.samples[option.Pair]; !ok {
-		return 0, 0, -1, []model.Strategy{}, map[string]int{}
+		return 0, 0, -1, []model.PositionStrategy{}, map[string]int{}
 	}
 	matchers := s.strategy.CallMatchers(s.samples[option.Pair])
 	finalTendency, currentMatchers := s.Sanitizer(matchers)
@@ -110,7 +110,7 @@ func (s *Common) checkPosition(option *model.PairOption) (float64, float64, floa
 	return assetPosition, quotePosition, longShortRatio, currentMatchers, matcherStrategy
 }
 
-func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosition, longShortRatio float64, matcherStrategy map[string]int, strategies []model.Strategy) {
+func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosition, longShortRatio float64, matcherStrategy map[string]int, strategies []model.PositionStrategy) {
 	c.mu[option.Pair].Lock()         // 加锁
 	defer c.mu[option.Pair].Unlock() // 解锁
 	// 无资产
@@ -461,10 +461,10 @@ func (c *Common) finishPosition(seasonType SeasonType, position *model.Position)
 	}
 }
 
-func (c *Common) Sanitizer(matchers []model.Strategy) (string, []model.Strategy) {
+func (c *Common) Sanitizer(matchers []model.PositionStrategy) (string, []model.PositionStrategy) {
 	var finalTendency string
 	// 初始化变量
-	currentMatchers := []model.Strategy{}
+	currentMatchers := []model.PositionStrategy{}
 	// 调用策略执行器
 	// 如果没有匹配的策略位置，直接返回空方向
 	if len(matchers) == 0 {
@@ -515,7 +515,7 @@ func (c *Common) Sanitizer(matchers []model.Strategy) (string, []model.Strategy)
 	return finalTendency, currentMatchers
 }
 
-func (c *Common) getStrategyLongShortRatio(finalTendency string, currentMatchers []model.Strategy) (float64, map[string]int) {
+func (c *Common) getStrategyLongShortRatio(finalTendency string, currentMatchers []model.PositionStrategy) (float64, map[string]int) {
 	longShortRatio := -1.0
 	totalScore := 0.0
 	matcherMapScore := make(map[string]float64)

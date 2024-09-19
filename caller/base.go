@@ -65,7 +65,7 @@ var ConstCallers = map[string]reference.Caller{
 type Base struct {
 	ctx             context.Context
 	mu              map[string]*sync.Mutex
-	strategy        types.CompositesStrategy
+	strategy        model.CompositesStrategy
 	setting         types.CallerSetting
 	broker          reference.Broker
 	exchange        reference.Exchange
@@ -98,7 +98,7 @@ type Base struct {
 
 func NewCaller(
 	ctx context.Context,
-	strategy types.CompositesStrategy,
+	strategy model.CompositesStrategy,
 	broker reference.Broker,
 	exchange reference.Exchange,
 	setting types.CallerSetting,
@@ -110,7 +110,7 @@ func NewCaller(
 
 func (c *Base) Init(
 	ctx context.Context,
-	strategy types.CompositesStrategy,
+	strategy model.CompositesStrategy,
 	broker reference.Broker,
 	exchange reference.Exchange,
 	setting types.CallerSetting,
@@ -756,13 +756,13 @@ func (c *Base) findProfitLevel(pair string, profit float64) *model.StopProfitLev
 func (c *Base) getPositionMargin(quotePosition, currentPrice float64, option *model.PairOption) float64 {
 	var amount float64
 	switch option.MarginMode {
-	case constants.MarginModeRoll:
+	case model.MarginModeRoll:
 		amount = calc.OpenPositionSize(quotePosition, float64(option.Leverage), currentPrice, option.MarginSize)
 		break
-	case constants.MarginModeMargin:
+	case model.MarginModeMargin:
 		amount = calc.PositionSize(option.MarginSize, float64(option.Leverage), currentPrice)
 		break
-	case constants.MarginModeStatic:
+	case model.MarginModeStatic:
 		amount = option.MarginSize
 		break
 	default:

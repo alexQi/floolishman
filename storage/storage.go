@@ -40,8 +40,8 @@ type Storage interface {
 	UpdatePosition(position *model.Position) error
 	GetPosition(filterParams PositionFilterParams) (*model.Position, error)
 	Positions(filterParams PositionFilterParams) ([]*model.Position, error)
-	CreateStrategy(strategies []model.Strategy) error
-	Strategies(filterParams StrategyFilterParams) ([]*model.Strategy, error)
+	CreateStrategy(strategies []model.PositionStrategy) error
+	Strategies(filterParams StrategyFilterParams) ([]*model.PositionStrategy, error)
 	CreateGuiderItems(guiderItems []model.GuiderItem) error
 	CreateSymbolConfigs(guiderSymbolConfigs []model.GuiderSymbolConfig) error
 	CreateGuiderPositions(portfolioIds []string, guiderPositions []*model.GuiderPosition) error

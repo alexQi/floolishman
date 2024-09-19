@@ -59,8 +59,8 @@ func (p *PaperWallet) AssetsInfo(pair string) model.AssetInfo {
 		QuoteAsset:         quote,
 		MaxPrice:           math.MaxFloat64,
 		MaxQuantity:        math.MaxFloat64,
-		StepSize:           0.001,
-		TickSize:           0.001,
+		StepSize:           0.00000001,
+		TickSize:           0.00000001,
 		QuotePrecision:     8,
 		BaseAssetPrecision: 8,
 	}
@@ -384,6 +384,34 @@ func (p *PaperWallet) updateFunds(order *model.Order) error {
 		return nil
 	}
 	leverage := float64(p.PairOptions[order.Pair].Leverage) // 获取合约杠杆倍数
+	// 开多单
+	if order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeLong {
+		if order.Status != model.OrderStatusTypeFilled {
+			return nil
+		}
+		if _, ok := p.assets[quote]; !ok {
+			p.assets[quote] = &assetInfo{}
+		}
+		var orderPrice float64
+		if order.Type == model.OrderTypeLimit {
+			orderPrice = order.Price
+		}
+		volume := orderPrice * order.Quantity
+		// 锁定的资产
+		lockQuote := volume / leverage
+		if p.assets[quote].Free < lockQuote {
+			return ErrInsufficientFunds
+		}
+
+		p.volume[order.Pair] += volume
+		// update assets size
+		p.updateAveragePrice(order.Side, order.Pair, order.Quantity, orderPrice)
+		p.assets[asset].Free = 0
+		p.assets[asset].Lock += order.Quantity
+
+		p.assets[quote].Lock += lockQuote
+		p.assets[quote].Free -= lockQuote
+	}
 	// 平多单
 	if order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeLong {
 		if order.Status != model.OrderStatusTypeFilled {
@@ -419,6 +447,36 @@ func (p *PaperWallet) updateFunds(order *model.Order) error {
 		utils.Log.Debugf("%s -> LOCK = %f / FREE %f", asset, p.assets[asset].Lock, p.assets[asset].Free)
 
 		p.CalculateEquityValue(order.UpdatedAt, order.PositionSide, order.Pair, order.Quantity)
+	}
+	// 开空单
+	if order.Side == model.SideTypeSell && order.PositionSide == model.PositionSideTypeShort {
+		if order.Status != model.OrderStatusTypeFilled {
+			return nil
+		}
+		if _, ok := p.assets[quote]; !ok {
+			p.assets[quote] = &assetInfo{}
+		}
+		var orderPrice float64
+		if order.Type == model.OrderTypeLimit {
+			orderPrice = order.Price
+		}
+		volume := orderPrice * order.Quantity
+
+		// 锁定的资产
+		lockQuote := volume / leverage
+		if p.assets[quote].Free < lockQuote {
+			return ErrInsufficientFunds
+		}
+
+		p.volume[order.Pair] += volume
+
+		// update assets size
+		p.updateAveragePrice(order.Side, order.Pair, order.Quantity, orderPrice)
+		p.assets[asset].Free = 0
+		p.assets[asset].Lock -= order.Quantity
+
+		p.assets[quote].Lock += lockQuote
+		p.assets[quote].Free -= lockQuote
 	}
 	// 平空单
 	if order.Side == model.SideTypeBuy && order.PositionSide == model.PositionSideTypeShort {
@@ -743,6 +801,20 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, positionSide model.P
 		MatcherStrategy:      extra.MatcherStrategy,
 		StopLossPrice:        extra.StopLossPrice,
 	}
+	if positionSide == model.PositionSideTypeShort {
+		if p.lastCandle[pair].High >= order.Price {
+			order.Status = model.OrderStatusTypeFilled
+		}
+	} else {
+		if p.lastCandle[pair].Low <= order.Price {
+			order.Status = model.OrderStatusTypeFilled
+		}
+	}
+	err = p.updateFunds(&order)
+	if err != nil {
+		return model.Order{}, err
+	}
+
 	p.orders = append(p.orders, order)
 	return order, nil
 }

@@ -10,7 +10,7 @@ import (
 type Caller interface {
 	Start()
 	OpenTube(pair string)
-	Init(context.Context, types.CompositesStrategy, Broker, Exchange, types.CallerSetting)
+	Init(context.Context, model.CompositesStrategy, Broker, Exchange, types.CallerSetting)
 	SetPair(option model.PairOption)
 	SetSample(pair string, timeframe string, strategyName string, dataframe *model.Dataframe)
 	UpdatePairInfo(pair string, price float64, volume float64, updatedAt time.Time)

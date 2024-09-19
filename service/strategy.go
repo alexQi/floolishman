@@ -13,7 +13,7 @@ import (
 
 type ServiceStrategy struct {
 	ctx         context.Context
-	strategy    types.CompositesStrategy
+	strategy    model.CompositesStrategy
 	dataframes  map[string]map[string]*model.Dataframe
 	realCandles map[string]map[string]*model.Candle
 	caller      reference.Caller
@@ -23,7 +23,7 @@ type ServiceStrategy struct {
 	mu          sync.Mutex
 }
 
-func NewServiceStrategy(ctx context.Context, checkMode string, strategy types.CompositesStrategy, caller reference.Caller, backtest bool) *ServiceStrategy {
+func NewServiceStrategy(ctx context.Context, checkMode string, strategy model.CompositesStrategy, caller reference.Caller, backtest bool) *ServiceStrategy {
 	return &ServiceStrategy{
 		ctx:         ctx,
 		dataframes:  make(map[string]map[string]*model.Dataframe),
