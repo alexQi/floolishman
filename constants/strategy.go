@@ -19,6 +19,7 @@ var ConstStraties = map[string]model.Strategy{
 	"Kc15m":             &strategies.Kc15m{},
 	"Macd15m":           &strategies.Macd15m{},
 	"Scoop":             &strategies.Scoop{},
+	"Scooper":           &strategies.Scooper{},
 	"Radicalization":    &strategies.Radicalization{},
 	"Grid1h":            &strategies.Grid1h{},
 }

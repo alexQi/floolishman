@@ -91,7 +91,7 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	}
 
 	amplitude := indicator.AMP(df.Open.Last(1), df.High.Last(1), df.Low.Last(1))
-	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 1, false)
+	isUpperPinBar, isLowerPinBar := s.batchCheckPinBar(df, 2, 1, false)
 
 	openParams := map[string]interface{}{
 		"prevPrice":             df.Close.Last(1),
@@ -115,29 +115,28 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	}
 	strategyPosition.OpenParams = string(openParamsBytes)
 
-	if isUpperPinBar && (prevRsi-lastRsi) > 10 && amplitude > 0.65 && prevUpperPinRate > 0.25 {
-		if prevRsi >= 80 && prevRsi < 85 {
+	if isUpperPinBar && !isLowerPinBar && (prevRsi-lastRsi) > 8.5 && amplitude > 0.65 && prevUpperPinRate > 0.25 {
+		if prevRsi >= 80 && prevRsi < 86 {
 			if amplitude < 1.2 {
+				if upperShadowChangeRate > 0.55 {
+					strategyPosition.Useable = 1
+					strategyPosition.Side = string(model.SideTypeSell)
+					strategyPosition.Score = lastRsi
+				}
+			} else if amplitude > 1.2 && amplitude < 2.2 {
 				if upperShadowChangeRate > 0.5 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeSell)
 					strategyPosition.Score = lastRsi
 				}
-			} else if amplitude > 1.2 && amplitude < 2.1 {
-				if upperShadowChangeRate > 0.4 {
+			} else if amplitude > 2.2 && amplitude < 4.0 {
+				if upperShadowChangeRate > 0.45 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeSell)
 					strategyPosition.Score = lastRsi
-				}
-			} else if amplitude > 2.1 && amplitude < 4.0 {
-				if upperShadowChangeRate > 0.3 {
-					strategyPosition.Useable = 1
-					strategyPosition.Side = string(model.SideTypeSell)
-					strategyPosition.Score = lastRsi
-					strategyPosition.OpenPrice = lastPrice
 				}
 			} else {
-				if upperShadowChangeRate > 0.2 {
+				if upperShadowChangeRate > 0.4 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeSell)
 					strategyPosition.Score = lastRsi
@@ -145,28 +144,27 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 				}
 			}
 		}
-		if prevRsi >= 85 && prevRsi < 92.5 {
+		if prevRsi >= 86 && prevRsi < 92 {
 			if amplitude < 1.2 {
-				if upperShadowChangeRate > 0.4 {
+				if upperShadowChangeRate > 0.55 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeSell)
 					strategyPosition.Score = lastRsi
 				}
 			} else if amplitude > 1.2 && amplitude < 2.1 {
-				if upperShadowChangeRate > 0.3 {
+				if upperShadowChangeRate > 0.45 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeSell)
 					strategyPosition.Score = lastRsi
 				}
 			} else if amplitude > 2.1 && amplitude < 4.0 {
-				if upperShadowChangeRate > 0.2 {
+				if upperShadowChangeRate > 0.4 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeSell)
 					strategyPosition.Score = lastRsi
-					strategyPosition.OpenPrice = lastPrice
 				}
 			} else {
-				if upperShadowChangeRate > 0.15 {
+				if upperShadowChangeRate > 0.35 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeSell)
 					strategyPosition.Score = lastRsi
@@ -174,7 +172,7 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 				}
 			}
 		}
-		if prevRsi >= 92.5 && upperShadowChangeRate > 0.1 {
+		if prevRsi >= 92 && upperShadowChangeRate > 0.3 {
 			strategyPosition.Useable = 1
 			strategyPosition.Side = string(model.SideTypeSell)
 			strategyPosition.Score = lastRsi
@@ -182,29 +180,28 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		}
 	}
 
-	if isLowerPinBar && (lastRsi-prevRsi) > 10 && amplitude > 0.65 && prevLowerPinRate > 0.25 {
-		if prevRsi >= 15 && prevRsi < 20 {
-			if amplitude < 1.0 {
+	if isLowerPinBar && !isUpperPinBar && (lastRsi-prevRsi) > 8.5 && amplitude > 0.65 && prevLowerPinRate > 0.25 {
+		if prevRsi >= 18 && prevRsi < 24 {
+			if amplitude < 1.2 {
+				if lowerShadowChangeRate > 0.55 {
+					strategyPosition.Useable = 1
+					strategyPosition.Side = string(model.SideTypeBuy)
+					strategyPosition.Score = 100 - lastRsi
+				}
+			} else if amplitude > 1.2 && amplitude < 2.4 {
 				if lowerShadowChangeRate > 0.5 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeBuy)
 					strategyPosition.Score = 100 - lastRsi
 				}
-			} else if amplitude > 1 && amplitude < 2.5 {
-				if lowerShadowChangeRate > 0.4 {
+			} else if amplitude > 2.4 && amplitude < 4.0 {
+				if lowerShadowChangeRate > 0.45 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeBuy)
 					strategyPosition.Score = 100 - lastRsi
-				}
-			} else if amplitude > 2.5 && amplitude < 4.0 {
-				if lowerShadowChangeRate > 0.3 {
-					strategyPosition.Useable = 1
-					strategyPosition.Side = string(model.SideTypeBuy)
-					strategyPosition.Score = 100 - lastRsi
-					strategyPosition.OpenPrice = lastPrice
 				}
 			} else {
-				if lowerShadowChangeRate > 0.2 {
+				if lowerShadowChangeRate > 0.4 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeBuy)
 					strategyPosition.Score = 100 - lastRsi
@@ -212,28 +209,27 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 				}
 			}
 		}
-		if prevRsi >= 10 && prevRsi < 15 {
-			if amplitude < 1.0 {
+		if prevRsi >= 10 && prevRsi < 18 {
+			if amplitude < 1.2 {
+				if lowerShadowChangeRate > 0.50 {
+					strategyPosition.Useable = 1
+					strategyPosition.Side = string(model.SideTypeBuy)
+					strategyPosition.Score = 100 - lastRsi
+				}
+			} else if amplitude > 1.2 && amplitude < 2.4 {
+				if lowerShadowChangeRate > 0.45 {
+					strategyPosition.Useable = 1
+					strategyPosition.Side = string(model.SideTypeBuy)
+					strategyPosition.Score = 100 - lastRsi
+				}
+			} else if amplitude > 2.4 && amplitude < 4.0 {
 				if lowerShadowChangeRate > 0.4 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeBuy)
 					strategyPosition.Score = 100 - lastRsi
 				}
-			} else if amplitude > 1 && amplitude < 2.5 {
-				if lowerShadowChangeRate > 0.3 {
-					strategyPosition.Useable = 1
-					strategyPosition.Side = string(model.SideTypeBuy)
-					strategyPosition.Score = 100 - lastRsi
-				}
-			} else if amplitude > 2.5 && amplitude < 4.0 {
-				if lowerShadowChangeRate > 0.2 {
-					strategyPosition.Useable = 1
-					strategyPosition.Side = string(model.SideTypeBuy)
-					strategyPosition.Score = 100 - lastRsi
-					strategyPosition.OpenPrice = lastPrice
-				}
 			} else {
-				if lowerShadowChangeRate > 0.15 {
+				if lowerShadowChangeRate > 0.35 {
 					strategyPosition.Useable = 1
 					strategyPosition.Side = string(model.SideTypeBuy)
 					strategyPosition.Score = 100 - lastRsi
@@ -241,7 +237,7 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 				}
 			}
 		}
-		if prevRsi < 10 && lowerShadowChangeRate > 0.1 {
+		if prevRsi < 10 && lowerShadowChangeRate > 0.3 {
 			strategyPosition.Useable = 1
 			strategyPosition.Side = string(model.SideTypeBuy)
 			strategyPosition.Score = 100 - lastRsi
@@ -250,7 +246,7 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	}
 
 	if strategyPosition.Useable > 0 {
-		utils.Log.Tracef("[PARAMS] PositionSide:%s, %s", strategyPosition.Side, strategyPosition.OpenParams)
+		utils.Log.Infof("[PARAMS] PositionSide:%s, %s", strategyPosition.Side, strategyPosition.OpenParams)
 	}
 
 	return strategyPosition

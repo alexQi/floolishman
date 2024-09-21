@@ -952,9 +952,7 @@ func (c *ServiceOrder) CreateOrderLimit(side model.SideType, positionSide model.
 	utils.Log.Infof("[ORDER CREATED] %s", order)
 	if order.Status == model.OrderStatusTypeFilled {
 		utils.Log.Infof("[ORDER %s] %s", order.Status, order)
-
 		c.processTrade(&order)
-		go c.orderFeed.Publish(order, true)
 	}
 	return order, nil
 }
@@ -1017,6 +1015,11 @@ func (c *ServiceOrder) CreateOrderStopLimit(side model.SideType, positionSide mo
 	}
 	go c.orderFeed.Publish(order, true)
 	utils.Log.Infof("[ORDER CREATED] %s", order)
+	if order.Status == model.OrderStatusTypeFilled {
+		utils.Log.Infof("[ORDER %s] %s", order.Status, order)
+
+		c.processTrade(&order)
+	}
 	return order, nil
 }
 

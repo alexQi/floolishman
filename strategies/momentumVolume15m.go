@@ -29,6 +29,13 @@ func (s MomentumVolume15m) Indicators(df *model.Dataframe) {
 	df.Metadata["bbMiddle"] = bbMiddle
 	df.Metadata["bbLower"] = bbLower
 
+	// 检查插针
+	upperPinRates, lowerPinRates, upperShadows, lowerShadows := indicator.PinBars(df.Open, df.Close, df.High, df.Low)
+	df.Metadata["upperPinRates"] = upperPinRates
+	df.Metadata["lowerPinRates"] = lowerPinRates
+	df.Metadata["upperShadows"] = upperShadows
+	df.Metadata["lowerShadows"] = lowerShadows
+
 	df.Metadata["momentum"] = indicator.Momentum(df.Close, 14)
 	df.Metadata["avgVolume"] = indicator.EMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
@@ -56,7 +63,7 @@ func (s *MomentumVolume15m) OnCandle(df *model.Dataframe) model.PositionStrategy
 	isCross, _ := s.bactchCheckVolume(volume, avgVolume, 2.2)
 
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
-	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 1.3, true)
+	isUpperPinBar, isLowerPinBar := s.batchCheckPinBar(df, 2, 1.3, true)
 	// 趋势判断
 	// 动量正向增长
 	// 7 35

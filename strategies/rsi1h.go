@@ -28,6 +28,13 @@ func (s Rsi1h) Indicators(df *model.Dataframe) {
 	df.Metadata["bbMiddle"] = bbMiddle
 	df.Metadata["bbLower"] = bbLower
 
+	// 检查插针
+	upperPinRates, lowerPinRates, upperShadows, lowerShadows := indicator.PinBars(df.Open, df.Close, df.High, df.Low)
+	df.Metadata["upperPinRates"] = upperPinRates
+	df.Metadata["lowerPinRates"] = lowerPinRates
+	df.Metadata["upperShadows"] = upperShadows
+	df.Metadata["lowerShadows"] = lowerShadows
+
 	df.Metadata["rsi"] = indicator.RSI(df.Close, 6)
 	df.Metadata["avgVolume"] = indicator.SMA(df.Volume, 14)
 	df.Metadata["volume"] = df.Volume
@@ -47,7 +54,7 @@ func (s *Rsi1h) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	volume := df.Metadata["volume"].Last(1)
 	avgVolume := df.Metadata["avgVolume"].Last(1)
 	// 判断插针情况，排除动量数据滞后导致反弹趋势还继续开单
-	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 3, 1.5, true)
+	isUpperPinBar, isLowerPinBar := s.batchCheckPinBar(df, 3, 1.5, true)
 	// 趋势判断
 	if strategyPosition.Tendency != "range" && rsi >= 80 && isUpperPinBar && volume > avgVolume*1.2 {
 		strategyPosition.Useable = 1

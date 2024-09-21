@@ -1,0 +1,102 @@
+# 交易对配置
+pairs:
+  # 交易对名称
+  1000PEPEUSDT:
+    # 状态
+    status: true
+    # 杠杆倍数 需要带上小数点
+    leverage: 20.0
+    # 仓位模式
+    marginType: CROSSED
+    # 保证金模式 ROLL 滚仓｜STATIC 静态 | MARGIN 保证金
+    marginMode: ROLL
+    # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量 | MARGIN 固定USDT
+    marginSize: 0.2
+  # 交易对名称
+  ETHUSDT:
+    # 状态
+    status: false
+    # 杠杆倍数 需要带上小数点
+    leverage: 100.0
+    # 仓位模式
+    marginType: CROSSED
+    # 保证金模式 ROLL 滚仓｜STATIC 静态
+    marginMode: STATIC
+    # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量
+    marginSize: 0.01
+    # ----------- 网格 -------------- start
+    # 最大网格间距
+    maxGridStep: 9.0
+    # 最小网格间距
+    minGridStep: 8.0
+    # 网格空窗期
+    windowPeriod: 8.5
+    # 最大加仓次数
+    maxAddPosition: 8
+    # 最小加仓次数
+    minAddPosition: 8
+    # 价格波动触发限制 eth 3 $/s    btc 150 $/s
+    undulatePriceLimit: 5.0
+    # 价格波动触发限制 eth 100 Vol/s  btc 30 Vol/s
+    undulateVolumeLimit: 100.0
+    # 仓位持仓周期 (分钟)
+    holdPositionPeriod: 30
+    # 超过持仓周期递减触发百分比
+    holdPositionPeriodDecrStep: 0.00025
+    # ----------- 网格 -------------- end
+    # 移动止盈后撤比例
+    profitableScale: 0.0015
+    # 移动止盈后撤比例-step
+    profitableScaleDecrStep: 0.00005
+    # 触发移动止损比例
+    profitableTrigger: 0.002
+    # 触发移动止损比例-step
+    profitableTriggerIncrStep: 0.0005
+    # 最大加仓后联合仓位亏损拉回比例
+    pullMarginLossRatio: 0.0
+    # 最大保证金比例
+    maxMarginRatio: 0.0040
+    # 最大止损保证金比例
+    maxMarginLossRatio: 0.0038
+  # 交易对名称
+  BTCUSDT:
+    # 状态
+    status: false
+    # 杠杆倍数 需要带上小数点
+    leverage: 20.0
+    # 仓位模式
+    marginType: CROSSED
+    # 保证金模式 ROLL 滚仓｜STATIC 静态
+    marginMode: ROLL
+    # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量
+    marginSize: 0.2
+
+    # ----------- 网格 -------------- start
+    # 最大网格间距
+    maxGridStep: 150.0
+    # 最小网格间距
+    minGridStep: 120.0
+    # 网格空窗期
+    windowPeriod: 120.0
+    # 最大加仓次数
+    maxAddPosition: 8
+    # 最小加仓次数
+    minAddPosition: 8
+    # 价格波动触发限制 eth 3 $/s    btc 150 $/s
+    undulatePriceLimit: 150.0
+    # 价格波动触发限制 eth 100 Vol/s  btc 25 Vol/s
+    undulateVolumeLimit: 50.0
+    # 仓位持仓周期 (分钟)
+    holdPositionPeriod: 30
+    # 超过持仓周期递减触发百分比
+    holdPositionPeriodDecrStep: 0.00025
+    # ----------- 网格 -------------- end
+
+    # 移动止盈后撤比例
+    profitableScale: 0.0015
+    # 移动止盈后撤比例-step
+    profitableScaleDecrStep: 0.00005
+    # 触发移动止损比例
+    profitableTrigger: 0.002
+    # 触发移动止损比例-step
+    profitableTriggerIncrStep: 0.0005

@@ -224,14 +224,6 @@ func CalculateAddQuantity(mainSide model.SideType, mainQuantity, mainPrice, subQ
 	return addAmount
 }
 
-func StopLossDistance(profitRatio float64, entryPrice float64, leverage float64, quantity float64) float64 {
-	// 计算保证金
-	margin := (entryPrice * quantity) / leverage
-	// 根据保证金，利润比计算利润
-	profit := profitRatio * margin
-	// 根据利润 计算价差
-	if profit == 0 {
-		return 0
-	}
-	return Abs(profit / quantity)
+func StopLossDistance(profitRatio float64, entryPrice float64, leverage float64) float64 {
+	return profitRatio * entryPrice / leverage
 }

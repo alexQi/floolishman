@@ -20,6 +20,51 @@ func (s *Candle) EventCallClose(pair string) {
 	s.closePosition(s.pairOptions[pair])
 }
 
+func (c *Candle) finishPosition(seasonType SeasonType, position *model.Position, limit float64, stopPrice float64) {
+	var closeSideType model.SideType
+	if model.PositionSideType(position.PositionSide) == model.PositionSideTypeLong {
+		closeSideType = model.SideTypeSell
+	} else {
+		closeSideType = model.SideTypeBuy
+	}
+	// 判断仓位方向为反方向，平掉现有仓位
+	_, err := c.broker.CreateOrderStopLimit(
+		closeSideType,
+		model.PositionSideType(position.PositionSide),
+		position.Pair,
+		position.Quantity,
+		limit,
+		stopPrice,
+		model.OrderExtra{
+			Leverage:             position.Leverage,
+			OrderFlag:            position.OrderFlag,
+			LongShortRatio:       position.LongShortRatio,
+			MatcherStrategyCount: position.MatcherStrategyCount,
+		},
+	)
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	// 删除止损时间限制配置
+	c.lossLimitTimes.Delete(position.OrderFlag)
+	utils.Log.Infof("[POSITION - %s] %s", seasonType, position.String())
+	// 查询当前orderFlag所有的止损单，全部取消
+	lossOrders, err := c.broker.GetOrdersForPostionLossUnfilled(position.OrderFlag)
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	for _, lossOrder := range lossOrders {
+		// 取消之前的止损单
+		err = c.broker.Cancel(*lossOrder)
+		if err != nil {
+			utils.Log.Error(err)
+			return
+		}
+	}
+}
+
 func (c *Candle) closePosition(option *model.PairOption) {
 	c.mu[option.Pair].Lock()         // 加锁
 	defer c.mu[option.Pair].Unlock() // 解锁
@@ -38,9 +83,19 @@ func (c *Candle) closePosition(option *model.PairOption) {
 	if c.setting.CheckMode == "candle" {
 		currentTime, _ = c.lastUpdate.Get(option.Pair)
 	}
+	var stopLossPrice float64
 	// 与当前方向相反有仓位,计算相对分界线距离，多空比达到反手标准平仓
 	// ***********************
 	for _, openedPosition := range openedPositions {
+		// 计算止损价格
+		if option.MaxMarginLossRatio > 0 {
+			stopLossDistance := calc.StopLossDistance(option.MaxMarginLossRatio, openedPosition.AvgPrice, float64(option.Leverage))
+			if openedPosition.PositionSide == string(model.PositionSideTypeLong) {
+				stopLossPrice = openedPosition.AvgPrice - stopLossDistance
+			} else {
+				stopLossPrice = openedPosition.AvgPrice + stopLossDistance
+			}
+		}
 		// 记录利润比
 		profitRatio := calc.ProfitRatio(
 			model.SideType(openedPosition.Side),
@@ -66,7 +121,7 @@ func (c *Candle) closePosition(option *model.PairOption) {
 				pairCurrentProfit.MaxProfit*100,
 			)
 			c.resetPairProfit(option.Pair)
-			c.finishPosition(SeasonTypeTimeout, openedPosition)
+			c.finishPosition(SeasonTypeTimeout, openedPosition, currentPrice, currentPrice)
 			continue
 		}
 		// 判断当前利润比是否小于锁定利润比，小于则平仓
@@ -81,7 +136,7 @@ func (c *Candle) closePosition(option *model.PairOption) {
 			)
 			// 重置交易对盈利
 			c.resetPairProfit(option.Pair)
-			c.finishPosition(SeasonTypeProfitBack, openedPosition)
+			c.finishPosition(SeasonTypeProfitBack, openedPosition, currentPrice, currentPrice)
 			return
 		}
 		// ****************
@@ -160,7 +215,7 @@ func (c *Candle) closePosition(option *model.PairOption) {
 							pairCurrentProfit.MaxProfit*100,
 						)
 						c.resetPairProfit(option.Pair)
-						c.finishPosition(SeasonTypeLossMax, openedPosition)
+						c.finishPosition(SeasonTypeLossMax, openedPosition, stopLossPrice, stopLossPrice)
 						return
 					}
 					utils.Log.Infof(
@@ -183,7 +238,7 @@ func (c *Candle) closePosition(option *model.PairOption) {
 							pairCurrentProfit.MaxProfit*100,
 						)
 						c.resetPairProfit(option.Pair)
-						c.finishPosition(SeasonTypeLossMax, openedPosition)
+						c.finishPosition(SeasonTypeLossMax, openedPosition, openedPosition.StopLossPrice, openedPosition.StopLossPrice)
 						return
 					}
 					utils.Log.Infof(

@@ -1,0 +1,296 @@
+package strategies
+
+import (
+	"encoding/json"
+	"floolishman/indicator"
+	"floolishman/model"
+	"floolishman/utils"
+	"floolishman/utils/calc"
+	"fmt"
+	"reflect"
+)
+
+type Radicalization struct {
+	BaseStrategy
+}
+
+func (s Radicalization) SortScore() float64 {
+	return 90
+}
+
+func (s Radicalization) Timeframe() string {
+	return "30m"
+}
+
+func (s Radicalization) WarmupPeriod() int {
+	return 96 // 预热期设定为50个数据点
+}
+
+func (s Radicalization) Indicators(df *model.Dataframe) {
+	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 0)
+	// 计算布林带宽度
+	bbWidth := make([]float64, len(bbUpper))
+	for i := 0; i < len(bbUpper); i++ {
+		bbWidth[i] = bbUpper[i] - bbLower[i]
+	}
+	df.Metadata["bbUpper"] = bbUpper
+	df.Metadata["bbMiddle"] = bbMiddle
+	df.Metadata["bbLower"] = bbLower
+	df.Metadata["bbWidth"] = bbWidth
+	// 检查插针
+	upperPinRates, lowPinRates, upperShadows, lowShadows := indicator.PinBars(df.Open, df.Close, df.High, df.Low)
+	df.Metadata["upperPinRates"] = upperPinRates
+	df.Metadata["lowPinRates"] = lowPinRates
+	df.Metadata["upperShadows"] = upperShadows
+	df.Metadata["lowShadows"] = lowShadows
+	// 计算MACD指标
+	df.Metadata["priceRate"] = indicator.PriceRate(df.Open, df.Close)
+	df.Metadata["rsi"] = indicator.RSI(df.Close, 7)
+	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
+	df.Metadata["adx"] = indicator.ADX(df.High, df.Low, df.Close, 14)
+	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
+}
+
+func (s *Radicalization) OnCandle(df *model.Dataframe) model.PositionStrategy {
+	lastPrice := df.Close.Last(0)
+	prevPrice := df.Close.Last(1)
+
+	strategyPosition := model.PositionStrategy{
+		Tendency:     s.checkMarketTendency(df),
+		StrategyName: reflect.TypeOf(s).Elem().Name(),
+		Pair:         df.Pair,
+		LastAtr:      df.Metadata["atr"].Last(1) * 1.5,
+		OpenPrice:    lastPrice,
+	}
+
+	//prevBbWidth := df.Metadata["bbWidth"].Last(1)
+	//prevBbMiddle := df.Metadata["bbMiddle"].Last(1)
+	prevRsi := df.Metadata["rsi"].Last(1)
+	lastRsi := df.Metadata["rsi"].Last(0)
+
+	prevPriceRate := calc.Abs(df.Metadata["priceRate"].Last(1))
+
+	upperPinRates := df.Metadata["upperPinRates"]
+	lowPinRates := df.Metadata["lowPinRates"]
+	upperShadows := df.Metadata["upperShadows"]
+	lowShadows := df.Metadata["lowShadows"]
+
+	prevUpperPinRate := upperPinRates.Last(1)
+	prevLowerPinRate := lowPinRates.Last(1)
+
+	var upperShadowChangeRate, lowerShadowChangeRate float64
+	prevUpperShadow := upperShadows.Last(1)
+	prevLowerShadow := lowShadows.Last(1)
+	if prevUpperShadow == 0 {
+		upperShadowChangeRate = 0
+	} else {
+		upperShadowChangeRate = upperShadows.Last(0) / prevUpperShadow
+	}
+	if prevLowerShadow == 0 {
+		lowerShadowChangeRate = 0
+	} else {
+		lowerShadowChangeRate = lowShadows.Last(0) / prevLowerShadow
+	}
+
+	amplitude := indicator.AMP(df.Open.Last(1), df.High.Last(1), df.Low.Last(1))
+	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 1.021, false)
+
+	openParams := map[string]interface{}{
+		"prevPriceRate":         prevPriceRate,
+		"prevPrice":             prevPrice,
+		"lastPrice":             lastPrice,
+		"isUpperPinBar":         isUpperPinBar,
+		"isLowerPinBar":         isLowerPinBar,
+		"lastRsi":               lastRsi,
+		"prevRsi":               prevRsi,
+		"amplitude":             amplitude,
+		"prevUpperPinRate":      prevUpperPinRate,
+		"prevLowerPinRate":      prevLowerPinRate,
+		"upperShadowChangeRate": upperShadowChangeRate,
+		"lowerShadowChangeRate": lowerShadowChangeRate,
+		"openAt":                df.LastUpdate.In(Loc).Format("2006-01-02 15:04:05"),
+	}
+
+	//scoreParams := map[string]float64{
+	//	"prevPriceRate":         prevPriceRate / 0.01,
+	//	"amplitude":             amplitude / 4,
+	//	"lastRsi":               lastRsi - 50,
+	//	"prevRsi":               prevRsi - 50,
+	//	"prevUpperPinRate":      prevUpperPinRate,
+	//	"prevLowerPinRate":      prevLowerPinRate,
+	//	"upperShadowChangeRate": upperShadowChangeRate,
+	//	"lowerShadowChangeRate": lowerShadowChangeRate,
+	//}
+
+	// 设置评分机制
+	//var longScore, shortScore float64
+	//if isUpperPinBar && !isLowerPinBar && (prevRsi-lastRsi) > 8.2 && prevRsi > 55 && amplitude > 0.65 && upperShadowChangeRate > 0.5 && calc.Abs(prevPriceRate) > 0.001 {
+	//	scoreParams["lastRsi"] = (lastRsi - 50) / 50
+	//	scoreParams["prevRsi"] = (prevRsi - 50) / 50
+	//	shortScore = s.calculateScoreForWeight(model.SideTypeSell, scoreParams)
+	//	if shortScore > 16 {
+	//		strategyPosition.Score = shortScore
+	//		strategyPosition.Side = string(model.SideTypeSell)
+	//		strategyPosition.Useable = 1
+	//	}
+	//	openParams["openScore"] = shortScore
+	//}
+	//
+	//if isLowerPinBar && !isUpperPinBar && (lastRsi-prevRsi) > 8.5 && prevRsi < 47 && amplitude > 0.66 && lowerShadowChangeRate > 0.45 && prevPriceRate > 0.001 {
+	//	scoreParams["lastRsi"] = (50 - lastRsi) / 50
+	//	scoreParams["prevRsi"] = (50 - prevRsi) / 50
+	//	longScore = s.calculateScoreForWeight(model.SideTypeBuy, scoreParams)
+	//	if longScore > 0 {
+	//		strategyPosition.Side = string(model.SideTypeBuy)
+	//		strategyPosition.Score = longScore
+	//		strategyPosition.Useable = 1
+	//	}
+	//	openParams["openScore"] = longScore
+	//}
+
+	if isUpperPinBar && !isLowerPinBar && (prevRsi-lastRsi) > 8.2 && amplitude > 0.65 && prevUpperPinRate > 0.25 && prevPriceRate > 0.001 {
+		strategyPosition.Side = string(model.SideTypeSell)
+		strategyPosition.Score = lastRsi
+
+		if prevRsi >= 80 && prevRsi < 86 {
+			if amplitude < 1.2 {
+				if upperShadowChangeRate > 0.55 && prevUpperPinRate > 0.4 {
+					strategyPosition.Useable = 1
+				}
+			} else if amplitude > 1.2 && amplitude < 2.2 {
+				if upperShadowChangeRate > 0.5 && prevUpperPinRate > 0.35 {
+					strategyPosition.Useable = 1
+				}
+			} else if amplitude > 2.2 && amplitude < 4.0 {
+				if upperShadowChangeRate > 0.45 && prevUpperPinRate > 0.3 {
+					strategyPosition.Useable = 1
+				}
+			} else {
+				if upperShadowChangeRate > 0.4 && prevUpperPinRate > 0.25 {
+					strategyPosition.Useable = 1
+					strategyPosition.OpenPrice = lastPrice
+				}
+			}
+		}
+		if prevRsi >= 86 && prevRsi < 92 {
+			if amplitude < 1.2 {
+				if upperShadowChangeRate > 0.55 && prevUpperPinRate > 0.35 {
+					strategyPosition.Useable = 1
+				}
+			} else if amplitude > 1.2 && amplitude < 2.1 {
+				if upperShadowChangeRate > 0.45 && prevUpperPinRate > 0.3 {
+					strategyPosition.Useable = 1
+				}
+			} else if amplitude > 2.1 && amplitude < 4.0 {
+				if upperShadowChangeRate > 0.4 && prevUpperPinRate > 0.25 {
+					strategyPosition.Useable = 1
+				}
+			} else {
+				if upperShadowChangeRate > 0.35 && prevUpperPinRate > 0.2 {
+					strategyPosition.Useable = 1
+					strategyPosition.OpenPrice = lastPrice
+				}
+			}
+		}
+		if prevRsi >= 92 && upperShadowChangeRate > 0.3 && prevUpperPinRate > 0.15 {
+			strategyPosition.Useable = 1
+			strategyPosition.OpenPrice = lastPrice
+		}
+	}
+
+	if isLowerPinBar && !isUpperPinBar && (lastRsi-prevRsi) > 8.5 && amplitude > 0.65 && prevLowerPinRate > 0.25 && prevPriceRate > 0.001 {
+		strategyPosition.Side = string(model.SideTypeBuy)
+		strategyPosition.Score = 100 - lastRsi
+
+		if prevRsi >= 18 && prevRsi < 24 {
+			if amplitude < 1.2 {
+				if lowerShadowChangeRate > 0.55 && prevLowerPinRate > 0.4 {
+					strategyPosition.Useable = 1
+				}
+			} else if amplitude > 1.2 && amplitude < 2.4 {
+				if lowerShadowChangeRate > 0.5 && prevLowerPinRate > 0.35 {
+					strategyPosition.Useable = 1
+				}
+			} else if amplitude > 2.4 && amplitude < 4.0 {
+				if lowerShadowChangeRate > 0.45 && prevLowerPinRate > 0.3 {
+					strategyPosition.Useable = 1
+				}
+			} else {
+				if lowerShadowChangeRate > 0.4 && prevLowerPinRate > 0.25 {
+					strategyPosition.Useable = 1
+				}
+			}
+		}
+		if prevRsi >= 10 && prevRsi < 18 {
+			if amplitude < 1.2 {
+				if lowerShadowChangeRate > 0.50 && prevLowerPinRate > 0.35 {
+					strategyPosition.Useable = 1
+				}
+			} else if amplitude > 1.2 && amplitude < 2.4 {
+				if lowerShadowChangeRate > 0.45 && prevLowerPinRate > 0.3 {
+					strategyPosition.Useable = 1
+				}
+			} else if amplitude > 2.4 && amplitude < 4.0 {
+				if lowerShadowChangeRate > 0.4 && prevLowerPinRate > 0.25 {
+					strategyPosition.Useable = 1
+				}
+			} else {
+				if lowerShadowChangeRate > 0.35 && prevLowerPinRate > 0.2 {
+					strategyPosition.Useable = 1
+				}
+			}
+		}
+		if prevRsi < 10 && lowerShadowChangeRate > 0.3 && prevLowerPinRate > 0.15 {
+			strategyPosition.Useable = 1
+		}
+	}
+
+	// 将 map 转换为 JSON 字符串
+	openParamsBytes, err := json.Marshal(openParams)
+	if err != nil {
+		fmt.Println("错误：", err)
+	}
+
+	strategyPosition.OpenParams = string(openParamsBytes)
+	if strategyPosition.Useable > 0 {
+		stopLossDistance := calc.StopLossDistance(0.07, strategyPosition.OpenPrice, 20)
+		if strategyPosition.Side == string(model.SideTypeBuy) {
+			strategyPosition.OpenPrice = strategyPosition.OpenPrice - stopLossDistance
+		} else {
+			strategyPosition.OpenPrice = strategyPosition.OpenPrice + stopLossDistance
+		}
+		utils.Log.Tracef("[PARAMS] PositionSide:%s, %s", strategyPosition.Side, strategyPosition.OpenParams)
+	}
+
+	return strategyPosition
+}
+
+func (s Radicalization) calculateScoreForWeight(side model.SideType, params map[string]float64) float64 {
+	paramWeightMap := map[model.SideType]map[string]float64{
+		model.SideTypeBuy: {
+			"prevPriceRate":         0.18,  // 上根蜡烛涨跌幅
+			"amplitude":             0.15,  // 振幅
+			"lastRsi":               0.01,  // 当前RSI
+			"prevRsi":               0.30,  // 上根蜡烛rsi
+			"prevUpperPinRate":      -0.08, // 上根蜡烛上影线与蜡烛实体比
+			"prevLowerPinRate":      0.05,  // 上根蜡烛下影线与蜡烛实体比
+			"upperShadowChangeRate": -0.10, // 上根蜡烛上影线与当前蜡烛上影线比例
+			"lowerShadowChangeRate": 0.06,  // 上根蜡烛下影线与当前蜡烛下影线比例
+		},
+		model.SideTypeSell: {
+			"prevPriceRate":         0.18,
+			"amplitude":             0.15,
+			"lastRsi":               0.01,
+			"prevRsi":               0.30,
+			"prevUpperPinRate":      0.15,
+			"prevLowerPinRate":      -0.10,
+			"upperShadowChangeRate": 0.06,
+			"lowerShadowChangeRate": -0.12,
+		},
+	}
+	var score float64
+	for key, val := range paramWeightMap[side] {
+		score += params[key] * 100 * val
+	}
+	return score
+}

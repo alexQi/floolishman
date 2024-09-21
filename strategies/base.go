@@ -85,53 +85,37 @@ func (bs *BaseStrategy) bactchCheckVolume(volume, avgVolume []float64, weight fl
 	return isCross, direction
 }
 
-func (bs *BaseStrategy) bactchCheckPinBar(df *model.Dataframe, count int, weight float64, includeLatest bool) (bool, bool) {
-	var opens, closes, highs, lows []float64
+func (bs *BaseStrategy) batchCheckPinBar(df *model.Dataframe, count int, weight float64, includeLatest bool) (bool, bool) {
+	var upperPinRates, lowerPinRates, upperShadows, lowerShadows []float64
 	if includeLatest {
-		opens = df.Open.LastValues(count)
-		closes = df.Close.LastValues(count)
-		highs = df.High.LastValues(count)
-		lows = df.Low.LastValues(count)
+		upperPinRates = df.Metadata["upperPinRates"].LastValues(count)
+		lowerPinRates = df.Metadata["lowerPinRates"].LastValues(count)
+		upperShadows = df.Metadata["upperShadows"].LastValues(count)
+		lowerShadows = df.Metadata["lowerShadows"].LastValues(count)
 	} else {
-		opens = df.Open.GetLastValues(count, 1)
-		closes = df.Close.GetLastValues(count, 1)
-		highs = df.High.GetLastValues(count, 1)
-		lows = df.Low.GetLastValues(count, 1)
+		upperPinRates = df.Metadata["upperPinRates"].GetLastValues(count, 1)
+		lowerPinRates = df.Metadata["lowerPinRates"].GetLastValues(count, 1)
+		upperShadows = df.Metadata["upperShadows"].GetLastValues(count, 1)
+		lowerShadows = df.Metadata["lowerShadows"].GetLastValues(count, 1)
 	}
 
-	upperPinBars := []float64{}
-	lowerPinBars := []float64{}
-	var prevBodyLength float64
+	var upperPin, lowerPin int
 	for i := 0; i < count; i++ {
-		if i > 0 {
-			prevBodyLength = calc.Abs(opens[i] - closes[i])
+		if upperPinRates[i] > weight && upperShadows[i] > lowerShadows[i] {
+			upperPin += 1
 		}
-		isUpperPinBar, isLowerPinBar, upperShadow, lowerShadow := calc.CheckPinBar(weight, 4, prevBodyLength, opens[i], closes[i], highs[i], lows[i])
-		if isUpperPinBar && isLowerPinBar {
-			continue
-		}
-		if isUpperPinBar {
-			upperPinBars = append(upperPinBars, upperShadow)
-		}
-		if isLowerPinBar {
-			lowerPinBars = append(lowerPinBars, lowerShadow)
+		if lowerPinRates[i] > weight && upperShadows[i] < lowerShadows[i] {
+			lowerPin += 1
 		}
 	}
-	var upperLength float64
-	for _, bar := range upperPinBars {
-		upperLength += bar
+	var hasUpperPin, hasLowerPin bool
+	if upperPin >= count/2 {
+		hasUpperPin = true
 	}
-	var lowerLength float64
-	for _, bar := range lowerPinBars {
-		lowerLength += bar
+	if lowerPin >= count/2 {
+		hasLowerPin = true
 	}
-	if upperLength > lowerLength {
-		return true, false
-	} else if upperLength < lowerLength {
-		return false, true
-	} else {
-		return false, false
-	}
+	return hasUpperPin, hasLowerPin
 }
 
 func (bs *BaseStrategy) getCandleColor(open, close float64) string {

@@ -28,6 +28,13 @@ func (s Resonance15m) Indicators(df *model.Dataframe) {
 	df.Metadata["bbUpper"] = bbUpper
 	df.Metadata["bbMiddle"] = bbMiddle
 	df.Metadata["bbLower"] = bbLower
+
+	// 检查插针
+	upperPinRates, lowerPinRates, upperShadows, lowerShadows := indicator.PinBars(df.Open, df.Close, df.High, df.Low)
+	df.Metadata["upperPinRates"] = upperPinRates
+	df.Metadata["lowerPinRates"] = lowerPinRates
+	df.Metadata["upperShadows"] = upperShadows
+	df.Metadata["lowerShadows"] = lowerShadows
 	// 计算MACD指标
 	macdLine, signalLine, hist := indicator.MACD(df.Close, 8, 17, 5)
 	df.Metadata["macd"] = macdLine
@@ -66,7 +73,7 @@ func (s *Resonance15m) OnCandle(df *model.Dataframe) model.PositionStrategy {
 
 	macdPriceRatio := (lastMacd / price) * 100
 	historyTendency := s.checkCandleTendency(historyOpens, historyCloses, 3, 1)
-	isUpperPinBar, isLowerPinBar := s.bactchCheckPinBar(df, 2, 0.85, false)
+	isUpperPinBar, isLowerPinBar := s.batchCheckPinBar(df, 2, 0.85, false)
 
 	lastTendencyAngle := tendencyAngle.Last(0)
 	prevTendencyAngle := tendencyAngle.Last(1)

@@ -914,6 +914,19 @@ func (p *PaperWallet) CreateOrderStopLimit(side model.SideType, positionSide mod
 		MatcherStrategyCount: extra.MatcherStrategyCount,
 		MatcherStrategy:      extra.MatcherStrategy,
 	}
+	if positionSide == model.PositionSideTypeShort {
+		if p.lastCandle[pair].High >= order.Price {
+			order.Status = model.OrderStatusTypeFilled
+		}
+	} else {
+		if p.lastCandle[pair].Low <= order.Price {
+			order.Status = model.OrderStatusTypeFilled
+		}
+	}
+	err = p.updateFunds(&order)
+	if err != nil {
+		return model.Order{}, err
+	}
 
 	p.orders = append(p.orders, order)
 	return order, nil
