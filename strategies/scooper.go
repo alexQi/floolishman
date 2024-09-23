@@ -63,8 +63,6 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		OpenPrice:    lastPrice,
 	}
 
-	//prevBbWidth := df.Metadata["bbWidth"].Last(1)
-	//prevBbMiddle := df.Metadata["bbMiddle"].Last(1)
 	prevRsi := df.Metadata["rsi"].Last(1)
 	lastRsi := df.Metadata["rsi"].Last(0)
 
@@ -79,17 +77,19 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	prevLowerPinRate := lowerPinRates.Last(1)
 
 	var upperShadowChangeRate, lowerShadowChangeRate float64
+	lastUpperShadow := upperShadows.Last(0)
+	lastLowerShadow := lowerShadows.Last(0)
 	prevUpperShadow := upperShadows.Last(1)
 	prevLowerShadow := lowerShadows.Last(1)
 	if prevUpperShadow == 0 {
 		upperShadowChangeRate = 0
 	} else {
-		upperShadowChangeRate = upperShadows.Last(0) / prevUpperShadow
+		upperShadowChangeRate = lastUpperShadow / prevUpperShadow
 	}
 	if prevLowerShadow == 0 {
 		lowerShadowChangeRate = 0
 	} else {
-		lowerShadowChangeRate = lowerShadows.Last(0) / prevLowerShadow
+		lowerShadowChangeRate = lastLowerShadow / prevLowerShadow
 	}
 
 	amplitude := indicator.AMP(df.Open.Last(1), df.High.Last(1), df.Low.Last(1))
@@ -196,10 +196,6 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 				}
 			}
 		}
-		//if prevRsi >= 92 && rsiChange > 4 && upperShadowChangeRate > 0.3 && prevUpperPinRate > 0.15 {
-		//	strategyPosition.Useable = 1
-		//	strategyPosition.OpenPrice = lastPrice
-		//}
 	}
 
 	if isLowerPinBar && amplitude > 0.65 && prevLowerPinRate > 0.25 && prevPriceRate > 0.001 {
@@ -288,10 +284,6 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 				}
 			}
 		}
-
-		//if prevRsi < 10 && lowerShadowChangeRate > 0.3 && prevLowerPinRate > 0.15 {
-		//	strategyPosition.Useable = 1
-		//}
 	}
 
 	// 将 map 转换为 JSON 字符串

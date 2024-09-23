@@ -340,7 +340,7 @@ func (s *SQL) UpdatePosition(position *model.Position) error {
 
 func (s *SQL) Positions(filterParams PositionFilterParams) ([]*model.Position, error) {
 	positions := make([]*model.Position, 0)
-	query := s.db.Where("status=?", filterParams.Status)
+	query := s.db.Where("status in (?)", filterParams.Status)
 	if len(filterParams.Pair) > 0 {
 		query = query.Where("pair=?", filterParams.Pair)
 	}
@@ -363,7 +363,7 @@ func (s *SQL) Positions(filterParams PositionFilterParams) ([]*model.Position, e
 
 func (s *SQL) GetPosition(filterParams PositionFilterParams) (*model.Position, error) {
 	position := &model.Position{}
-	query := s.db.Where("status=?", filterParams.Status)
+	query := s.db.Where("status in (?)", filterParams.Status)
 	if len(filterParams.Pair) > 0 {
 		query = query.Where("pair=?", filterParams.Pair)
 	}

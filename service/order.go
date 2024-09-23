@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"floolishman/reference"
+	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/calc"
 	"fmt"
@@ -297,7 +298,7 @@ func (c *ServiceOrder) ListenPositions() {
 		for orderFlag, position := range flagPositions {
 			// 不存在删除仓位
 			if _, ok = pairPositions[position.Pair]; !ok {
-				position.Status = 1
+				position.Status = 10
 				position.Quantity = 0
 				// 更新数据库仓位记录
 				err := c.storage.UpdatePosition(position)
@@ -310,7 +311,7 @@ func (c *ServiceOrder) ListenPositions() {
 			}
 			// 当前方向的仓位不存在删除仓位
 			if _, ok = pairPositions[position.Pair][position.PositionSide]; !ok {
-				position.Status = 1
+				position.Status = 10
 				position.Quantity = 0
 				// 更新数据库仓位记录
 				err := c.storage.UpdatePosition(position)
@@ -357,12 +358,7 @@ func (c *ServiceOrder) GetPositionsForPair(pair string) ([]*model.Position, erro
 	}
 	// 内存缓存中没有查询到，去数据库查询
 	if len(positions) == 0 {
-		positions, err := c.storage.Positions(
-			storage.PositionFilterParams{
-				Pair:   pair,
-				Status: 0,
-			},
-		)
+		positions, err := c.storage.Positions(storage.PositionFilterParams{Pair: pair, Status: []int{0, 1}})
 		if err != nil {
 			return positions, err
 		}
@@ -395,11 +391,7 @@ func (c *ServiceOrder) GetPositionsForOpened() ([]*model.Position, error) {
 	}
 	// 内存缓存中没有查询到，去数据库查询
 	if len(positions) == 0 {
-		positions, err := c.storage.Positions(
-			storage.PositionFilterParams{
-				Status: 0,
-			},
-		)
+		positions, err := c.storage.Positions(storage.PositionFilterParams{Status: []int{0, 1}})
 		if err != nil {
 			return positions, err
 		}
@@ -567,7 +559,7 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 		if p.PositionSide == string(model.PositionSideTypeLong) {
 			// 平多单
 			if p.Quantity == order.Quantity {
-				p.Status = 1
+				p.Status = 10
 				p.Quantity = 0
 				p.ClosePrice = order.Price
 				p.Profit = calc.AccurateSub(price, p.AvgPrice) / p.AvgPrice
@@ -594,7 +586,7 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 		} else {
 			// 平空单
 			if p.Quantity == order.Quantity {
-				p.Status = 1
+				p.Status = 10
 				p.Quantity = 0
 				p.ClosePrice = order.Price
 				p.Profit = calc.AccurateSub(p.AvgPrice, price) / p.AvgPrice
@@ -616,6 +608,10 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 				CreatedAt:            order.CreatedAt,
 				MatcherStrategyCount: p.MatcherStrategyCount,
 			}
+		}
+		// 平仓利润小于0时，暂停该币种开单
+		if p.Status == 10 {
+			types.PairPauserChan <- p.Pair
 		}
 		return result
 	}
@@ -641,7 +637,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 			OrderFlag:    o.OrderFlag,
 			PositionSide: string(o.PositionSide),
 			Side:         string(o.Side),
-			Status:       0,
+			Status:       []int{0, 1},
 		})
 		if err != nil {
 			utils.Log.Error(err)
@@ -688,7 +684,7 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 		return
 	}
 	// 结束后删除内存缓存，删除内存缓存
-	if position.Status > 0 {
+	if position.Status == 10 {
 		delete(c.positionMap[o.Pair], o.OrderFlag)
 	}
 

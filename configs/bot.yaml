@@ -21,49 +21,41 @@ strategies:
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop
-  checkMode: candle
+  checkMode: scoop
   # 忽略开单时段
   ignoreHours:
-  # - 2
-  # - 19
-  # - 20
-  #    - 21
-  # - 22
+    - 20
   # 忽略币种
   ignorePairs:
-    - BTCUSDT
-    - ETHUSDT
-    - BNBUSDT
-    - SOLUSDT
     - BCHUSDT
     - YFIUSDT
   # watchdog模式下是否是跟随模式，其他模式下都为false
   followSymbol: false
   # 时间止损市场 单位分钟
-  lossTimeDuration: 60
+  lossTimeDuration: 45
   # ---------- 通用配置 --------------
   # 杠杆倍数
   leverage: 20.0
   # 仓位模式
   marginType: CROSSED
   # 保证金模式 ROLL 滚仓｜STATIC 静态 | | MARGIN 保证金
-  marginMode: MARGIN
+  marginMode: ROLL
   # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量 | MARGIN 为USDT
-  marginSize: 150.0
+  marginSize: 0.2
   # 移动止盈后撤比例
-  profitableScale: 0.0015
+  profitableScale: 0.0025
   # 移动止盈后撤比例-step 0.000125
-  profitableScaleDecrStep: 0.00025
+  profitableScaleDecrStep: 0.0000025
   # 触发移动止损比例
-  profitableTrigger: 0.0075
+  profitableTrigger: 0.008
   # 触发移动止损比例-step
   profitableTriggerIncrStep: 0.001
   # 最大加仓后联合仓位亏损拉回比例
   pullMarginLossRatio: 0.0018
   # 最大保证金比例
   maxMarginRatio: 0.0040
-  # 最大止损保证金比例 0.005 为0：atr止损
-  maxMarginLossRatio: 0.0035
+  # 最大止损保证金比例 0.0075 为0：atr止损
+  maxMarginLossRatio: 0.0045
   # 暂停交易时常（分钟）
   pauseCaller: 45
 # db存储位置

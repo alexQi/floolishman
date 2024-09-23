@@ -221,7 +221,7 @@ func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosi
 		)
 	}
 	// 根据最新价格创建限价单
-	_, err = c.broker.CreateOrderLimit(finalSide, postionSide, option.Pair, amount, currentPrice, model.OrderExtra{
+	order, err := c.broker.CreateOrderLimit(finalSide, postionSide, option.Pair, amount, currentPrice, model.OrderExtra{
 		Leverage:             option.Leverage,
 		LongShortRatio:       longShortRatio,
 		MatcherStrategyCount: matcherStrategy,
@@ -232,6 +232,41 @@ func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosi
 		utils.Log.Error(err)
 		return
 	}
+
+	// 设置止损订单
+	var stopLimitPrice float64
+	var stopTrigerPrice float64
+	var closeSideType model.SideType
+	var lossRatio = option.MaxMarginLossRatio * float64(option.Leverage)
+	// 计算止损距离
+	stopLossDistance := calc.StopLossDistance(lossRatio, order.Price, float64(option.Leverage))
+	if finalSide == model.SideTypeBuy {
+		closeSideType = model.SideTypeSell
+		stopLimitPrice = order.Price - stopLossDistance
+		stopTrigerPrice = order.Price - stopLossDistance*0.85
+	} else {
+		closeSideType = model.SideTypeBuy
+		stopLimitPrice = order.Price + stopLossDistance
+		stopTrigerPrice = order.Price + stopLossDistance*0.85
+	}
+	_, err = c.broker.CreateOrderStopLimit(
+		closeSideType,
+		postionSide,
+		option.Pair,
+		order.Quantity,
+		stopLimitPrice,
+		stopTrigerPrice,
+		model.OrderExtra{
+			Leverage:       option.Leverage,
+			OrderFlag:      order.OrderFlag,
+			LongShortRatio: longShortRatio,
+		},
+	)
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+
 	// 重置当前交易对止损比例
 	c.resetPairProfit(option.Pair)
 	// 重置开仓检查条件

@@ -150,8 +150,9 @@ func (c *Base) Init(
 		c.guider = service.NewServiceGuider(ctx, setting.GuiderHost)
 	}
 
-	go c.RegiterPairOption()
-	go c.RegiterPairGridBuilder()
+	go c.RegisterPairOption()
+	go c.RegisterPairGridBuilder()
+	go c.RegisterPairPauser()
 }
 
 func (c *Base) OpenTube(pair string) {
@@ -207,7 +208,7 @@ func (c *Base) SetPair(option model.PairOption) {
 	}
 }
 
-func (c *Base) RegiterPairOption() {
+func (c *Base) RegisterPairOption() {
 	for {
 		select {
 		case pairStatus := <-types.PairStatusChan:
@@ -223,11 +224,20 @@ func (c *Base) RegiterPairOption() {
 	}
 }
 
-func (c *Base) RegiterPairGridBuilder() {
+func (c *Base) RegisterPairGridBuilder() {
 	for {
 		select {
 		case buildPairGrid := <-types.PairGridBuilderParamChan:
 			c.gridBuilder(buildPairGrid.Pair, buildPairGrid.Timeframe, buildPairGrid.IsForce)
+		}
+	}
+}
+
+func (c *Base) RegisterPairPauser() {
+	for {
+		select {
+		case pair := <-types.PairPauserChan:
+			c.PausePairCall(pair, time.Duration(c.pairOptions[pair].PauseCaller))
 		}
 	}
 }

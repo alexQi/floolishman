@@ -14,7 +14,7 @@ type OrderFilterParams struct {
 type PositionFilterParams struct {
 	Pair         string
 	OrderFlag    string
-	Status       int
+	Status       []int
 	Side         string
 	PositionSide string
 }
