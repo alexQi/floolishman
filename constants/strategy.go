@@ -6,7 +6,7 @@ import (
 )
 
 var ConstStraties = map[string]model.Strategy{
-	"Test15m":           &strategies.Test15m{},
+	"Test":              &strategies.Test{},
 	"Range15m":          &strategies.Range15m{},
 	"Momentum15m":       &strategies.Momentum15m{},
 	"MomentumVolume15m": &strategies.MomentumVolume15m{},
@@ -20,6 +20,7 @@ var ConstStraties = map[string]model.Strategy{
 	"Macd15m":           &strategies.Macd15m{},
 	"Scoop":             &strategies.Scoop{},
 	"Scooper":           &strategies.Scooper{},
+	"ScooperWeight":     &strategies.ScooperWeight{},
 	"Radicalization":    &strategies.Radicalization{},
 	"Grid1h":            &strategies.Grid1h{},
 }

@@ -596,15 +596,15 @@ func Alteration(data []float64, period int) []float64 {
 
 func PinBars(opens, closes, highs, lows []float64) ([]float64, []float64, []float64, []float64) {
 	var upperPinRate, lowPinRate, upperShadow, lowShadow float64
-	var upperPinRates, lowPinRates, upperShadows, lowShadows []float64
+	var upperPinRates, lowerPinRates, upperShadows, lowerShadows []float64
 	for i := range opens {
 		upperPinRate, lowPinRate, upperShadow, lowShadow = calc.GetPinBarRate(opens[i], closes[i], highs[i], lows[i])
 		upperPinRates = append(upperPinRates, upperPinRate)
-		lowPinRates = append(lowPinRates, lowPinRate)
+		lowerPinRates = append(lowerPinRates, lowPinRate)
 		upperShadows = append(upperShadows, upperShadow)
-		lowShadows = append(lowShadows, lowShadow)
+		lowerShadows = append(lowerShadows, lowShadow)
 	}
-	return upperPinRates, lowPinRates, upperShadows, lowShadows
+	return upperPinRates, lowerPinRates, upperShadows, lowerShadows
 }
 
 func PriceRate(opens, closes []float64) []float64 {

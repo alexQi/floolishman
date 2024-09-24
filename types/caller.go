@@ -42,4 +42,4 @@ var PairStatusChan = make(chan PairStatus, 10)
 
 var PairGridBuilderParamChan = make(chan PairGridBuilderParam, 100)
 
-var PairPauserChan = make(chan string, 10)
+var PairPauserChan = make(chan string, 1000)

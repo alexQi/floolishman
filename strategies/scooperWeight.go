@@ -10,25 +10,25 @@ import (
 	"reflect"
 )
 
-type Scooper struct {
+type ScooperWeight struct {
 	BaseStrategy
 }
 
 // SortScore
-func (s Scooper) SortScore() float64 {
+func (s ScooperWeight) SortScore() float64 {
 	return 90
 }
 
 // Timeframe
-func (s Scooper) Timeframe() string {
+func (s ScooperWeight) Timeframe() string {
 	return "30m"
 }
 
-func (s Scooper) WarmupPeriod() int {
+func (s ScooperWeight) WarmupPeriod() int {
 	return 96 // 预热期设定为50个数据点
 }
 
-func (s Scooper) Indicators(df *model.Dataframe) {
+func (s ScooperWeight) Indicators(df *model.Dataframe) {
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 0)
 	// 计算布林带宽度
 	bbWidth := make([]float64, len(bbUpper))
@@ -53,7 +53,7 @@ func (s Scooper) Indicators(df *model.Dataframe) {
 	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
-func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
+func (s *ScooperWeight) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	lastPrice := df.Close.Last(0)
 	prevPrice := df.Close.Last(1)
 
@@ -117,24 +117,25 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		openParams["positionSide"] = string(model.SideTypeSell)
 
 		rsiChange := prevRsi - lastRsi
+
 		strategyPosition.Side = string(model.SideTypeSell)
 		strategyPosition.Score = lastRsi
 
 		if prevRsi >= 74 && prevRsi < 80 && rsiChange > 9.4 && rsiChange < 11.2 {
 			if amplitude < 1.2 {
-				if upperShadowChangeRate > 0.6 && amplitude*prevUpperPinRate > 1.5 {
+				if prevPriceRate > 0.007 && upperShadowChangeRate*amplitude*prevUpperPinRate > 1.0 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 1.2 && amplitude < 2.1 {
-				if upperShadowChangeRate > 0.45 && amplitude*prevUpperPinRate > 2.0 {
+				if prevPriceRate > 0.009 && upperShadowChangeRate*amplitude*prevUpperPinRate > 1.5 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 2.1 && amplitude < 4.0 {
-				if upperShadowChangeRate > 0.38 && amplitude*prevUpperPinRate > 2.5 {
+				if prevPriceRate > 0.013 && upperShadowChangeRate*amplitude*prevUpperPinRate > 2.0 {
 					strategyPosition.Useable = 1
 				}
 			} else {
-				if upperShadowChangeRate > 0.30 && amplitude*prevUpperPinRate > 3 {
+				if prevPriceRate > 0.019 && upperShadowChangeRate*amplitude*prevUpperPinRate > 2.5 {
 					strategyPosition.Useable = 1
 					strategyPosition.OpenPrice = lastPrice
 				}
@@ -142,19 +143,19 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		}
 		if prevRsi >= 80 && prevRsi < 86 && rsiChange > 7.6 && rsiChange < 9.4 {
 			if amplitude < 1.2 {
-				if upperShadowChangeRate > 0.72 && amplitude*prevUpperPinRate > 0.42 {
+				if prevPriceRate > 0.005 && upperShadowChangeRate*amplitude*prevUpperPinRate > 0.8 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 1.2 && amplitude < 2.1 {
-				if upperShadowChangeRate > 0.66 && amplitude*prevUpperPinRate > 0.68 {
+				if prevPriceRate > 0.007 && upperShadowChangeRate*amplitude*prevUpperPinRate > 1.3 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 2.1 && amplitude < 4.0 {
-				if upperShadowChangeRate > 0.60 && amplitude*prevUpperPinRate > 1.2 {
+				if prevPriceRate > 0.011 && upperShadowChangeRate*amplitude*prevUpperPinRate > 1.8 {
 					strategyPosition.Useable = 1
 				}
 			} else {
-				if upperShadowChangeRate > 0.30 && amplitude*prevUpperPinRate > 2 {
+				if prevPriceRate > 0.017 && upperShadowChangeRate*amplitude*prevUpperPinRate > 2.3 {
 					strategyPosition.Useable = 1
 					strategyPosition.OpenPrice = lastPrice
 				}
@@ -162,19 +163,19 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		}
 		if prevRsi >= 86 && prevRsi < 92 && rsiChange > 5.8 && rsiChange < 7.6 {
 			if amplitude < 1.2 {
-				if upperShadowChangeRate > 0.72 && amplitude*prevUpperPinRate > 0.42 {
+				if prevPriceRate > 0.003 && upperShadowChangeRate*amplitude*prevUpperPinRate > 0.6 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 1.2 && amplitude < 2.1 {
-				if upperShadowChangeRate > 0.66 && amplitude*prevUpperPinRate > 0.68 {
+				if prevPriceRate > 0.005 && upperShadowChangeRate*amplitude*prevUpperPinRate > 1.1 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 2.1 && amplitude < 4.0 {
-				if upperShadowChangeRate > 0.60 && amplitude*prevUpperPinRate > 1.2 {
+				if prevPriceRate > 0.009 && upperShadowChangeRate*amplitude*prevUpperPinRate > 1.6 {
 					strategyPosition.Useable = 1
 				}
 			} else {
-				if upperShadowChangeRate > 0.30 && amplitude*prevUpperPinRate > 2 {
+				if prevPriceRate > 0.015 && upperShadowChangeRate*amplitude*prevUpperPinRate > 2.1 {
 					strategyPosition.Useable = 1
 					strategyPosition.OpenPrice = lastPrice
 				}
@@ -182,19 +183,19 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		}
 		if prevRsi >= 92 && rsiChange > 4 && rsiChange < 5.8 {
 			if amplitude < 1.2 {
-				if upperShadowChangeRate > 0.72 && amplitude*prevUpperPinRate > 0.91 {
+				if prevPriceRate > 0.001 && upperShadowChangeRate*amplitude*prevUpperPinRate > 0.4 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 1.2 && amplitude < 2.1 {
-				if upperShadowChangeRate > 0.66 && amplitude*prevUpperPinRate > 1.8 {
+				if prevPriceRate > 0.003 && upperShadowChangeRate*amplitude*prevUpperPinRate > 0.9 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 2.1 && amplitude < 4.0 {
-				if upperShadowChangeRate > 0.60 && amplitude*prevUpperPinRate > 2.0 {
+				if prevPriceRate > 0.007 && upperShadowChangeRate*amplitude*prevUpperPinRate > 1.4 {
 					strategyPosition.Useable = 1
 				}
 			} else {
-				if upperShadowChangeRate > 0.30 && amplitude*prevUpperPinRate > 2.2 {
+				if prevPriceRate > 0.013 && upperShadowChangeRate*amplitude*prevUpperPinRate > 1.9 {
 					strategyPosition.Useable = 1
 					strategyPosition.OpenPrice = lastPrice
 				}
@@ -212,19 +213,19 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 
 		if prevRsi >= 20 && prevRsi < 26 && rsiChange > 9.4 && rsiChange < 11.2 {
 			if amplitude < 1.2 {
-				if lowerShadowChangeRate > 0.8 && amplitude*prevLowerPinRate > 1.5 {
+				if prevPriceRate > 0.007 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 1.2 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 1.2 && amplitude < 2.1 {
-				if lowerShadowChangeRate > 0.75 && amplitude*prevLowerPinRate > 2.0 {
+				if prevPriceRate > 0.009 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 1.7 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 2.1 && amplitude < 4.0 {
-				if lowerShadowChangeRate > 0.7 && amplitude*prevLowerPinRate > 2.0 {
+				if prevPriceRate > 0.013 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 2.2 {
 					strategyPosition.Useable = 1
 				}
 			} else {
-				if lowerShadowChangeRate > 0.65 && amplitude*prevLowerPinRate > 3 {
+				if prevPriceRate > 0.019 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 2.7 {
 					strategyPosition.Useable = 1
 					strategyPosition.OpenPrice = lastPrice
 				}
@@ -232,19 +233,19 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		}
 		if prevRsi >= 14 && prevRsi < 20 && rsiChange > 7.6 && rsiChange < 9.4 {
 			if amplitude < 1.2 {
-				if lowerShadowChangeRate > 0.7 && amplitude*prevLowerPinRate > 0.42 {
+				if prevPriceRate > 0.005 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 1.0 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 1.2 && amplitude < 2.1 {
-				if lowerShadowChangeRate > 0.65 && amplitude*prevLowerPinRate > 0.68 {
+				if prevPriceRate > 0.007 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 1.5 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 2.1 && amplitude < 4.0 {
-				if lowerShadowChangeRate > 0.6 && amplitude*prevLowerPinRate > 1.2 {
+				if prevPriceRate > 0.011 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 2.0 {
 					strategyPosition.Useable = 1
 				}
 			} else {
-				if lowerShadowChangeRate > 0.55 && amplitude*prevLowerPinRate > 2 {
+				if prevPriceRate > 0.017 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 2.5 {
 					strategyPosition.Useable = 1
 					strategyPosition.OpenPrice = lastPrice
 				}
@@ -252,19 +253,19 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		}
 		if prevRsi >= 8 && prevRsi < 14 && rsiChange > 5.8 && rsiChange < 7.6 {
 			if amplitude < 1.2 {
-				if lowerShadowChangeRate > 0.6 && amplitude*prevLowerPinRate > 0.42 {
+				if prevPriceRate > 0.003 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 0.8 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 1.2 && amplitude < 2.1 {
-				if lowerShadowChangeRate > 0.55 && amplitude*prevLowerPinRate > 0.68 {
+				if prevPriceRate > 0.005 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 1.3 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 2.1 && amplitude < 4.0 {
-				if lowerShadowChangeRate > 0.5 && amplitude*prevLowerPinRate > 1.2 {
+				if prevPriceRate > 0.009 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 1.8 {
 					strategyPosition.Useable = 1
 				}
 			} else {
-				if lowerShadowChangeRate > 0.45 && amplitude*prevLowerPinRate > 2 {
+				if prevPriceRate > 0.015 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 2.3 {
 					strategyPosition.Useable = 1
 					strategyPosition.OpenPrice = lastPrice
 				}
@@ -272,19 +273,19 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		}
 		if prevRsi < 8 && rsiChange > 4 && rsiChange < 5.8 {
 			if amplitude < 1.2 {
-				if lowerShadowChangeRate > 0.72 && amplitude*prevLowerPinRate > 0.91 {
+				if prevPriceRate > 0.001 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 0.6 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 1.2 && amplitude < 2.1 {
-				if lowerShadowChangeRate > 0.66 && amplitude*prevLowerPinRate > 1.8 {
+				if prevPriceRate > 0.003 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 1.1 {
 					strategyPosition.Useable = 1
 				}
 			} else if amplitude > 2.1 && amplitude < 4.0 {
-				if lowerShadowChangeRate > 0.60 && amplitude*prevLowerPinRate > 2.0 {
+				if prevPriceRate > 0.007 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 1.6 {
 					strategyPosition.Useable = 1
 				}
 			} else {
-				if lowerShadowChangeRate > 0.30 && amplitude*prevLowerPinRate > 2.2 {
+				if prevPriceRate > 0.013 && lowerShadowChangeRate*amplitude*prevLowerPinRate > 2.1 {
 					strategyPosition.Useable = 1
 					strategyPosition.OpenPrice = lastPrice
 				}
@@ -297,7 +298,6 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	if err != nil {
 		fmt.Println("错误：", err)
 	}
-
 	strategyPosition.OpenParams = string(openParamsBytes)
 	if strategyPosition.Useable > 0 {
 		stopLossDistance := calc.StopLossDistance(0.06, strategyPosition.OpenPrice, 20)
@@ -306,7 +306,7 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		} else {
 			strategyPosition.OpenPrice = strategyPosition.OpenPrice + stopLossDistance
 		}
-		utils.Log.Infof("[PARAMS] %s", strategyPosition.OpenParams)
+		utils.Log.Tracef("[PARAMS] %s", strategyPosition.OpenParams)
 	}
 
 	return strategyPosition

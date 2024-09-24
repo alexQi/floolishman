@@ -37,11 +37,11 @@ func (s Scoop) Indicators(df *model.Dataframe) {
 	df.Metadata["bbLower"] = bbLower
 	df.Metadata["bbWidth"] = bbWidth
 	// 检查插针
-	upperPinRates, lowPinRates, upperShadows, lowShadows := indicator.PinBars(df.Open, df.Close, df.High, df.Low)
+	upperPinRates, lowerPinRates, upperShadows, lowerShadows := indicator.PinBars(df.Open, df.Close, df.High, df.Low)
 	df.Metadata["upperPinRates"] = upperPinRates
-	df.Metadata["lowPinRates"] = lowPinRates
+	df.Metadata["lowerPinRates"] = lowerPinRates
 	df.Metadata["upperShadows"] = upperShadows
-	df.Metadata["lowShadows"] = lowShadows
+	df.Metadata["lowerShadows"] = lowerShadows
 	// 计算MACD指标
 	macdLine, signalLine, hist := indicator.MACD(df.Close, 8, 17, 5)
 	df.Metadata["macd"] = macdLine
@@ -69,16 +69,16 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	lastRsi := df.Metadata["rsi"].Last(0)
 
 	upperPinRates := df.Metadata["upperPinRates"]
-	lowPinRates := df.Metadata["lowPinRates"]
+	lowerPinRates := df.Metadata["lowerPinRates"]
 	upperShadows := df.Metadata["upperShadows"]
-	lowShadows := df.Metadata["lowShadows"]
+	lowerShadows := df.Metadata["lowerShadows"]
 
 	prevUpperPinRate := upperPinRates.Last(1)
-	prevLowerPinRate := lowPinRates.Last(1)
+	prevLowerPinRate := lowerPinRates.Last(1)
 
 	var upperShadowChangeRate, lowerShadowChangeRate float64
 	prevUpperShadow := upperShadows.Last(1)
-	prevLowerShadow := lowShadows.Last(1)
+	prevLowerShadow := lowerShadows.Last(1)
 	if prevUpperShadow == 0 {
 		upperShadowChangeRate = 0
 	} else {
@@ -87,7 +87,7 @@ func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	if prevLowerShadow == 0 {
 		lowerShadowChangeRate = 0
 	} else {
-		lowerShadowChangeRate = lowShadows.Last(0) / prevLowerShadow
+		lowerShadowChangeRate = lowerShadows.Last(0) / prevLowerShadow
 	}
 
 	amplitude := indicator.AMP(df.Open.Last(1), df.High.Last(1), df.Low.Last(1))

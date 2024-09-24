@@ -18,6 +18,7 @@ strategies:
   #  - "Resonance15m"
   #  - "Radicalization"
   - "Scooper"
+  - "ScooperWeight"
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop

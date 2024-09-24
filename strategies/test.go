@@ -10,25 +10,25 @@ import (
 	"reflect"
 )
 
-type Scooper struct {
+type Test struct {
 	BaseStrategy
 }
 
 // SortScore
-func (s Scooper) SortScore() float64 {
+func (s Test) SortScore() float64 {
 	return 90
 }
 
 // Timeframe
-func (s Scooper) Timeframe() string {
+func (s Test) Timeframe() string {
 	return "30m"
 }
 
-func (s Scooper) WarmupPeriod() int {
+func (s Test) WarmupPeriod() int {
 	return 96 // 预热期设定为50个数据点
 }
 
-func (s Scooper) Indicators(df *model.Dataframe) {
+func (s Test) Indicators(df *model.Dataframe) {
 	bbUpper, bbMiddle, bbLower := indicator.BB(df.Close, 21, 2.0, 0)
 	// 计算布林带宽度
 	bbWidth := make([]float64, len(bbUpper))
@@ -53,9 +53,9 @@ func (s Scooper) Indicators(df *model.Dataframe) {
 	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
-func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
+func (s *Test) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	lastPrice := df.Close.Last(0)
-	prevPrice := df.Close.Last(1)
+	//prevPrice := df.Close.Last(1)
 
 	strategyPosition := model.PositionStrategy{
 		Tendency:     s.checkMarketTendency(df),
@@ -98,29 +98,33 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	isUpperPinBar, isLowerPinBar := s.batchCheckPinBar(df, 3, 0.65, false)
 
 	openParams := map[string]interface{}{
-		"prevPriceRate":         prevPriceRate,
-		"prevPrice":             prevPrice,
-		"lastPrice":             lastPrice,
-		"isUpperPinBar":         isUpperPinBar,
-		"isLowerPinBar":         isLowerPinBar,
-		"lastRsi":               lastRsi,
-		"prevRsi":               prevRsi,
-		"amplitude":             amplitude,
+		//"prevPriceRate":         prevPriceRate,
+		//"prevPrice":             prevPrice,
+		//"lastPrice":             lastPrice,
+		//"isUpperPinBar":         isUpperPinBar,
+		//"isLowerPinBar":         isLowerPinBar,
+		//"lastRsi":               lastRsi,
+		//"prevRsi":               prevRsi,
+		"prevPriceRate":         prevPriceRate / 0.02,
+		"amplitude":             amplitude / 4,
 		"prevUpperPinRate":      prevUpperPinRate,
 		"prevLowerPinRate":      prevLowerPinRate,
 		"upperShadowChangeRate": upperShadowChangeRate,
 		"lowerShadowChangeRate": lowerShadowChangeRate,
-		"openAt":                df.LastUpdate.In(Loc).Format("2006-01-02 15:04:05"),
+		//"openAt":                df.LastUpdate.In(Loc).Format("2006-01-02 15:04:05"),
 	}
 
 	if isUpperPinBar && amplitude > 0.65 && prevUpperPinRate > 0.25 && prevPriceRate > 0.001 {
+		openParams["lastRsiRate"] = (calc.Max(lastRsi, 50) - 50) / 42
+		openParams["prevRsiRate"] = (calc.Max(prevRsi, 50) - 50) / 42
 		openParams["positionSide"] = string(model.SideTypeSell)
 
 		rsiChange := prevRsi - lastRsi
+
 		strategyPosition.Side = string(model.SideTypeSell)
 		strategyPosition.Score = lastRsi
 
-		if prevRsi >= 74 && prevRsi < 80 && rsiChange > 9.4 && rsiChange < 11.2 {
+		if prevRsi >= 74 && prevRsi < 80 && rsiChange > 9.4 {
 			if amplitude < 1.2 {
 				if upperShadowChangeRate > 0.6 && amplitude*prevUpperPinRate > 1.5 {
 					strategyPosition.Useable = 1
@@ -140,7 +144,7 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 				}
 			}
 		}
-		if prevRsi >= 80 && prevRsi < 86 && rsiChange > 7.6 && rsiChange < 9.4 {
+		if prevRsi >= 80 && prevRsi < 86 && rsiChange > 7.6 {
 			if amplitude < 1.2 {
 				if upperShadowChangeRate > 0.72 && amplitude*prevUpperPinRate > 0.42 {
 					strategyPosition.Useable = 1
@@ -160,7 +164,7 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 				}
 			}
 		}
-		if prevRsi >= 86 && prevRsi < 92 && rsiChange > 5.8 && rsiChange < 7.6 {
+		if prevRsi >= 86 && prevRsi < 92 && rsiChange > 5.8 {
 			if amplitude < 1.2 {
 				if upperShadowChangeRate > 0.72 && amplitude*prevUpperPinRate > 0.42 {
 					strategyPosition.Useable = 1
@@ -203,6 +207,8 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	}
 
 	if isLowerPinBar && amplitude > 0.65 && prevLowerPinRate > 0.25 && prevPriceRate > 0.001 {
+		openParams["lastRsiRate"] = (50 - calc.Min(lastRsi, 50)) / 42
+		openParams["prevRsiRate"] = (50 - calc.Min(prevRsi, 50)) / 42
 		openParams["positionSide"] = string(model.SideTypeBuy)
 
 		rsiChange := lastRsi - prevRsi
@@ -297,7 +303,6 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 	if err != nil {
 		fmt.Println("错误：", err)
 	}
-
 	strategyPosition.OpenParams = string(openParamsBytes)
 	if strategyPosition.Useable > 0 {
 		stopLossDistance := calc.StopLossDistance(0.06, strategyPosition.OpenPrice, 20)
@@ -306,7 +311,7 @@ func (s *Scooper) OnCandle(df *model.Dataframe) model.PositionStrategy {
 		} else {
 			strategyPosition.OpenPrice = strategyPosition.OpenPrice + stopLossDistance
 		}
-		utils.Log.Infof("[PARAMS] %s", strategyPosition.OpenParams)
+		utils.Log.Tracef("[PARAMS] %s", strategyPosition.OpenParams)
 	}
 
 	return strategyPosition

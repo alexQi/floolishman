@@ -150,9 +150,11 @@ func (c *Base) Init(
 		c.guider = service.NewServiceGuider(ctx, setting.GuiderHost)
 	}
 
-	go c.RegisterPairOption()
-	go c.RegisterPairGridBuilder()
-	go c.RegisterPairPauser()
+	if c.setting.Backtest == false {
+		go c.RegisterPairOption()
+		go c.RegisterPairGridBuilder()
+		go c.RegisterPairPauser()
+	}
 }
 
 func (c *Base) OpenTube(pair string) {
