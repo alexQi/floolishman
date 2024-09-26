@@ -154,9 +154,6 @@ func (c *Scoop) tickerCheckForClose() {
 }
 
 func (c *Scoop) EventCallOpen(pair string) {
-	if c.pairOptions[pair].Status == false {
-		return
-	}
 	longShortRatio, currentMatchers := c.checkScoopPosition(c.pairOptions[pair])
 	if longShortRatio >= 0 {
 		go c.openScoopPosition(c.pairOptions[pair], longShortRatio, currentMatchers)
@@ -173,7 +170,7 @@ func (s *Scoop) checkScoopPosition(option *model.PairOption) (float64, []model.P
 	if _, ok := s.samples[option.Pair]; !ok {
 		return -1, []model.PositionStrategy{}
 	}
-	matchers := s.strategy.CallMatchers(s.samples[option.Pair])
+	matchers := s.strategy.CallMatchers(option, s.samples[option.Pair])
 	finalTendency, currentMatchers := s.Sanitizer(matchers)
 	longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(finalTendency, currentMatchers)
 	// 判断策略结果
@@ -388,6 +385,7 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 				pairCurrentProfit.MaxProfit*100,
 			)
 			c.resetPairProfit(option.Pair)
+			c.PausePairCall(option.Pair, time.Duration(option.PauseCaller))
 			c.finishPosition(SeasonTypeTimeout, openedPosition)
 			continue
 		}
@@ -404,6 +402,7 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 			)
 			// 重置交易对盈利
 			c.resetPairProfit(option.Pair)
+			c.PausePairCall(option.Pair, time.Duration(option.PauseCaller))
 			c.finishPosition(SeasonTypeProfitBack, openedPosition)
 			return
 		}
@@ -487,6 +486,7 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 							pairCurrentProfit.MaxProfit*100,
 						)
 						c.resetPairProfit(option.Pair)
+						c.PausePairCall(option.Pair, time.Duration(option.PauseCaller))
 						c.finishPosition(SeasonTypeLossMax, openedPosition)
 						return
 					}

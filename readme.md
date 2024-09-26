@@ -65,3 +65,7 @@
 
 - windows用户，修改完配置文件，将证书放入certs/文件夹下，启动floolishman.exe
 - macos,linux用户，修改完配置文件，将证书放入certs/文件夹下，启动floolishman
+
+
+``
+``

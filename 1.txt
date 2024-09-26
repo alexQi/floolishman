@@ -1,0 +1,24 @@
+{
+  "instances": [
+    {
+      "lastBollingCrossRate_weighted": 0.9973012108669623,
+      "lastCloseCrossRate_weighted": 0.9343708417480574,
+      "lastRsi_weighted": 31.24500148298413,
+      "lastRsiChange_weighted": 17.322952364387007,
+      "lowerShadowChangeRate_weighted": 0.7553191489361704,
+      "penuAmplitude_weighted": 17.670093000489484,
+      "penuLowerPinRate_weighted": 1.3589743589743584,
+      "penuRsi_weighted": 8.33820999374906,
+      "penuUpperPinRate_weighted": 0.16550116550116653,
+      "prevAmplitude_weighted": 5.298555471080175,
+      "prevBollingCrossRate_weighted": 1.0394791405861683,
+      "prevCloseCrossRate_weighted": 1.002260705028972,
+      "prevLowerPinRate_weighted": 1.5346938775510224,
+      "prevPriceRate_weighted": 0.014328323293759868,
+      "prevRsi_weighted": 13.922049118597121,
+      "prevRsiChange_weighted": -5.58383912484806,
+      "prevUpperPinRate_weighted": 1.163265306122444,
+      "upperShadowChangeRate_weighted": 0.6456140350877225,
+    }
+  ]
+}

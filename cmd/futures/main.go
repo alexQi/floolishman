@@ -36,6 +36,7 @@ func main() {
 		callerSetting = types.CallerSetting{
 			CheckMode:                 viper.GetString("caller.checkMode"),
 			LossTimeDuration:          viper.GetInt("caller.lossTimeDuration"),
+			AllowPairs:                viper.GetStringSlice("caller.allowPairs"),
 			IgnorePairs:               viper.GetStringSlice("caller.ignorePairs"),
 			IgnoreHours:               viper.GetIntSlice("caller.ignoreHours"),
 			Leverage:                  viper.GetInt("caller.leverage"),
@@ -101,6 +102,9 @@ func main() {
 		coinAssetInfos := binance.AssetsInfos()
 		for pair, assetInfo := range coinAssetInfos {
 			if strutil.ContainsString(callerSetting.IgnorePairs, pair) {
+				continue
+			}
+			if strutil.ContainsString(callerSetting.AllowPairs, pair) == false {
 				continue
 			}
 			if assetInfo.QuoteAsset != "USDT" {

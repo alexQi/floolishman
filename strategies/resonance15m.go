@@ -48,7 +48,7 @@ func (s Resonance15m) Indicators(df *model.Dataframe) {
 	df.Metadata["signalAngle"] = indicator.TendencyAngles(signalLine, 3)
 }
 
-func (s *Resonance15m) OnCandle(df *model.Dataframe) model.PositionStrategy {
+func (s *Resonance15m) OnCandle(option *model.PairOption, df *model.Dataframe) model.PositionStrategy {
 	strategyPosition := model.PositionStrategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),

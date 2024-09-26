@@ -11,6 +11,7 @@ type CallerSetting struct {
 	FollowSymbol              bool
 	Backtest                  bool
 	LossTimeDuration          int
+	AllowPairs                []string
 	IgnorePairs               []string
 	IgnoreHours               []int
 	Leverage                  int

@@ -53,7 +53,7 @@ func (s Scoop) Indicators(df *model.Dataframe) {
 	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
-func (s *Scoop) OnCandle(df *model.Dataframe) model.PositionStrategy {
+func (s *Scoop) OnCandle(option *model.PairOption, df *model.Dataframe) model.PositionStrategy {
 	strategyPosition := model.PositionStrategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),

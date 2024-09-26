@@ -41,7 +41,7 @@ func (s Grid1h) Indicators(df *model.Dataframe) {
 	df.Metadata["discrepancy"] = indicator.Discrepancy(bbMiddle, 2)
 }
 
-func (s *Grid1h) OnCandle(df *model.Dataframe) model.PositionStrategy {
+func (s *Grid1h) OnCandle(option *model.PairOption, df *model.Dataframe) model.PositionStrategy {
 	return model.PositionStrategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),

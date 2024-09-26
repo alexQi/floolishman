@@ -102,7 +102,7 @@ func (c *Frequency) Process(pair string) string {
 	// 执行计数器+1
 	c.positionJudgers[pair].Count++
 	// 执行策略检查
-	matchers := c.strategy.CallMatchers(c.samples[pair])
+	matchers := c.strategy.CallMatchers(c.pairOptions[pair], c.samples[pair])
 	// 清洗策略结果
 	finalTendency, currentMatchers := c.Sanitizer(matchers)
 	// 重组匹配策略数据

@@ -51,7 +51,7 @@ func (s Radicalization) Indicators(df *model.Dataframe) {
 	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
-func (s *Radicalization) OnCandle(df *model.Dataframe) model.PositionStrategy {
+func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe) model.PositionStrategy {
 	lastPrice := df.Close.Last(0)
 	prevPrice := df.Close.Last(1)
 

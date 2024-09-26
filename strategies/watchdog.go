@@ -25,7 +25,7 @@ func (s Watchdog) Indicators(_ *model.Dataframe) {
 
 }
 
-func (s *Watchdog) OnCandle(df *model.Dataframe) model.PositionStrategy {
+func (s *Watchdog) OnCandle(option *model.PairOption, df *model.Dataframe) model.PositionStrategy {
 	strategyPosition := model.PositionStrategy{
 		Tendency:     "watchdog",
 		StrategyName: reflect.TypeOf(s).Elem().Name(),

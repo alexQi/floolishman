@@ -307,6 +307,9 @@ func (c *ServiceOrder) ListenPositions() {
 					return
 				}
 				delete(c.positionMap[pair], orderFlag)
+
+				types.PairPauserChan <- position.Pair
+
 				continue
 			}
 			// 当前方向的仓位不存在删除仓位
@@ -320,6 +323,8 @@ func (c *ServiceOrder) ListenPositions() {
 					return
 				}
 				delete(c.positionMap[pair], orderFlag)
+
+				types.PairPauserChan <- position.Pair
 				continue
 			}
 			hasChange := false

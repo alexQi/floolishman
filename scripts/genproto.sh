@@ -12,3 +12,6 @@ PROTO_DIR="${PWD}/protos"
 find "$PROTO_DIR" -type d ! -path "$PROTO_DIR" | while read -r dir; do
   /opt/homebrew/bin/protoc --go_out=plugins=grpc:./ -I=$dir $dir/*.proto
 done
+
+
+/opt/homebrew/bin/protoc --go_out=plugins=grpc:./ -I=$dir $dir/*.proto

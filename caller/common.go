@@ -86,7 +86,7 @@ func (s *Common) checkPosition(option *model.PairOption) (float64, float64, floa
 	if _, ok := s.samples[option.Pair]; !ok {
 		return 0, 0, -1, []model.PositionStrategy{}, map[string]int{}
 	}
-	matchers := s.strategy.CallMatchers(s.samples[option.Pair])
+	matchers := s.strategy.CallMatchers(option, s.samples[option.Pair])
 	finalTendency, currentMatchers := s.Sanitizer(matchers)
 	longShortRatio, matcherStrategy := s.getStrategyLongShortRatio(finalTendency, currentMatchers)
 	// 判断策略结果

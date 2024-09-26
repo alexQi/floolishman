@@ -36,7 +36,7 @@ func (s Emacross1h) Indicators(df *model.Dataframe) {
 	df.Metadata["tendency"] = indicator.TendencyAngles(bbMiddle, 5)
 }
 
-func (s *Emacross1h) OnCandle(df *model.Dataframe) model.PositionStrategy {
+func (s *Emacross1h) OnCandle(option *model.PairOption, df *model.Dataframe) model.PositionStrategy {
 	strategyPosition := model.PositionStrategy{
 		Tendency:     s.checkMarketTendency(df),
 		StrategyName: reflect.TypeOf(s).Elem().Name(),

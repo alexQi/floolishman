@@ -19,6 +19,7 @@ func main() {
 		callerSetting = types.CallerSetting{
 			CheckMode:   viper.GetString("caller.checkMode"),
 			IgnorePairs: viper.GetStringSlice("caller.ignorePairs"),
+			AllowPairs:  viper.GetStringSlice("caller.allowPairs"),
 			Leverage:    viper.GetInt("caller.leverage"),
 		}
 	)
@@ -121,6 +122,9 @@ func main() {
 						for pair, assetInfo := range coinAssetInfos {
 							//wg.Add(1) // 增加WaitGroup计数器
 							if strutil.ContainsString(callerSetting.IgnorePairs, pair) {
+								continue
+							}
+							if strutil.ContainsString(callerSetting.AllowPairs, pair) == false {
 								continue
 							}
 							if assetInfo.QuoteAsset != "USDT" {
