@@ -17,6 +17,7 @@ type PairProfit struct {
 	Decrease  float64
 	Floor     float64
 	MaxProfit float64
+	LossCount int
 }
 
 type PositionStrategy struct {

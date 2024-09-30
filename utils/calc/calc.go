@@ -227,3 +227,11 @@ func CalculateAddQuantity(mainSide model.SideType, mainQuantity, mainPrice, subQ
 func StopLossDistance(profitRatio float64, entryPrice float64, leverage float64) float64 {
 	return profitRatio * entryPrice / leverage
 }
+
+func CalculateFactor(rsiRatio float64, k float64) float64 {
+	return math.Exp(-k * rsiRatio)
+}
+
+func CalculateRate(x, dutam, k float64) float64 {
+	return math.Exp(-k * (x - dutam))
+}

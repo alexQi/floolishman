@@ -119,14 +119,13 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, is
 		}
 	}
 	if s.started {
-		// 未开始时
-		if isComplate == true {
-			// 回溯测试模式
-			if s.backtest {
-				s.caller.CloseOrder(true)
-				s.caller.EventCallOpen(candle.Pair)
-				s.caller.EventCallClose(candle.Pair)
-			} else {
+		if s.backtest {
+			s.caller.CloseOrder(true)
+			s.caller.EventCallOpen(candle.Pair)
+			s.caller.EventCallClose(candle.Pair)
+		} else {
+			// 未开始时
+			if isComplate == true {
 				if s.checkMode == "grid" {
 					types.PairGridBuilderParamChan <- types.PairGridBuilderParam{
 						Pair:      candle.Pair,
@@ -137,10 +136,11 @@ func (s *ServiceStrategy) OnRealCandle(timeframe string, candle model.Candle, is
 				if s.checkMode == "candle" {
 					s.caller.EventCallOpen(candle.Pair)
 				}
+			} else {
+				s.caller.OpenTube(candle.Pair)
 			}
-		} else {
-			s.caller.OpenTube(candle.Pair)
 		}
+
 	} else {
 		if s.checkMode == "grid" {
 			types.PairGridBuilderParamChan <- types.PairGridBuilderParam{

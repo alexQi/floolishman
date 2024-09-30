@@ -25,8 +25,9 @@ type PairFeed struct {
 }
 
 type CSVFeed struct {
-	Feeds               map[string]PairFeed
-	CandlePairTimeFrame map[string][]model.Candle
+	Feeds                     map[string]PairFeed
+	OriginCandlePairTimeFrame map[string][]model.Candle
+	CandlePairTimeFrame       map[string][]model.Candle
 }
 
 func (c CSVFeed) AssetsInfo(pair string) model.AssetInfo {
@@ -70,8 +71,9 @@ func parseHeaders(headers []string) (index map[string]int, additional []string, 
 // NewCSVFeed creates a new data feed from CSV files and resample
 func NewCSVFeed(targetTimeframe string, feeds ...PairFeed) (*CSVFeed, error) {
 	csvFeed := &CSVFeed{
-		Feeds:               make(map[string]PairFeed),
-		CandlePairTimeFrame: make(map[string][]model.Candle),
+		Feeds:                     make(map[string]PairFeed),
+		CandlePairTimeFrame:       make(map[string][]model.Candle),
+		OriginCandlePairTimeFrame: make(map[string][]model.Candle),
 	}
 
 	for _, feed := range feeds {
@@ -151,7 +153,7 @@ func NewCSVFeed(targetTimeframe string, feeds ...PairFeed) (*CSVFeed, error) {
 			candles = append(candles, candle)
 		}
 
-		csvFeed.CandlePairTimeFrame[csvFeed.feedTimeframeKey(feed.Pair, feed.Timeframe)] = candles
+		csvFeed.OriginCandlePairTimeFrame[csvFeed.feedTimeframeKey(feed.Pair, feed.Timeframe)] = candles
 		err = csvFeed.resample(feed.Pair, feed.Timeframe, targetTimeframe)
 		if err != nil {
 			return nil, err
@@ -239,12 +241,13 @@ func (c *CSVFeed) resample(pair, sourceTimeframe, targetTimeframe string) error 
 	targetKey := c.feedTimeframeKey(pair, targetTimeframe)
 
 	if sourceKey == targetKey {
+		c.CandlePairTimeFrame[targetKey] = c.OriginCandlePairTimeFrame[sourceKey]
 		return nil
 	}
 
 	var i int
-	for ; i < len(c.CandlePairTimeFrame[sourceKey]); i++ {
-		if ok, err := isFistCandlePeriod(c.CandlePairTimeFrame[sourceKey][i].Time, sourceTimeframe,
+	for ; i < len(c.OriginCandlePairTimeFrame[sourceKey]); i++ {
+		if ok, err := isFistCandlePeriod(c.OriginCandlePairTimeFrame[sourceKey][i].Time, sourceTimeframe,
 			targetTimeframe); err != nil {
 			return err
 		} else if ok {
@@ -253,8 +256,8 @@ func (c *CSVFeed) resample(pair, sourceTimeframe, targetTimeframe string) error 
 	}
 
 	candles := make([]model.Candle, 0)
-	for ; i < len(c.CandlePairTimeFrame[sourceKey]); i++ {
-		candle := c.CandlePairTimeFrame[sourceKey][i]
+	for ; i < len(c.OriginCandlePairTimeFrame[sourceKey]); i++ {
+		candle := c.OriginCandlePairTimeFrame[sourceKey][i]
 		if last, err := isLastCandlePeriod(candle.Time, sourceTimeframe, targetTimeframe); err != nil {
 			return err
 		} else if last {
@@ -299,13 +302,24 @@ func (c CSVFeed) CandlesByPeriod(_ context.Context, pair, timeframe string,
 }
 
 func (c *CSVFeed) CandlesByLimit(_ context.Context, pair, timeframe string, limit int) ([]model.Candle, error) {
-	var result []model.Candle
 	key := c.feedTimeframeKey(pair, timeframe)
 	if len(c.CandlePairTimeFrame[key]) < limit {
 		return nil, fmt.Errorf("%w: %s", ErrInsufficientData, pair)
 	}
-	result, c.CandlePairTimeFrame[key] = c.CandlePairTimeFrame[key][:limit], c.CandlePairTimeFrame[key][limit:]
-	return result, nil
+	limitEndIndex := 0
+	limitCandles := make([]model.Candle, 0)
+	for i := 0; i < len(c.CandlePairTimeFrame[key]); i++ {
+		if len(limitCandles) >= limit {
+			limitEndIndex = i
+			break
+		}
+		if c.CandlePairTimeFrame[key][i].Complete == true {
+			limitCandles = append(limitCandles, c.CandlePairTimeFrame[key][i])
+		}
+	}
+	c.CandlePairTimeFrame[key] = c.CandlePairTimeFrame[key][limitEndIndex:]
+
+	return limitCandles, nil
 }
 
 func (c CSVFeed) CandlesSubscription(_ context.Context, pair, timeframe string) (chan model.Candle, chan error) {

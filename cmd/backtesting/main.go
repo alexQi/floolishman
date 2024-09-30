@@ -132,11 +132,11 @@ func main() {
 		if option.Status == false {
 			continue
 		}
-		dataCsvPath = fmt.Sprintf("testdata/%s-%s.csv", option.Pair, "30m")
+		dataCsvPath = fmt.Sprintf("testdata/%s-%s.csv", option.Pair, "1m")
 		pairFeeds = append(pairFeeds, exchange.PairFeed{
 			Pair:      option.Pair,
 			File:      dataCsvPath,
-			Timeframe: "30m",
+			Timeframe: "1m",
 		})
 	}
 

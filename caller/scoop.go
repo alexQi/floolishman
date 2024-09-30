@@ -76,12 +76,16 @@ func (c *Scoop) tickCheckForOpen() {
 			openAliablePairs := []ScoopCheckItem{}
 			scoopCheckSlice := []ScoopCheckItem{}
 			currentHour := time.Now().Hour()
+			currentWeek := time.Now().Weekday()
 			for _, option := range c.pairOptions {
 				if option.Status == false {
 					continue
 				}
-				if strutil.IsInArray(option.IgnoreHours, currentHour) {
-					continue
+				// 如果今天不是周六或周日，且当前时间在 IgnoreHours 中，则跳过
+				if currentWeek != time.Saturday && currentWeek != time.Sunday {
+					if strutil.IsInArray(option.IgnoreHours, currentHour) {
+						continue
+					}
 				}
 				tempMatcherScore = 0
 				longShortRatio, currentMatchers := c.checkScoopPosition(option)
@@ -266,12 +270,12 @@ func (c *Scoop) openScoopPosition(option *model.PairOption, longShortRatio float
 		postionSide = model.PositionSideTypeLong
 		closeSideType = model.SideTypeSell
 		stopLimitPrice = avgOpenPrice - stopLossDistance
-		stopTrigerPrice = avgOpenPrice - stopLossDistance*0.9
+		stopTrigerPrice = avgOpenPrice - stopLossDistance*0.85
 	} else {
 		postionSide = model.PositionSideTypeShort
 		closeSideType = model.SideTypeBuy
 		stopLimitPrice = avgOpenPrice + stopLossDistance
-		stopTrigerPrice = avgOpenPrice + stopLossDistance*0.9
+		stopTrigerPrice = avgOpenPrice + stopLossDistance*0.85
 	}
 	// 判断是否有当前方向未成交的订单
 	hasOrder, err := c.CheckHasUnfilledPositionOrders(option.Pair, finalSide, postionSide)
@@ -420,6 +424,10 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 						pairCurrentProfit.Floor*100,
 						lossLimitTime.In(Loc).Format("2006-01-02 15:04:05"),
 					)
+					if profitRatio > pairCurrentProfit.MaxProfit {
+						pairCurrentProfit.MaxProfit = profitRatio
+						c.pairCurrentProfit.Set(option.Pair, pairCurrentProfit)
+					}
 					return
 				}
 			} else {
@@ -473,11 +481,11 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 					lossLimitTime.In(Loc).Format("2006-01-02 15:04:05"),
 				)
 			} else {
-				// 已经触发过止损单，但是未平完的部分使用市价单平掉
-				if openedPosition.Quantity < openedPosition.TotalQuantity {
-					// 判断价格已经超过止损价格，直接平仓
-					if (openedPosition.PositionSide == string(model.PositionSideTypeLong) && currentPrice <= openedPosition.StopLossPrice) ||
-						(openedPosition.PositionSide == string(model.PositionSideTypeShort) && currentPrice >= openedPosition.StopLossPrice) {
+				// 判断价格已经超过止损价格，直接平仓
+				if (openedPosition.PositionSide == string(model.PositionSideTypeLong) && currentPrice <= openedPosition.StopLossPrice) ||
+					(openedPosition.PositionSide == string(model.PositionSideTypeShort) && currentPrice >= openedPosition.StopLossPrice) {
+					// 判断当前亏损是否超过10次检查
+					if pairCurrentProfit.LossCount > 10 {
 						utils.Log.Infof(
 							"[POSITION - CLOSE] %s | Current: %v | PR.%%: %.2f%%, MaxProfit: %.2f%%",
 							openedPosition.String(),
@@ -490,6 +498,8 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 						c.finishPosition(SeasonTypeLossMax, openedPosition)
 						return
 					}
+					pairCurrentProfit.LossCount = pairCurrentProfit.LossCount + 1
+					c.pairCurrentProfit.Set(option.Pair, pairCurrentProfit)
 				}
 				utils.Log.Infof(
 					"[POSITION - HOLD] %s | Current: %v | PR.%%: %.2f%% < MaxLoseRatio: %.2f%%, MaxProfit: %.2f%% | StopAt: %s",

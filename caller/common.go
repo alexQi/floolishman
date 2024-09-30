@@ -113,11 +113,7 @@ func (s *Common) checkPosition(option *model.PairOption) (float64, float64, floa
 func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosition, longShortRatio float64, matcherStrategy map[string]int, strategies []model.PositionStrategy) {
 	c.mu[option.Pair].Lock()         // 加锁
 	defer c.mu[option.Pair].Unlock() // 解锁
-	// 无资产
-	if quotePosition <= 0 {
-		utils.Log.Errorf("Balance is not enough to create order: %v", quotePosition)
-		return
-	}
+
 	var finalSide model.SideType
 	var postionSide model.PositionSideType
 
@@ -184,18 +180,32 @@ func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosi
 			}
 		}
 	}
-	var stopLossPrice, avgAtr, atrSum float64
+	var atrSum, sumOpenPrice, avgOpenPrice float64
+	// 获取平均开仓价格
 	for _, strategy := range strategies {
 		atrSum += strategy.LastAtr
+		sumOpenPrice += strategy.OpenPrice
 	}
-	avgAtr = atrSum / float64(len(strategies))
-	// 获取最新仓位positionSide
+	avgOpenPrice = sumOpenPrice / float64(len(strategies))
+	// 设置止损订单
+	var stopLimitPrice, stopTrigerPrice, stopLossDistance float64
+	var closeSideType model.SideType
+	// 计算止损距离
+	if option.MaxMarginLossRatio > 0 {
+		stopLossDistance = calc.StopLossDistance(option.MaxMarginLossRatio, avgOpenPrice, float64(option.Leverage))
+	} else {
+		stopLossDistance = atrSum / float64(len(strategies))
+	}
 	if finalSide == model.SideTypeBuy {
 		postionSide = model.PositionSideTypeLong
-		stopLossPrice = currentPrice - avgAtr
+		closeSideType = model.SideTypeSell
+		stopLimitPrice = avgOpenPrice - stopLossDistance
+		stopTrigerPrice = avgOpenPrice - stopLossDistance*0.85
 	} else {
 		postionSide = model.PositionSideTypeShort
-		stopLossPrice = currentPrice + avgAtr
+		closeSideType = model.SideTypeBuy
+		stopLimitPrice = avgOpenPrice + stopLossDistance
+		stopTrigerPrice = avgOpenPrice + stopLossDistance*0.85
 	}
 	// 判断是否有当前方向未成交的订单
 	hasOrder, err := c.CheckHasUnfilledPositionOrders(option.Pair, finalSide, postionSide)
@@ -206,9 +216,13 @@ func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosi
 	if hasOrder {
 		return
 	}
-	// ******************* 执行反手开仓操作 *****************//
-	// 根据多空比动态计算仓位大小
-	amount := c.getPositionMargin(quotePosition, currentPrice, option)
+	// 无资产
+	if quotePosition <= 0 {
+		utils.Log.Errorf("[EXCHANGE] Balance is not enough to create order")
+		return
+	}
+	// 计算仓位大小
+	amount := c.getPositionMargin(quotePosition, avgOpenPrice, option)
 	lastTime, _ := c.lastUpdate.Get(option.Pair)
 	if c.setting.Backtest == false {
 		utils.Log.Infof(
@@ -216,38 +230,21 @@ func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosi
 			option.Pair,
 			postionSide,
 			amount,
-			currentPrice,
+			avgOpenPrice,
 			lastTime.In(Loc).Format("2006-01-02 15:04:05"),
 		)
 	}
 	// 根据最新价格创建限价单
-	order, err := c.broker.CreateOrderLimit(finalSide, postionSide, option.Pair, amount, currentPrice, model.OrderExtra{
+	order, err := c.broker.CreateOrderLimit(finalSide, postionSide, option.Pair, amount, avgOpenPrice, model.OrderExtra{
 		Leverage:             option.Leverage,
 		LongShortRatio:       longShortRatio,
-		MatcherStrategyCount: matcherStrategy,
+		StopLossPrice:        stopLimitPrice,
 		MatcherStrategy:      strategies,
-		StopLossPrice:        stopLossPrice,
+		MatcherStrategyCount: matcherStrategy,
 	})
 	if err != nil {
 		utils.Log.Error(err)
 		return
-	}
-
-	// 设置止损订单
-	var stopLimitPrice float64
-	var stopTrigerPrice float64
-	var closeSideType model.SideType
-	var lossRatio = option.MaxMarginLossRatio * float64(option.Leverage)
-	// 计算止损距离
-	stopLossDistance := calc.StopLossDistance(lossRatio, order.Price, float64(option.Leverage))
-	if finalSide == model.SideTypeBuy {
-		closeSideType = model.SideTypeSell
-		stopLimitPrice = order.Price - stopLossDistance
-		stopTrigerPrice = order.Price - stopLossDistance*0.85
-	} else {
-		closeSideType = model.SideTypeBuy
-		stopLimitPrice = order.Price + stopLossDistance
-		stopTrigerPrice = order.Price + stopLossDistance*0.85
 	}
 	_, err = c.broker.CreateOrderStopLimit(
 		closeSideType,
@@ -257,16 +254,17 @@ func (c *Common) openPosition(option *model.PairOption, assetPosition, quotePosi
 		stopLimitPrice,
 		stopTrigerPrice,
 		model.OrderExtra{
-			Leverage:       option.Leverage,
-			OrderFlag:      order.OrderFlag,
-			LongShortRatio: longShortRatio,
+			Leverage:             option.Leverage,
+			OrderFlag:            order.OrderFlag,
+			LongShortRatio:       longShortRatio,
+			MatcherStrategy:      strategies,
+			MatcherStrategyCount: matcherStrategy,
 		},
 	)
 	if err != nil {
 		utils.Log.Error(err)
 		return
 	}
-
 	// 重置当前交易对止损比例
 	c.resetPairProfit(option.Pair)
 	// 重置开仓检查条件

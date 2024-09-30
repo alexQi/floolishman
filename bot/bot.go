@@ -302,18 +302,13 @@ func (n *Bot) backtestCandles(pair string, timeframe string) {
 		// 监控订单数据变化
 		n.serviceOrder.ListenOrders()
 		// 处理开仓策略相关
-		if candle.Complete {
-			n.serviceStrategy.OnCandle(timeframe, candle)
-		}
+		n.serviceStrategy.OnCandle(timeframe, candle)
 	}
 }
 
 // Before Ninjabot start, we need to load the necessary data to fill strategy indicators
 // Then, we need to get the time frame and warmup period to fetch the necessary candles
 func (n *Bot) preload(ctx context.Context, pair string, timeframe string, period int) error {
-	if n.backtest {
-		return nil
-	}
 	candles, err := n.exchange.CandlesByLimit(ctx, pair, timeframe, period)
 	if err != nil {
 		return err

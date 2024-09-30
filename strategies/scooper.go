@@ -46,6 +46,11 @@ func (s Scooper) Indicators(df *model.Dataframe) {
 	df.Metadata["upperShadows"] = upperShadows
 	df.Metadata["lowerShadows"] = lowerShadows
 	// 计算MACD指标
+	macdLine, signalLine, hist := indicator.MACD(df.Close, 8, 17, 5)
+	df.Metadata["macd"] = macdLine
+	df.Metadata["signal"] = signalLine
+	df.Metadata["hist"] = hist
+	// 其他指标
 	df.Metadata["priceRate"] = indicator.PriceRate(df.Open, df.Close)
 	df.Metadata["rsi"] = indicator.RSI(df.Close, 7)
 	df.Metadata["atr"] = indicator.ATR(df.High, df.Low, df.Close, 14)
@@ -82,6 +87,8 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 
 	prevPriceRate := calc.Abs(df.Metadata["priceRate"].Last(1))
 
+	macd := df.Metadata["macd"]
+	signal := df.Metadata["signal"]
 	upperPinRates := df.Metadata["upperPinRates"]
 	lowerPinRates := df.Metadata["lowerPinRates"]
 	upperShadows := df.Metadata["upperShadows"]
@@ -93,6 +100,9 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 	prevLowerPinRate := lowerPinRates.Last(1)
 
 	var upperShadowChangeRate, lowerShadowChangeRate float64
+
+	prevSignal := signal.Last(1)
+	prevMacd := macd.Last(1)
 	lastUpperShadow := upperShadows.Last(0)
 	lastLowerShadow := lowerShadows.Last(0)
 	prevUpperShadow := upperShadows.Last(1)
@@ -107,6 +117,7 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 	} else {
 		lowerShadowChangeRate = lastLowerShadow / prevLowerShadow
 	}
+	prevMacdDiffRate := (prevMacd - prevSignal) / prevSignal
 
 	penuAmplitude := indicator.AMP(df.Open.Last(2), df.High.Last(2), df.Low.Last(2))
 	prevAmplitude := indicator.AMP(df.Open.Last(1), df.High.Last(1), df.Low.Last(1))
@@ -114,6 +125,7 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 	isUpperPinBar, isLowerPinBar := s.batchCheckPinBar(df, 3, 0.65, false)
 
 	openParams := map[string]interface{}{
+		"prevMacdDiffRate":      prevMacdDiffRate,
 		"prevPriceRate":         prevPriceRate,
 		"prevPrice":             prevPrice,
 		"lastPrice":             lastPrice,
@@ -132,6 +144,10 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 		"lowerShadowChangeRate": lowerShadowChangeRate,
 		"openAt":                df.LastUpdate.In(Loc).Format("2006-01-02 15:04:05"),
 	}
+
+	//distanceK := 1.54
+	//baseDistanceRate := 0.24
+	//var rsiSeedRate, limitShadowChangeRate, decayFactorDistance float64
 
 	var distanceRate float64
 	if isUpperPinBar && prevAmplitude > 0.65 && prevRsi > 60 && prevUpperPinRate > 0.25 && prevPriceRate > 0.001 {
@@ -153,24 +169,30 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 		strategyPosition.Side = string(model.SideTypeSell)
 		strategyPosition.Score = lastRsi
 
+		//rsiSeedRate = (prevRsi - 50.0) / 50.0
+		//limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, 1.5, 0.4405)
+		//
+		//decayFactorDistance = calc.CalculateFactor(rsiSeedRate, distanceK)
+		//distanceRate = decayFactorDistance * baseDistanceRate
+
 		if prevRsi >= 74 && prevRsi < 80 && lastRsiChange > 9.4 && lastRsiChange < 11.2 {
 			if prevAmplitude < 1.2 {
-				if upperShadowChangeRate > 0.6 && prevAmplitude*prevUpperPinRate > 1.5 {
+				if prevAmplitude*prevUpperPinRate > 1.5 {
 					distanceRate = 0.165
 					strategyPosition.Useable = 1
 				}
 			} else if prevAmplitude > 1.2 && prevAmplitude < 2.1 {
-				if upperShadowChangeRate > 0.45 && prevAmplitude*prevUpperPinRate > 2.0 {
+				if prevAmplitude*prevUpperPinRate > 2.0 {
 					distanceRate = 0.155
 					strategyPosition.Useable = 1
 				}
 			} else if prevAmplitude > 2.1 && prevAmplitude < 4.0 {
-				if upperShadowChangeRate > 0.38 && prevAmplitude*prevUpperPinRate > 2.5 {
+				if prevAmplitude*prevUpperPinRate > 2.5 {
 					distanceRate = 0.145
 					strategyPosition.Useable = 1
 				}
 			} else {
-				if upperShadowChangeRate > 0.30 && prevAmplitude*prevUpperPinRate > 3 {
+				if prevAmplitude*prevUpperPinRate > 3 {
 					distanceRate = 0.135
 					strategyPosition.Useable = 1
 					strategyPosition.OpenPrice = lastPrice
@@ -268,6 +290,12 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 
 		strategyPosition.Side = string(model.SideTypeBuy)
 		strategyPosition.Score = 100 - lastRsi
+
+		//rsiSeedRate = (50 - prevRsi) / 50
+		//limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, 1.5, 0.4405)
+		//
+		//decayFactorDistance = calc.CalculateFactor(rsiSeedRate, distanceK)
+		//distanceRate = decayFactorDistance * baseDistanceRate
 
 		if prevRsi >= 20 && prevRsi < 26 && lastRsiChange > 9.4 && lastRsiChange < 11.2 {
 			if prevAmplitude < 1.2 {
@@ -367,13 +395,6 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 		}
 	}
 
-	// 将 map 转换为 JSON 字符串
-	openParamsBytes, err := json.Marshal(openParams)
-	if err != nil {
-		fmt.Println("错误：", err)
-	}
-
-	strategyPosition.OpenParams = string(openParamsBytes)
 	if strategyPosition.Useable > 0 {
 		stopLossDistance := calc.StopLossDistance(distanceRate, strategyPosition.OpenPrice, float64(option.Leverage))
 		if strategyPosition.Side == string(model.SideTypeBuy) {
@@ -381,7 +402,15 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 		} else {
 			strategyPosition.OpenPrice = strategyPosition.OpenPrice + stopLossDistance
 		}
-		utils.Log.Infof("[PARAMS] %s", strategyPosition.OpenParams)
+		openParams["distanceRate"] = distanceRate
+		openParams["openPrice"] = strategyPosition.OpenPrice
+		// 将 map 转换为 JSON 字符串
+		openParamsBytes, err := json.Marshal(openParams)
+		if err != nil {
+			fmt.Println("错误：", err)
+		}
+		strategyPosition.OpenParams = string(openParamsBytes)
+		utils.Log.Tracef("[PARAMS] %s", strategyPosition.OpenParams)
 	}
 
 	return strategyPosition

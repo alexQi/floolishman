@@ -229,7 +229,7 @@ func NewServiceOrder(ctx context.Context, exchange reference.Exchange, storage s
 		exchange:               exchange,
 		orderFeed:              orderFeed,
 		tickerOrderInterval:    500 * time.Millisecond,
-		tickerPositionInterval: time.Second,
+		tickerPositionInterval: 10 * time.Second,
 		finish:                 make(chan bool),
 		Results:                make(map[string]*summary),
 		positionMap:            make(map[string]map[string]*model.Position),

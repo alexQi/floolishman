@@ -41,7 +41,7 @@ var (
 )
 
 var (
-	CancelLimitDuration        time.Duration = 300
+	CancelLimitDuration        time.Duration = 500
 	CheckCloseInterval         time.Duration = 500
 	CheckLeverageInterval      time.Duration = 1000
 	CheckTimeoutInterval       time.Duration = 500
