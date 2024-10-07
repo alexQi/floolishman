@@ -17,10 +17,10 @@ strategies:
   #  - "Grid1h"
   #  - "Resonance15m"
   #  - "Radicalization"
-#  - "Scooper"
-#    - "ScooperWeight"
-#  - "Radicalization"
-  - Test
+  #  - "Scooper"
+  #    - "ScooperWeight"
+  #  - "Radicalization"
+  - Scoop
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop
@@ -190,7 +190,13 @@ caller:
   # watchdog模式下是否是跟随模式，其他模式下都为false
   followSymbol: false
   # 时间止损市场 单位分钟
-  lossTimeDuration: 240
+  positionTimeout: 240
+  # 止损配置 - 亏损次数触发
+  lossTrigger: 2
+  # 止损配置 - 指数退避最小暂停时间 (分钟)
+  lossPauseMin: 45.0
+  # 止损配置 - 指数退避最大暂停时间 (分钟)
+  lossPauseMax: 90.0
   # ---------- 通用配置 --------------
   # 杠杆倍数
   leverage: 20.0

@@ -12,6 +12,7 @@ import (
 	"floolishman/utils"
 	"floolishman/utils/calc"
 	"fmt"
+	"github.com/jpillora/backoff"
 	"reflect"
 	"sync"
 	"time"
@@ -63,27 +64,25 @@ var ConstCallers = map[string]reference.Caller{
 }
 
 type Base struct {
-	ctx             context.Context
-	mu              map[string]*sync.Mutex
-	strategy        model.CompositesStrategy
-	setting         types.CallerSetting
-	broker          reference.Broker
-	exchange        reference.Exchange
-	guider          *service.ServiceGuider
-	samples         map[string]map[string]map[string]*model.Dataframe
-	positionJudgers map[string]*PositionJudger
-
-	pairOptions map[string]*model.PairOption
-
-	// todo 需要处理为线程安全map
-	pairTubeOpen      *model.ThreadSafeMap[string, bool]
-	pairGridMap       *model.ThreadSafeMap[string, *model.PositionGrid]
-	pairGridMapIndex  *model.ThreadSafeMap[string, int]
-	pairHedgeMode     *model.ThreadSafeMap[string, constants.PositionMode]
-	pairGirdStatus    *model.ThreadSafeMap[string, constants.GridStatus]
-	pairProfitLevels  *model.ThreadSafeMap[string, []*model.StopProfitLevel]
-	pairCurrentProfit *model.ThreadSafeMap[string, *model.PairProfit]
-
+	ctx                   context.Context
+	mu                    map[string]*sync.Mutex
+	ba                    *backoff.Backoff
+	guider                *service.ServiceGuider
+	status                bool
+	strategy              model.CompositesStrategy
+	setting               types.CallerSetting
+	broker                reference.Broker
+	exchange              reference.Exchange
+	samples               map[string]map[string]map[string]*model.Dataframe
+	positionJudgers       map[string]*PositionJudger
+	pairOptions           map[string]*model.PairOption
+	pairTubeOpen          *model.ThreadSafeMap[string, bool]
+	pairGridMap           *model.ThreadSafeMap[string, *model.PositionGrid]
+	pairGridMapIndex      *model.ThreadSafeMap[string, int]
+	pairHedgeMode         *model.ThreadSafeMap[string, constants.PositionMode]
+	pairGirdStatus        *model.ThreadSafeMap[string, constants.GridStatus]
+	pairProfitLevels      *model.ThreadSafeMap[string, []*model.StopProfitLevel]
+	pairCurrentProfit     *model.ThreadSafeMap[string, *model.PairProfit]
 	pairPrices            *model.ThreadSafeMap[string, float64]
 	pairVolumes           *model.ThreadSafeMap[string, float64]
 	lastAvgVolume         *model.ThreadSafeMap[string, float64]
@@ -93,7 +92,7 @@ type Base struct {
 	pairVolumeChangeRatio *model.ThreadSafeMap[string, float64]
 	pairVolumeGrowRatio   *model.ThreadSafeMap[string, float64]
 	lastUpdate            *model.ThreadSafeMap[string, time.Time]
-	lossLimitTimes        *model.ThreadSafeMap[string, time.Time]
+	positionTimeouts      *model.ThreadSafeMap[string, time.Time]
 }
 
 func NewCaller(
@@ -120,6 +119,7 @@ func (c *Base) Init(
 	c.broker = broker
 	c.exchange = exchange
 	c.setting = setting
+	c.status = true
 	c.pairOptions = make(map[string]*model.PairOption)
 
 	c.samples = make(map[string]map[string]map[string]*model.Dataframe)
@@ -128,7 +128,7 @@ func (c *Base) Init(
 	// build tsmap
 	c.pairTubeOpen = model.NewThreadSafeMap[string, bool]()
 	c.lastUpdate = model.NewThreadSafeMap[string, time.Time]()
-	c.lossLimitTimes = model.NewThreadSafeMap[string, time.Time]()
+	c.positionTimeouts = model.NewThreadSafeMap[string, time.Time]()
 
 	c.pairGridMap = model.NewThreadSafeMap[string, *model.PositionGrid]()
 	c.pairGridMapIndex = model.NewThreadSafeMap[string, int]()
@@ -146,14 +146,23 @@ func (c *Base) Init(
 	c.pairVolumeGrowRatio = model.NewThreadSafeMap[string, float64]()
 	c.lastAvgVolume = model.NewThreadSafeMap[string, float64]()
 
+	c.ba = &backoff.Backoff{
+		Min:    time.Duration(setting.LossPauseMin) * time.Minute,
+		Max:    time.Duration(setting.LossPauseMax) * time.Minute,
+		Jitter: true,
+		Factor: 1.2,
+	}
+
 	if c.setting.CheckMode == "watchdog" {
 		c.guider = service.NewServiceGuider(ctx, setting.GuiderHost)
 	}
 
 	if c.setting.Backtest == false {
 		go c.RegisterPairOption()
-		go c.RegisterPairGridBuilder()
 		go c.RegisterPairPauser()
+	}
+	if c.setting.CheckMode == "grid" {
+		go c.RegisterPairGridBuilder()
 	}
 }
 
@@ -238,13 +247,51 @@ func (c *Base) RegisterPairGridBuilder() {
 func (c *Base) RegisterPairPauser() {
 	for {
 		select {
+		case status := <-types.CallerPauserChan:
+			c.PauseCaller(status)
 		case pair := <-types.PairPauserChan:
-			c.PausePairCall(pair, time.Duration(c.pairOptions[pair].PauseCaller))
+			c.PausePair(pair, time.Duration(c.pairOptions[pair].PauseCaller))
 		}
 	}
 }
 
-func (c *Base) PausePairCall(pair string, minutes time.Duration) {
+func (c *Base) PauseCaller(status bool) {
+	if status {
+		c.status = true
+		return
+	}
+	postions, err := c.broker.GetPositionsForClosed(time.Now().Add(-1 * time.Hour))
+	if err != nil {
+		utils.Log.Error(err)
+		return
+	}
+	var lossPostionCount int
+	for _, postion := range postions {
+		if postion.ProfitValue < 0 {
+			lossPostionCount += 1
+		}
+	}
+	// 判断当前亏损次数
+	if lossPostionCount < c.setting.LossTrigger {
+		return
+	}
+
+	nextBackOff := c.ba.Duration()
+	utils.Log.Infof(
+		"[CALLER - ALL PAUSE] Caller paused, will be resume in %v",
+		time.Now().Add(nextBackOff).In(Loc).Format("2006-01-02 15:04:05"),
+	)
+	// 暂停现有开仓功能
+	c.status = false
+	// 取消当前所有挂单
+	c.CloseOrder(false)
+	// 设置恢复状态的时间
+	time.AfterFunc(nextBackOff, func() {
+		c.status = true
+	})
+}
+
+func (c *Base) PausePair(pair string, minutes time.Duration) {
 	if c.pairOptions[pair].Status == false {
 		return
 	}
@@ -405,7 +452,7 @@ func (c *Base) CloseOrder(checkTimeout bool) {
 				positionOrder.UpdatedAt.In(Loc).Format("2006-01-02 15:04:05"),
 			)
 			// 取消订单时将该订单锁定的网格重置回去
-			if c.pairGridMap.Exists(positionOrder.Pair) {
+			if c.setting.CheckMode == "grid" && c.pairGridMap.Exists(positionOrder.Pair) {
 				currentGrid, currentExsit := c.pairGridMap.Get(positionOrder.Pair)
 				gridIndex, indexExsit := c.pairGridMapIndex.Get(positionOrder.Pair)
 				if indexExsit && gridIndex >= 0 && currentExsit {

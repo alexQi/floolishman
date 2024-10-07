@@ -1059,6 +1059,11 @@ func (b *PaperWallet) GetPositionsForOpened() ([]*model.Position, error) {
 	panic("implement me")
 }
 
+func (b *PaperWallet) GetPositionsForClosed(_ time.Time) ([]*model.Position, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (p *PaperWallet) FormatPriceFloat(pair string, value float64) float64 {
 	info := p.AssetsInfo(pair)
 	return calc.FormatAmountToSize(value, info.TickSize)

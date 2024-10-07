@@ -47,7 +47,7 @@ func (c *Candle) finishPosition(seasonType SeasonType, position *model.Position,
 		return
 	}
 	// 删除止损时间限制配置
-	c.lossLimitTimes.Delete(position.OrderFlag)
+	c.positionTimeouts.Delete(position.OrderFlag)
 	utils.Log.Infof("[POSITION - %s] %s", seasonType, position.String())
 	// 查询当前orderFlag所有的止损单，全部取消
 	lossOrders, err := c.broker.GetOrdersForPostionLossUnfilled(position.OrderFlag)
@@ -106,13 +106,13 @@ func (c *Candle) closePosition(option *model.PairOption) {
 		)
 		pairCurrentProfit, _ := c.pairCurrentProfit.Get(option.Pair)
 		// 监控已成交仓位，记录订单成交时间+指定时间作为时间止损
-		lossLimitTime, ok := c.lossLimitTimes.Get(openedPosition.OrderFlag)
+		positionTimeout, ok := c.positionTimeouts.Get(openedPosition.OrderFlag)
 		if !ok {
-			lossLimitTime = openedPosition.CreatedAt.Add(time.Duration(c.setting.LossTimeDuration) * time.Minute)
-			c.lossLimitTimes.Set(openedPosition.OrderFlag, lossLimitTime)
+			positionTimeout = openedPosition.CreatedAt.Add(time.Duration(c.setting.PositionTimeOut) * time.Minute)
+			c.positionTimeouts.Set(openedPosition.OrderFlag, positionTimeout)
 		}
 		// 时间未达到新的止损限制时间
-		if currentTime.After(lossLimitTime) {
+		if currentTime.After(positionTimeout) {
 			utils.Log.Infof(
 				"[POSITION - CLOSE] %s | Current: %v | PR.%%: %.2f%%, MaxProfit: %.2f%% (Position Timeout)",
 				openedPosition.String(),
@@ -183,7 +183,7 @@ func (c *Candle) closePosition(option *model.PairOption) {
 			pairCurrentProfit.Close = profitRatio - pairCurrentProfit.Decrease
 			c.pairCurrentProfit.Set(option.Pair, pairCurrentProfit)
 			// 盈利递增时修改时间止损结束时间
-			c.lossLimitTimes.Set(openedPosition.OrderFlag, currentTime.Add(time.Duration(c.setting.LossTimeDuration)*time.Minute))
+			c.positionTimeouts.Set(openedPosition.OrderFlag, currentTime.Add(time.Duration(c.setting.PositionTimeOut)*time.Minute))
 
 			utils.Log.Infof(
 				"[POSITION - PROFIT] %s | Current: %v | PR.%%: %.2f%% > NewProfitRatio: %.2f%%",

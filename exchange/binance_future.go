@@ -630,7 +630,13 @@ func (b *BinanceFuture) GetPositionsForPair(pair string) ([]*model.Position, err
 	//TODO implement me
 	panic("implement me")
 }
+
 func (b *BinanceFuture) GetPositionsForOpened() ([]*model.Position, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *BinanceFuture) GetPositionsForClosed(_ time.Time) ([]*model.Position, error) {
 	//TODO implement me
 	panic("implement me")
 }

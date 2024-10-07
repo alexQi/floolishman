@@ -35,7 +35,10 @@ func main() {
 		proxyUrl      = viper.GetString("proxy.url")
 		callerSetting = types.CallerSetting{
 			CheckMode:                 viper.GetString("caller.checkMode"),
-			LossTimeDuration:          viper.GetInt("caller.lossTimeDuration"),
+			PositionTimeOut:           viper.GetInt("caller.positionTimeout"),
+			LossTrigger:               viper.GetInt("caller.lossTrigger"),
+			LossPauseMin:              viper.GetFloat64("caller.lossPauseMin"),
+			LossPauseMax:              viper.GetFloat64("caller.lossPauseMax"),
 			AllowPairs:                viper.GetStringSlice("caller.allowPairs"),
 			IgnorePairs:               viper.GetStringSlice("caller.ignorePairs"),
 			IgnoreHours:               viper.GetIntSlice("caller.ignoreHours"),

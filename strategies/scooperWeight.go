@@ -172,12 +172,12 @@ func (s *ScooperWeight) OnCandle(option *model.PairOption, df *model.Dataframe) 
 		} else {
 			openParams["penuPinDiffRate"] = 0
 		}
-		if penuLowerPinRate > 0 {
+		if prevLowerPinRate > 0 {
 			openParams["prevPinDiffRate"] = prevUpperPinRate / prevLowerPinRate
 		} else {
 			openParams["prevPinDiffRate"] = 0
 		}
-		if penuLowerPinRate > 0 {
+		if lastLowerPinRate > 0 {
 			openParams["lastPinDiffRate"] = lastUpperPinRate / lastLowerPinRate
 		} else {
 			openParams["lastPinDiffRate"] = 0
@@ -219,19 +219,19 @@ func (s *ScooperWeight) OnCandle(option *model.PairOption, df *model.Dataframe) 
 		openParams["prevCloseCrossRate"] = prevBbLower / prevPrice
 		openParams["lastBollingCrossRate"] = lastBbLower / lastLow
 		openParams["lastCloseCrossRate"] = lastBbLower / lastPrice
-		openParams["prevPricePinRate"] = prevPriceRate / 0.02 * prevUpperPinRate
+		openParams["prevPricePinRate"] = prevPriceRate / 0.02 * prevLowerPinRate
 		openParams["lastShadowChangeRate"] = lowerShadowChangeRate
-		if penuLowerPinRate > 0 {
+		if penuUpperPinRate > 0 {
 			openParams["penuPinDiffRate"] = penuLowerPinRate / penuUpperPinRate
 		} else {
 			openParams["penuPinDiffRate"] = 0
 		}
-		if penuLowerPinRate > 0 {
+		if prevUpperPinRate > 0 {
 			openParams["prevPinDiffRate"] = prevLowerPinRate / prevUpperPinRate
 		} else {
 			openParams["prevPinDiffRate"] = 0
 		}
-		if penuLowerPinRate > 0 {
+		if lastUpperPinRate > 0 {
 			openParams["lastPinDiffRate"] = lastLowerPinRate / lastUpperPinRate
 		} else {
 			openParams["lastPinDiffRate"] = 0

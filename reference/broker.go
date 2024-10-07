@@ -4,6 +4,7 @@ package reference
 
 import (
 	"floolishman/model"
+	"time"
 )
 
 type Broker interface {
@@ -13,6 +14,7 @@ type Broker interface {
 	FormatPrice(pair string, value float64) string
 	FormatQuantity(pair string, value float64, toLot bool) string
 	GetPositionsForPair(pair string) ([]*model.Position, error)
+	GetPositionsForClosed(startTime time.Time) ([]*model.Position, error)
 	GetPositionsForOpened() ([]*model.Position, error)
 	Order(pair string, id int64) (model.Order, error)
 	GetOrdersForUnfilled() (map[string]map[string][]*model.Order, error)

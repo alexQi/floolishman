@@ -2,6 +2,7 @@ package caller
 
 import (
 	"floolishman/model"
+	"floolishman/types"
 	"floolishman/utils"
 	"floolishman/utils/calc"
 	"floolishman/utils/strutil"
@@ -51,6 +52,9 @@ func (c *Scoop) tickCheckForOpen() {
 	for {
 		select {
 		case <-ticker.C:
+			if c.status == false {
+				continue
+			}
 			// 判断总仓位数量
 			totalOpenedPositions, err := c.broker.GetPositionsForOpened()
 			if err != nil {
@@ -59,6 +63,23 @@ func (c *Scoop) tickCheckForOpen() {
 			}
 			if len(totalOpenedPositions) >= MaxPairPositions {
 				utils.Log.Infof("[POSITION - MAX PAIR] Pair position reach to max, waiting...")
+				continue
+			}
+			unfilledOrderCount := 0
+			totalUnfilledOrders, err := c.broker.GetOrdersForUnfilled()
+			if err != nil {
+				utils.Log.Error(err)
+				continue
+			}
+			for _, existOrders := range totalUnfilledOrders {
+				_, ok := existOrders["position"]
+				if !ok {
+					continue
+				}
+				unfilledOrderCount += 1
+			}
+			if len(totalOpenedPositions)+unfilledOrderCount >= MaxPairPositions {
+				utils.Log.Infof("[POSITION - MAX PAIR] Pair position (%v) or order (%v) reach to max, waiting...", len(totalOpenedPositions), unfilledOrderCount)
 				continue
 			}
 			mapOpenedPosition := map[string][]string{
@@ -134,7 +155,7 @@ func (c *Scoop) tickCheckForOpen() {
 				}
 				// 当前开单币种暂停防止在同一根蜡烛线内再次开单
 				if _, ok := opendPositionSide[positionSide]; ok {
-					c.PausePairCall(openItem.PairOption.Pair, time.Duration(openItem.PairOption.PauseCaller))
+					types.PairPauserChan <- openItem.PairOption.Pair
 					continue
 				}
 				opendPositionSide[positionSide] = openItem.LongShortRatio
@@ -374,13 +395,13 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 		)
 		pairCurrentProfit, _ := c.pairCurrentProfit.Get(option.Pair)
 		// 监控已成交仓位，记录订单成交时间+指定时间作为时间止损
-		lossLimitTime, ok := c.lossLimitTimes.Get(openedPosition.OrderFlag)
+		positionTimeout, ok := c.positionTimeouts.Get(openedPosition.OrderFlag)
 		if !ok {
-			lossLimitTime = openedPosition.UpdatedAt.Add(time.Duration(c.setting.LossTimeDuration) * time.Minute)
-			c.lossLimitTimes.Set(openedPosition.OrderFlag, lossLimitTime)
+			positionTimeout = openedPosition.UpdatedAt.Add(time.Duration(c.setting.PositionTimeOut) * time.Minute)
+			c.positionTimeouts.Set(openedPosition.OrderFlag, positionTimeout)
 		}
 		// 时间未达到新的止损限制时间
-		if currentTime.After(lossLimitTime) {
+		if currentTime.After(positionTimeout) {
 			utils.Log.Infof(
 				"[POSITION - CLOSE] %s | Current: %v | PR.%%: %.2f%%, MaxProfit: %.2f%% (Position Timeout)",
 				openedPosition.String(),
@@ -388,10 +409,10 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 				profitRatio*100,
 				pairCurrentProfit.MaxProfit*100,
 			)
+			c.ba.Reset()
 			c.resetPairProfit(option.Pair)
-			c.PausePairCall(option.Pair, time.Duration(option.PauseCaller))
 			c.finishPosition(SeasonTypeTimeout, openedPosition)
-			continue
+			return
 		}
 		// ---------------------
 		// 判断当前利润比是否小于锁定利润比，小于则平仓
@@ -405,8 +426,8 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 				pairCurrentProfit.MaxProfit*100,
 			)
 			// 重置交易对盈利
+			c.ba.Reset()
 			c.resetPairProfit(option.Pair)
-			c.PausePairCall(option.Pair, time.Duration(option.PauseCaller))
 			c.finishPosition(SeasonTypeProfitBack, openedPosition)
 			return
 		}
@@ -417,12 +438,13 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 				// 当前未锁定利润比，且利润比未达到触发利润比---直接返回
 				if profitRatio < pairCurrentProfit.Floor {
 					utils.Log.Infof(
-						"[POSITION - WATCH] %s | Current: %v | PR.%%: %.2f%% < ProfitTriggerRatio: %.2f%% | StopAt: %s",
+						"[POSITION - WATCH] %s | Current: %v | PR.%%: %.2f%% < ProfitTriggerRatio: %.2f%%, MaxProfit: %.2f%% | StopAt: %s",
 						openedPosition.String(),
 						currentPrice,
 						profitRatio*100,
 						pairCurrentProfit.Floor*100,
-						lossLimitTime.In(Loc).Format("2006-01-02 15:04:05"),
+						pairCurrentProfit.MaxProfit*100,
+						positionTimeout.In(Loc).Format("2006-01-02 15:04:05"),
 					)
 					if profitRatio > pairCurrentProfit.MaxProfit {
 						pairCurrentProfit.MaxProfit = profitRatio
@@ -442,7 +464,7 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 							pairCurrentProfit.Floor*100,
 							pairCurrentProfit.Close*100,
 							pairCurrentProfit.MaxProfit*100,
-							lossLimitTime.In(Loc).Format("2006-01-02 15:04:05"),
+							positionTimeout.In(Loc).Format("2006-01-02 15:04:05"),
 						)
 						return
 					}
@@ -459,7 +481,7 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 			pairCurrentProfit.Close = profitRatio - pairCurrentProfit.Decrease
 			c.pairCurrentProfit.Set(option.Pair, pairCurrentProfit)
 			// 盈利递增时修改时间止损结束时间
-			c.lossLimitTimes.Set(openedPosition.OrderFlag, currentTime.Add(time.Duration(c.setting.LossTimeDuration)*time.Minute))
+			c.positionTimeouts.Set(openedPosition.OrderFlag, currentTime.Add(time.Duration(c.setting.PositionTimeOut)*time.Minute))
 
 			utils.Log.Infof(
 				"[POSITION - PROFIT] %s | Current: %v | PR.%%: %.2f%% > NewProfitRatio: %.2f%% | StopAt: %s",
@@ -467,7 +489,7 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 				currentPrice,
 				profitRatio*100,
 				pairCurrentProfit.Close*100,
-				lossLimitTime.In(Loc).Format("2006-01-02 15:04:05"),
+				positionTimeout.In(Loc).Format("2006-01-02 15:04:05"),
 			)
 		} else {
 			if pairCurrentProfit.IsLock {
@@ -478,7 +500,7 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 					profitRatio*100,
 					pairCurrentProfit.Close*100,
 					pairCurrentProfit.MaxProfit*100,
-					lossLimitTime.In(Loc).Format("2006-01-02 15:04:05"),
+					positionTimeout.In(Loc).Format("2006-01-02 15:04:05"),
 				)
 			} else {
 				// 判断价格已经超过止损价格，直接平仓
@@ -494,7 +516,6 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 							pairCurrentProfit.MaxProfit*100,
 						)
 						c.resetPairProfit(option.Pair)
-						c.PausePairCall(option.Pair, time.Duration(option.PauseCaller))
 						c.finishPosition(SeasonTypeLossMax, openedPosition)
 						return
 					}
@@ -508,7 +529,7 @@ func (c *Scoop) closeScoopPosition(option *model.PairOption) {
 					profitRatio*100,
 					option.MaxMarginLossRatio*100,
 					pairCurrentProfit.MaxProfit*100,
-					lossLimitTime.In(Loc).Format("2006-01-02 15:04:05"),
+					positionTimeout.In(Loc).Format("2006-01-02 15:04:05"),
 				)
 			}
 		}

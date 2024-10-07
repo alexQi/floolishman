@@ -353,6 +353,14 @@ func (s *SQL) Positions(filterParams PositionFilterParams) ([]*model.Position, e
 	if len(filterParams.PositionSide) > 0 {
 		query = query.Where("position_side=?", filterParams.PositionSide)
 	}
+	// 新增条件，筛选 updated_at 在 StartTime 和 EndTime 之间的记录
+	if !filterParams.TimeRange.Start.IsZero() && !filterParams.TimeRange.End.IsZero() {
+		query = query.Where("updated_at BETWEEN ? AND ?", filterParams.TimeRange.Start, filterParams.TimeRange.End)
+	} else if !filterParams.TimeRange.Start.IsZero() { // 如果只提供了 StartTime
+		query = query.Where("updated_at >= ?", filterParams.TimeRange.Start)
+	} else if !filterParams.TimeRange.End.IsZero() { // 如果只提供了 EndTime
+		query = query.Where("updated_at <= ?", filterParams.TimeRange.End)
+	}
 
 	result := query.Find(&positions)
 	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
@@ -376,7 +384,14 @@ func (s *SQL) GetPosition(filterParams PositionFilterParams) (*model.Position, e
 	if len(filterParams.PositionSide) > 0 {
 		query = query.Where("position_side=?", filterParams.PositionSide)
 	}
-
+	// 新增条件，筛选 updated_at 在 StartTime 和 EndTime 之间的记录
+	if !filterParams.TimeRange.Start.IsZero() && !filterParams.TimeRange.End.IsZero() {
+		query = query.Where("updated_at BETWEEN ? AND ?", filterParams.TimeRange.Start, filterParams.TimeRange.End)
+	} else if !filterParams.TimeRange.Start.IsZero() { // 如果只提供了 StartTime
+		query = query.Where("updated_at >= ?", filterParams.TimeRange.Start)
+	} else if !filterParams.TimeRange.End.IsZero() { // 如果只提供了 EndTime
+		query = query.Where("updated_at <= ?", filterParams.TimeRange.End)
+	}
 	result := query.First(position)
 	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
 		return position, result.Error

@@ -2,7 +2,13 @@ package storage
 
 import (
 	"floolishman/model"
+	"time"
 )
+
+type TimeRange struct {
+	Start time.Time
+	End   time.Time
+}
 
 type OrderFilterParams struct {
 	Pair       string
@@ -17,6 +23,7 @@ type PositionFilterParams struct {
 	Status       []int
 	Side         string
 	PositionSide string
+	TimeRange    TimeRange
 }
 
 type StrategyFilterParams struct {

@@ -300,31 +300,46 @@ func (c *ServiceOrder) ListenPositions() {
 			if _, ok = pairPositions[position.Pair]; !ok {
 				position.Status = 10
 				position.Quantity = 0
+				position.Profit = calc.AccurateSub(position.ClosePrice, position.AvgPrice) / position.AvgPrice
+				position.ProfitValue = calc.AccurateSub(position.ClosePrice, position.AvgPrice) * position.TotalQuantity
+
 				// 更新数据库仓位记录
 				err := c.storage.UpdatePosition(position)
 				if err != nil {
 					utils.Log.Error(err)
 					return
 				}
+				// 删除当前持仓map
 				delete(c.positionMap[pair], orderFlag)
-
+				// 暂停该币种开单
 				types.PairPauserChan <- position.Pair
-
+				// 判断是否需要全局停止开单
+				if position.Profit < 0 {
+					types.CallerPauserChan <- true
+				}
 				continue
 			}
 			// 当前方向的仓位不存在删除仓位
 			if _, ok = pairPositions[position.Pair][position.PositionSide]; !ok {
 				position.Status = 10
 				position.Quantity = 0
+				position.Profit = calc.AccurateSub(position.ClosePrice, position.AvgPrice) / position.AvgPrice
+				position.ProfitValue = calc.AccurateSub(position.ClosePrice, position.AvgPrice) * position.TotalQuantity
+
 				// 更新数据库仓位记录
 				err := c.storage.UpdatePosition(position)
 				if err != nil {
 					utils.Log.Error(err)
 					return
 				}
+				// 删除当前持仓map
 				delete(c.positionMap[pair], orderFlag)
-
+				// 暂停该币种开单
 				types.PairPauserChan <- position.Pair
+				// 判断是否需要全局停止开单
+				if position.Profit < 0 {
+					types.CallerPauserChan <- true
+				}
 				continue
 			}
 			hasChange := false
@@ -413,6 +428,10 @@ func (c *ServiceOrder) GetPositionsForOpened() ([]*model.Position, error) {
 		}
 	}
 	return positions, nil
+}
+
+func (c *ServiceOrder) GetPositionsForClosed(start time.Time) ([]*model.Position, error) {
+	return c.storage.Positions(storage.PositionFilterParams{TimeRange: storage.TimeRange{Start: start}})
 }
 
 func (c *ServiceOrder) GetOrdersForPostionLossUnfilled(orderFlag string) ([]*model.Order, error) {
@@ -571,9 +590,11 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 				p.ProfitValue = calc.AccurateSub(price, p.AvgPrice) * p.TotalQuantity
 			} else if p.Quantity > order.Quantity {
 				p.Quantity = calc.AccurateSub(p.Quantity, order.Quantity)
+				p.ClosePrice = order.Price
 			} else {
 				p.Quantity = calc.AccurateSub(order.Quantity, p.Quantity)
 				p.AvgPrice = price
+				p.ClosePrice = order.Price
 				// todo 待考察会不会变成反手仓位
 				//p.Side = string(order.Side)
 				//p.PositionSide = string(order.PositionSide)
@@ -613,10 +634,6 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 				CreatedAt:            order.CreatedAt,
 				MatcherStrategyCount: p.MatcherStrategyCount,
 			}
-		}
-		// 平仓利润小于0时，暂停该币种开单
-		if p.Status == 10 {
-			types.PairPauserChan <- p.Pair
 		}
 		return result
 	}
@@ -690,7 +707,14 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 	}
 	// 结束后删除内存缓存，删除内存缓存
 	if position.Status == 10 {
+		// 删除当前持仓map
 		delete(c.positionMap[o.Pair], o.OrderFlag)
+		// 暂停该币种开单
+		types.PairPauserChan <- position.Pair
+		// 判断是否需要全局停止开单
+		if position.Profit < 0 {
+			types.CallerPauserChan <- true
+		}
 	}
 
 	if result != nil {

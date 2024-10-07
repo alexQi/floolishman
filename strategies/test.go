@@ -154,9 +154,10 @@ func (s *Test) OnCandle(option *model.PairOption, df *model.Dataframe) model.Pos
 	datum := 1.2
 	deltaRsiRatio := 0.1
 	baseFloor := 10.0
+	baseUpper := 13.0
 	baseDistanceRate := 0.275
 
-	if prevRsi > 50 && prevRsi > lastRsi && prevPriceRate*prevUpperPinRate > 0.00125 {
+	if prevRsi > 40 && prevRsi > lastRsi && prevPriceRate*prevUpperPinRate > 0.00125 {
 		lastRsiChange = prevRsi - lastRsi
 		rsiSeedRate = (prevRsi - 50.0) / 50.0
 
@@ -172,12 +173,12 @@ func (s *Test) OnCandle(option *model.PairOption, df *model.Dataframe) model.Pos
 		} else {
 			openParams["penuPinDiffRate"] = 0
 		}
-		if penuLowerPinRate > 0 {
+		if prevLowerPinRate > 0 {
 			openParams["prevPinDiffRate"] = prevUpperPinRate / prevLowerPinRate
 		} else {
 			openParams["prevPinDiffRate"] = 0
 		}
-		if penuLowerPinRate > 0 {
+		if lastLowerPinRate > 0 {
 			openParams["lastPinDiffRate"] = lastUpperPinRate / lastLowerPinRate
 		} else {
 			openParams["lastPinDiffRate"] = 0
@@ -197,10 +198,20 @@ func (s *Test) OnCandle(option *model.PairOption, df *model.Dataframe) model.Pos
 		decayFactorAmplitude = calc.CalculateFactor(prevAmplitude, amplitudeK)
 		decayFactorDistance = calc.CalculateFactor(rsiSeedRate, distanceK-decayFactorAmplitude)
 
-		floor = decayFactorFloor * baseFloor
-		upper = math.Exp(floorK*deltaRsiRatio) * floor
-		distanceRate = decayFactorDistance * baseDistanceRate
+		if prevRsi >= 50 {
+			floor = decayFactorFloor * baseFloor
+			upper = math.Exp(floorK*deltaRsiRatio) * floor
+			distanceRate = decayFactorDistance * baseDistanceRate
+		} else {
+			floor = baseFloor
+			upper = baseUpper
+			distanceRate = baseDistanceRate
+		}
+
 		limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, datum, shadowK)
+
+		strategyPosition.Useable = 1
+		strategyPosition.Score = 100 * rsiSeedRate
 
 		if lastRsiChange > floor &&
 			lastRsiChange < upper {
@@ -210,7 +221,7 @@ func (s *Test) OnCandle(option *model.PairOption, df *model.Dataframe) model.Pos
 			}
 		}
 	}
-	if prevRsi < 50 && lastRsi > prevRsi && prevPriceRate*prevUpperPinRate > 0.00125 {
+	if prevRsi < 60 && lastRsi > prevRsi && prevPriceRate*prevUpperPinRate > 0.00125 {
 		lastRsiChange = lastRsi - prevRsi
 		rsiSeedRate = (50 - prevRsi) / 50
 
@@ -219,19 +230,19 @@ func (s *Test) OnCandle(option *model.PairOption, df *model.Dataframe) model.Pos
 		openParams["prevCloseCrossRate"] = prevBbLower / prevPrice
 		openParams["lastBollingCrossRate"] = lastBbLower / lastLow
 		openParams["lastCloseCrossRate"] = lastBbLower / lastPrice
-		openParams["prevPricePinRate"] = prevPriceRate / 0.02 * prevUpperPinRate
+		openParams["prevPricePinRate"] = prevPriceRate / 0.02 * prevLowerPinRate
 		openParams["lastShadowChangeRate"] = lowerShadowChangeRate
-		if penuLowerPinRate > 0 {
+		if penuUpperPinRate > 0 {
 			openParams["penuPinDiffRate"] = penuLowerPinRate / penuUpperPinRate
 		} else {
 			openParams["penuPinDiffRate"] = 0
 		}
-		if penuLowerPinRate > 0 {
+		if prevUpperPinRate > 0 {
 			openParams["prevPinDiffRate"] = prevLowerPinRate / prevUpperPinRate
 		} else {
 			openParams["prevPinDiffRate"] = 0
 		}
-		if penuLowerPinRate > 0 {
+		if lastUpperPinRate > 0 {
 			openParams["lastPinDiffRate"] = lastLowerPinRate / lastUpperPinRate
 		} else {
 			openParams["lastPinDiffRate"] = 0
@@ -251,18 +262,28 @@ func (s *Test) OnCandle(option *model.PairOption, df *model.Dataframe) model.Pos
 		decayFactorAmplitude = calc.CalculateFactor(prevAmplitude, amplitudeK)
 		decayFactorDistance = calc.CalculateFactor(rsiSeedRate, distanceK-decayFactorAmplitude)
 
-		floor = decayFactorFloor * baseFloor
-		upper = math.Exp(floorK*deltaRsiRatio) * floor
-		distanceRate = decayFactorDistance * baseDistanceRate
+		if prevRsi < 50 {
+			floor = decayFactorFloor * baseFloor
+			upper = math.Exp(floorK*deltaRsiRatio) * floor
+			distanceRate = decayFactorDistance * baseDistanceRate
+		} else {
+			floor = baseFloor
+			upper = baseUpper
+			distanceRate = baseDistanceRate
+		}
+
 		limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, datum, shadowK)
 
-		if lastRsiChange > floor &&
-			lastRsiChange < upper {
-			if lowerShadowChangeRate > limitShadowChangeRate {
-				strategyPosition.Useable = 1
-				strategyPosition.Score = 100 * rsiSeedRate
-			}
-		}
+		strategyPosition.Useable = 1
+		strategyPosition.Score = 100 * rsiSeedRate
+
+		//if lastRsiChange > floor &&
+		//	lastRsiChange < upper {
+		//	if lowerShadowChangeRate > limitShadowChangeRate {
+		//		strategyPosition.Useable = 1
+		//		strategyPosition.Score = 100 * rsiSeedRate
+		//	}
+		//}
 	}
 
 	if strategyPosition.Useable > 0 {

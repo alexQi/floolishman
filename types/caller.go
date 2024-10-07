@@ -10,7 +10,10 @@ type CallerSetting struct {
 	CheckMode                 string
 	FollowSymbol              bool
 	Backtest                  bool
-	LossTimeDuration          int
+	PositionTimeOut           int
+	LossTrigger               int
+	LossPauseMin              float64
+	LossPauseMax              float64
 	AllowPairs                []string
 	IgnorePairs               []string
 	IgnoreHours               []int
@@ -43,4 +46,6 @@ var PairStatusChan = make(chan PairStatus, 10)
 
 var PairGridBuilderParamChan = make(chan PairGridBuilderParam, 100)
 
-var PairPauserChan = make(chan string, 1000)
+var PairPauserChan = make(chan string, 200)
+
+var CallerPauserChan = make(chan bool, 200)

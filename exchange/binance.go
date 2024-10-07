@@ -453,6 +453,11 @@ func (b *Binance) GetPositionsForOpened() ([]*model.Position, error) {
 	panic("implement me")
 }
 
+func (b *Binance) GetPositionsForClosed(_ time.Time) ([]*model.Position, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func newOrder(order *binance.Order) model.Order {
 	var price float64
 	cost, _ := strconv.ParseFloat(order.CummulativeQuoteQuantity, 64)
