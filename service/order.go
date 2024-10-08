@@ -431,7 +431,7 @@ func (c *ServiceOrder) GetPositionsForOpened() ([]*model.Position, error) {
 }
 
 func (c *ServiceOrder) GetPositionsForClosed(start time.Time) ([]*model.Position, error) {
-	return c.storage.Positions(storage.PositionFilterParams{TimeRange: storage.TimeRange{Start: start}})
+	return c.storage.Positions(storage.PositionFilterParams{Status: []int{10, 20}, TimeRange: storage.TimeRange{Start: start}})
 }
 
 func (c *ServiceOrder) GetOrdersForPostionLossUnfilled(orderFlag string) ([]*model.Order, error) {
@@ -619,9 +619,11 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 				p.ProfitValue = calc.AccurateSub(p.AvgPrice, price) * p.TotalQuantity
 			} else if p.Quantity > order.Quantity {
 				p.Quantity = calc.AccurateSub(p.Quantity, order.Quantity)
+				p.ClosePrice = order.Price
 			} else {
 				p.Quantity = calc.AccurateSub(order.Quantity, p.Quantity)
 				p.AvgPrice = price
+				p.ClosePrice = order.Price
 			}
 
 			result = &Result{

@@ -260,6 +260,10 @@ func (c *Base) PauseCaller(status bool) {
 		c.status = true
 		return
 	}
+	if c.status == false {
+		utils.Log.Infof("[CALLER - PAUSEED] Caller already paused ...")
+		return
+	}
 	postions, err := c.broker.GetPositionsForClosed(time.Now().Add(-1 * time.Hour))
 	if err != nil {
 		utils.Log.Error(err)
@@ -273,6 +277,10 @@ func (c *Base) PauseCaller(status bool) {
 	}
 	// 判断当前亏损次数
 	if lossPostionCount < c.setting.LossTrigger {
+		utils.Log.Infof(
+			"[CALLER - IGNORE PAUSE] Caller pause has been ignored, LossCount: %v",
+			lossPostionCount,
+		)
 		return
 	}
 

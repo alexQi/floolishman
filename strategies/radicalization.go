@@ -206,6 +206,7 @@ func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe)
 			lastRsiChange < upper {
 			if upperShadowChangeRate > limitShadowChangeRate {
 				strategyPosition.Useable = 1
+				strategyPosition.Score = 100 * rsiSeedRate
 			}
 		}
 	}
@@ -259,6 +260,7 @@ func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe)
 			lastRsiChange < upper {
 			if lowerShadowChangeRate > limitShadowChangeRate {
 				strategyPosition.Useable = 1
+				strategyPosition.Score = 100 * rsiSeedRate
 			}
 		}
 	}
@@ -280,7 +282,6 @@ func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe)
 		if err != nil {
 			utils.Log.Error("错误：", err)
 		}
-		strategyPosition.Score = 100 * prevAmplitude * rsiSeedRate
 		strategyPosition.OpenParams = string(openParamsBytes)
 		utils.Log.Tracef("[PARAMS] %s", strategyPosition.OpenParams)
 	}

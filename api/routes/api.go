@@ -20,6 +20,10 @@ func ApiRoutes(app *iris.Application) {
 	{
 		api.PositionRoutes(PositionRoutes)
 	}
+	CallerRoutes := app.Party("/v1/caller")
+	{
+		api.CallerRoutes(CallerRoutes)
+	}
 	PairRoutes := app.Party("/v1/pair")
 	{
 		api.PairRoutes(PairRoutes)

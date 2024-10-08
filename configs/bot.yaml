@@ -190,9 +190,9 @@ caller:
   # watchdog模式下是否是跟随模式，其他模式下都为false
   followSymbol: false
   # 时间止损市场 单位分钟
-  positionTimeout: 240
+  positionTimeout: 45
   # 止损配置 - 亏损次数触发
-  lossTrigger: 2
+  lossTrigger: 1
   # 止损配置 - 指数退避最小暂停时间 (分钟)
   lossPauseMin: 45.0
   # 止损配置 - 指数退避最大暂停时间 (分钟)
