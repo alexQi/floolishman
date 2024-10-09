@@ -28,4 +28,8 @@ func ApiRoutes(app *iris.Application) {
 	{
 		api.PairRoutes(PairRoutes)
 	}
+	ExchangeRoutes := app.Party("/v1/exchange")
+	{
+		api.ExchangeRoutes(ExchangeRoutes)
+	}
 }

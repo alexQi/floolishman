@@ -300,8 +300,24 @@ func (c *ServiceOrder) ListenPositions() {
 			if _, ok = pairPositions[position.Pair]; !ok {
 				position.Status = 10
 				position.Quantity = 0
-				position.Profit = calc.AccurateSub(position.ClosePrice, position.AvgPrice) / position.AvgPrice
-				position.ProfitValue = calc.AccurateSub(position.ClosePrice, position.AvgPrice) * position.TotalQuantity
+
+				if position.PositionSide == string(model.PositionSideTypeShort) {
+					if position.ClosePrice > 0 {
+						position.Profit = calc.AccurateSub(position.AvgPrice, position.ClosePrice) / position.AvgPrice
+						position.ProfitValue = calc.AccurateSub(position.AvgPrice, position.ClosePrice) * position.TotalQuantity
+					} else {
+						position.Profit = calc.AccurateSub(position.AvgPrice, position.StopLossPrice) / position.AvgPrice
+						position.ProfitValue = calc.AccurateSub(position.AvgPrice, position.StopLossPrice) * position.TotalQuantity
+					}
+				} else {
+					if position.ClosePrice > 0 {
+						position.Profit = calc.AccurateSub(position.ClosePrice, position.AvgPrice) / position.AvgPrice
+						position.ProfitValue = calc.AccurateSub(position.ClosePrice, position.AvgPrice) * position.TotalQuantity
+					} else {
+						position.Profit = calc.AccurateSub(position.StopLossPrice, position.AvgPrice) / position.AvgPrice
+						position.ProfitValue = calc.AccurateSub(position.StopLossPrice, position.AvgPrice) * position.TotalQuantity
+					}
+				}
 
 				// 更新数据库仓位记录
 				err := c.storage.UpdatePosition(position)
@@ -323,9 +339,24 @@ func (c *ServiceOrder) ListenPositions() {
 			if _, ok = pairPositions[position.Pair][position.PositionSide]; !ok {
 				position.Status = 10
 				position.Quantity = 0
-				position.Profit = calc.AccurateSub(position.ClosePrice, position.AvgPrice) / position.AvgPrice
-				position.ProfitValue = calc.AccurateSub(position.ClosePrice, position.AvgPrice) * position.TotalQuantity
 
+				if position.PositionSide == string(model.PositionSideTypeShort) {
+					if position.ClosePrice > 0 {
+						position.Profit = calc.AccurateSub(position.AvgPrice, position.ClosePrice) / position.AvgPrice
+						position.ProfitValue = calc.AccurateSub(position.AvgPrice, position.ClosePrice) * position.TotalQuantity
+					} else {
+						position.Profit = calc.AccurateSub(position.AvgPrice, position.StopLossPrice) / position.AvgPrice
+						position.ProfitValue = calc.AccurateSub(position.AvgPrice, position.StopLossPrice) * position.TotalQuantity
+					}
+				} else {
+					if position.ClosePrice > 0 {
+						position.Profit = calc.AccurateSub(position.ClosePrice, position.AvgPrice) / position.AvgPrice
+						position.ProfitValue = calc.AccurateSub(position.ClosePrice, position.AvgPrice) * position.TotalQuantity
+					} else {
+						position.Profit = calc.AccurateSub(position.StopLossPrice, position.AvgPrice) / position.AvgPrice
+						position.ProfitValue = calc.AccurateSub(position.StopLossPrice, position.AvgPrice) * position.TotalQuantity
+					}
+				}
 				// 更新数据库仓位记录
 				err := c.storage.UpdatePosition(position)
 				if err != nil {
@@ -585,16 +616,16 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 			if p.Quantity == order.Quantity {
 				p.Status = 10
 				p.Quantity = 0
-				p.ClosePrice = order.Price
+				p.ClosePrice = price
 				p.Profit = calc.AccurateSub(price, p.AvgPrice) / p.AvgPrice
 				p.ProfitValue = calc.AccurateSub(price, p.AvgPrice) * p.TotalQuantity
 			} else if p.Quantity > order.Quantity {
 				p.Quantity = calc.AccurateSub(p.Quantity, order.Quantity)
-				p.ClosePrice = order.Price
+				p.ClosePrice = price
 			} else {
 				p.Quantity = calc.AccurateSub(order.Quantity, p.Quantity)
 				p.AvgPrice = price
-				p.ClosePrice = order.Price
+				p.ClosePrice = price
 				// todo 待考察会不会变成反手仓位
 				//p.Side = string(order.Side)
 				//p.PositionSide = string(order.PositionSide)
@@ -614,16 +645,16 @@ func (c *ServiceOrder) Update(p *model.Position, order *model.Order) (result *Re
 			if p.Quantity == order.Quantity {
 				p.Status = 10
 				p.Quantity = 0
-				p.ClosePrice = order.Price
+				p.ClosePrice = price
 				p.Profit = calc.AccurateSub(p.AvgPrice, price) / p.AvgPrice
 				p.ProfitValue = calc.AccurateSub(p.AvgPrice, price) * p.TotalQuantity
 			} else if p.Quantity > order.Quantity {
 				p.Quantity = calc.AccurateSub(p.Quantity, order.Quantity)
-				p.ClosePrice = order.Price
+				p.ClosePrice = price
 			} else {
 				p.Quantity = calc.AccurateSub(order.Quantity, p.Quantity)
 				p.AvgPrice = price
-				p.ClosePrice = order.Price
+				p.ClosePrice = price
 			}
 
 			result = &Result{

@@ -19,8 +19,8 @@ strategies:
   #  - "Radicalization"
   #  - "Scooper"
   #    - "ScooperWeight"
-  #  - "Radicalization"
-  - Scoop
+    - "Radicalization"
+#  - Scoop
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop

@@ -361,6 +361,7 @@ func (s *SQL) Positions(filterParams PositionFilterParams) ([]*model.Position, e
 	} else if !filterParams.TimeRange.End.IsZero() { // 如果只提供了 EndTime
 		query = query.Where("updated_at <= ?", filterParams.TimeRange.End)
 	}
+	query.Order("updated_at DESC")
 
 	result := query.Find(&positions)
 	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {

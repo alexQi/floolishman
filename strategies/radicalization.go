@@ -145,13 +145,11 @@ func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe)
 		"lastPrice": lastPrice,
 	}
 
-	var lastRsiChange, rsiSeedRate, decayFactorFloor, decayFactorAmplitude, decayFactorDistance, floor, upper, distanceRate, limitShadowChangeRate float64
+	var lastRsiChange, rsiSeedRate, decayFactorFloor, decayFactorAmplitude, decayFactorDistance, floor, upper, distanceRate, limitShadowChangeRate, datum, shadowK float64
 
 	floorK := 1.077993
 	distanceK := 1.445
-	shadowK := 0.4405
 	amplitudeK := 1.1601
-	datum := 1.2
 	deltaRsiRatio := 0.1
 	baseFloor := 10.0
 	baseDistanceRate := 0.275
@@ -159,6 +157,8 @@ func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe)
 	if prevRsi > 50 && prevRsi > lastRsi && prevPriceRate*prevUpperPinRate > 0.00125 {
 		lastRsiChange = prevRsi - lastRsi
 		rsiSeedRate = (prevRsi - 50.0) / 50.0
+		datum = 1.2
+		shadowK = 0.4405
 
 		openParams["positionSide"] = string(model.SideTypeSell)
 		openParams["prevBollingCrossRate"] = prevHigh / prevBbUpper
@@ -213,6 +213,8 @@ func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe)
 	if prevRsi < 50 && lastRsi > prevRsi && prevPriceRate*prevUpperPinRate > 0.00125 {
 		lastRsiChange = lastRsi - prevRsi
 		rsiSeedRate = (50 - prevRsi) / 50
+		datum = 2.6
+		shadowK = 0.26
 
 		openParams["positionSide"] = string(model.SideTypeBuy)
 		openParams["prevBollingCrossRate"] = prevBbLower / prevLow
@@ -238,7 +240,7 @@ func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe)
 		}
 		openParams["lastRsiExtreme"] = (50.0 - lastRsi) / 50.0
 		openParams["prevRsiExtreme"] = rsiSeedRate
-		openParams["penuRsiExtreme"] = (50.0 / penuRsi) / 50.0
+		openParams["penuRsiExtreme"] = (50.0 - penuRsi) / 50.0
 		openParams["prevAmplitudePinRate"] = prevAmplitude * prevLowerPinRate
 		openParams["prevReserveAmplitudePinRate"] = prevAmplitude * prevUpperPinRate
 

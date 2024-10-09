@@ -6,7 +6,7 @@ import (
 	"floolishman/model"
 	"floolishman/utils"
 	"floolishman/utils/calc"
-	"fmt"
+	"math"
 	"reflect"
 )
 
@@ -94,15 +94,16 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 	upperShadows := df.Metadata["upperShadows"]
 	lowerShadows := df.Metadata["lowerShadows"]
 
+	prevSignal := signal.Last(1)
+	prevMacd := macd.Last(1)
 	penuUpperPinRate := upperPinRates.Last(2)
 	penuLowerPinRate := lowerPinRates.Last(2)
 	prevUpperPinRate := upperPinRates.Last(1)
 	prevLowerPinRate := lowerPinRates.Last(1)
+	lastUpperPinRate := upperPinRates.Last(0)
+	lastLowerPinRate := lowerPinRates.Last(0)
 
 	var upperShadowChangeRate, lowerShadowChangeRate float64
-
-	prevSignal := signal.Last(1)
-	prevMacd := macd.Last(1)
 	lastUpperShadow := upperShadows.Last(0)
 	lastLowerShadow := lowerShadows.Last(0)
 	prevUpperShadow := upperShadows.Last(1)
@@ -122,15 +123,11 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 	penuAmplitude := indicator.AMP(df.Open.Last(2), df.High.Last(2), df.Low.Last(2))
 	prevAmplitude := indicator.AMP(df.Open.Last(1), df.High.Last(1), df.Low.Last(1))
 
-	isUpperPinBar, isLowerPinBar := s.batchCheckPinBar(df, 3, 0.65, false)
-
 	openParams := map[string]interface{}{
-		"prevMacdDiffRate":      prevMacdDiffRate,
-		"prevPriceRate":         prevPriceRate,
-		"prevPrice":             prevPrice,
-		"lastPrice":             lastPrice,
-		"isUpperPinBar":         isUpperPinBar,
-		"isLowerPinBar":         isLowerPinBar,
+		"prevPriceRate":    prevPriceRate / 0.02,
+		"prevMacdDiffRate": prevMacdDiffRate,
+		"prevPinLenRate":   calc.Abs(prevUpperPinRate - prevLowerPinRate),
+
 		"lastRsi":               lastRsi,
 		"prevRsi":               prevRsi,
 		"penuRsi":               penuRsi,
@@ -143,254 +140,129 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 		"upperShadowChangeRate": upperShadowChangeRate,
 		"lowerShadowChangeRate": lowerShadowChangeRate,
 		"openAt":                df.LastUpdate.In(Loc).Format("2006-01-02 15:04:05"),
+
+		"prevPrice": prevPrice,
+		"lastPrice": lastPrice,
 	}
 
-	//distanceK := 1.54
-	//baseDistanceRate := 0.24
-	//var rsiSeedRate, limitShadowChangeRate, decayFactorDistance float64
+	var lastRsiChange, rsiSeedRate, decayFactorFloor, decayFactorAmplitude, decayFactorDistance, floor, upper, distanceRate, limitShadowChangeRate, datum, shadowK float64
 
-	var distanceRate float64
-	if isUpperPinBar && prevAmplitude > 0.65 && prevRsi > 60 && prevUpperPinRate > 0.25 && prevPriceRate > 0.001 {
-		lastRsiChange := prevRsi - lastRsi
+	floorK := 1.077993
+	distanceK := 1.445
+	amplitudeK := 1.1601
+	deltaRsiRatio := 0.1
+	baseFloor := 10.0
+	baseDistanceRate := 0.275
+
+	if prevRsi > 50 && prevRsi > lastRsi && prevPriceRate*prevUpperPinRate > 0.00125 {
+		lastRsiChange = prevRsi - lastRsi
+		rsiSeedRate = (prevRsi - 50.0) / 50.0
+		datum = 1.2
+		shadowK = 0.4405
 
 		openParams["positionSide"] = string(model.SideTypeSell)
-		// 上根蜡烛布林带突破情况 收盘，高点
-		// 大于1，突破，反之没突破
 		openParams["prevBollingCrossRate"] = prevHigh / prevBbUpper
 		openParams["prevCloseCrossRate"] = prevPrice / prevBbUpper
-		// 本根蜡烛布林带突破情况 收盘，高点
 		openParams["lastBollingCrossRate"] = lastHigh / lastBbUpper
 		openParams["lastCloseCrossRate"] = lastPrice / lastBbUpper
-		// 前一个rsi增幅
+		openParams["prevPricePinRate"] = prevPriceRate / 0.02 * prevUpperPinRate
+		openParams["lastShadowChangeRate"] = upperShadowChangeRate
+		if penuLowerPinRate > 0 {
+			openParams["penuPinDiffRate"] = penuUpperPinRate / penuLowerPinRate
+		} else {
+			openParams["penuPinDiffRate"] = 0
+		}
+		if prevLowerPinRate > 0 {
+			openParams["prevPinDiffRate"] = prevUpperPinRate / prevLowerPinRate
+		} else {
+			openParams["prevPinDiffRate"] = 0
+		}
+		if lastLowerPinRate > 0 {
+			openParams["lastPinDiffRate"] = lastUpperPinRate / lastLowerPinRate
+		} else {
+			openParams["lastPinDiffRate"] = 0
+		}
+		openParams["lastRsiExtreme"] = (lastRsi - 50.0) / 50.0
+		openParams["prevRsiExtreme"] = rsiSeedRate
+		openParams["penuRsiExtreme"] = (penuRsi - 50.0) / 50.0
+		openParams["prevAmplitudePinRate"] = prevAmplitude * prevUpperPinRate
+		openParams["prevReserveAmplitudePinRate"] = prevAmplitude * prevLowerPinRate
+
 		openParams["prevRsiChange"] = prevRsi - penuRsi
-		// lastRsiChange
 		openParams["lastRsiChange"] = lastRsiChange
 
 		strategyPosition.Side = string(model.SideTypeSell)
-		strategyPosition.Score = lastRsi
 
-		//rsiSeedRate = (prevRsi - 50.0) / 50.0
-		//limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, 1.5, 0.4405)
-		//
-		//decayFactorDistance = calc.CalculateFactor(rsiSeedRate, distanceK)
-		//distanceRate = decayFactorDistance * baseDistanceRate
+		decayFactorFloor = calc.CalculateFactor(rsiSeedRate, floorK)
+		decayFactorAmplitude = calc.CalculateFactor(prevAmplitude, amplitudeK)
+		decayFactorDistance = calc.CalculateFactor(rsiSeedRate, distanceK-decayFactorAmplitude)
 
-		if prevRsi >= 74 && prevRsi < 80 && lastRsiChange > 9.4 && lastRsiChange < 11.2 {
-			if prevAmplitude < 1.2 {
-				if prevAmplitude*prevUpperPinRate > 1.5 {
-					distanceRate = 0.165
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 1.2 && prevAmplitude < 2.1 {
-				if prevAmplitude*prevUpperPinRate > 2.0 {
-					distanceRate = 0.155
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 2.1 && prevAmplitude < 4.0 {
-				if prevAmplitude*prevUpperPinRate > 2.5 {
-					distanceRate = 0.145
-					strategyPosition.Useable = 1
-				}
-			} else {
-				if prevAmplitude*prevUpperPinRate > 3 {
-					distanceRate = 0.135
-					strategyPosition.Useable = 1
-					strategyPosition.OpenPrice = lastPrice
-				}
-			}
-		}
-		if prevRsi >= 80 && prevRsi < 86 && lastRsiChange > 7.6 && lastRsiChange < 9.4 {
-			if prevAmplitude < 1.2 {
-				if upperShadowChangeRate > 0.72 && prevAmplitude*prevUpperPinRate > 0.42 {
-					distanceRate = 0.135
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 1.2 && prevAmplitude < 2.1 {
-				if upperShadowChangeRate > 0.66 && prevAmplitude*prevUpperPinRate > 0.68 {
-					distanceRate = 0.125
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 2.1 && prevAmplitude < 4.0 {
-				if upperShadowChangeRate > 0.60 && prevAmplitude*prevUpperPinRate > 1.2 {
-					distanceRate = 0.115
-					strategyPosition.Useable = 1
-				}
-			} else {
-				if upperShadowChangeRate > 0.30 && prevAmplitude*prevUpperPinRate > 2 {
-					distanceRate = 0.105
-					strategyPosition.Useable = 1
-					strategyPosition.OpenPrice = lastPrice
-				}
-			}
-		}
-		if prevRsi >= 86 && prevRsi < 92 && lastRsiChange > 5.8 && lastRsiChange < 7.6 {
-			if prevAmplitude < 1.2 {
-				if upperShadowChangeRate > 0.72 && prevAmplitude*prevUpperPinRate > 0.42 {
-					distanceRate = 0.105
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 1.2 && prevAmplitude < 2.1 {
-				if upperShadowChangeRate > 0.66 && prevAmplitude*prevUpperPinRate > 0.68 {
-					distanceRate = 0.095
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 2.1 && prevAmplitude < 4.0 {
-				if upperShadowChangeRate > 0.60 && prevAmplitude*prevUpperPinRate > 1.2 {
-					distanceRate = 0.085
-					strategyPosition.Useable = 1
-				}
-			} else {
-				if upperShadowChangeRate > 0.30 && prevAmplitude*prevUpperPinRate > 2 {
-					distanceRate = 0.075
-					strategyPosition.Useable = 1
-					strategyPosition.OpenPrice = lastPrice
-				}
-			}
-		}
-		if prevRsi >= 92 && lastRsiChange > 4 && lastRsiChange < 5.8 {
-			if prevAmplitude < 1.2 {
-				if upperShadowChangeRate > 0.72 && prevAmplitude*prevUpperPinRate > 0.91 {
-					distanceRate = 0.075
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 1.2 && prevAmplitude < 2.1 {
-				if upperShadowChangeRate > 0.66 && prevAmplitude*prevUpperPinRate > 1.8 {
-					distanceRate = 0.065
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 2.1 && prevAmplitude < 4.0 {
-				if upperShadowChangeRate > 0.60 && prevAmplitude*prevUpperPinRate > 2.0 {
-					distanceRate = 0.055
-					strategyPosition.Useable = 1
-				}
-			} else {
-				if upperShadowChangeRate > 0.30 && prevAmplitude*prevUpperPinRate > 2.2 {
-					distanceRate = 0.045
-					strategyPosition.Useable = 1
-					strategyPosition.OpenPrice = lastPrice
-				}
+		floor = decayFactorFloor * baseFloor
+		upper = math.Exp(floorK*deltaRsiRatio) * floor
+		distanceRate = decayFactorDistance * baseDistanceRate
+		limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, datum, shadowK)
+
+		if lastRsiChange > floor &&
+			lastRsiChange < upper {
+			if upperShadowChangeRate > limitShadowChangeRate {
+				strategyPosition.Useable = 1
+				strategyPosition.Score = 100 * rsiSeedRate
 			}
 		}
 	}
-
-	if isLowerPinBar && prevAmplitude > 0.65 && prevRsi < 40 && prevLowerPinRate > 0.25 && prevPriceRate > 0.001 {
-		lastRsiChange := lastRsi - prevRsi
+	if prevRsi < 30 && lastRsi > prevRsi && prevPriceRate*prevUpperPinRate > 0.00125 {
+		lastRsiChange = lastRsi - prevRsi
+		rsiSeedRate = (50 - prevRsi) / 50
+		datum = 2.6
+		shadowK = 0.26
 
 		openParams["positionSide"] = string(model.SideTypeBuy)
-		// 上根蜡烛布林带突破情况 收盘，高点
-		// 大于1，突破，反之没突破
 		openParams["prevBollingCrossRate"] = prevBbLower / prevLow
 		openParams["prevCloseCrossRate"] = prevBbLower / prevPrice
-		// 本根蜡烛布林带突破情况 收盘，高点
 		openParams["lastBollingCrossRate"] = lastBbLower / lastLow
 		openParams["lastCloseCrossRate"] = lastBbLower / lastPrice
-		// 前一个rsi增幅
+		openParams["prevPricePinRate"] = prevPriceRate / 0.02 * prevLowerPinRate
+		openParams["lastShadowChangeRate"] = lowerShadowChangeRate
+		if penuUpperPinRate > 0 {
+			openParams["penuPinDiffRate"] = penuLowerPinRate / penuUpperPinRate
+		} else {
+			openParams["penuPinDiffRate"] = 0
+		}
+		if prevUpperPinRate > 0 {
+			openParams["prevPinDiffRate"] = prevLowerPinRate / prevUpperPinRate
+		} else {
+			openParams["prevPinDiffRate"] = 0
+		}
+		if lastUpperPinRate > 0 {
+			openParams["lastPinDiffRate"] = lastLowerPinRate / lastUpperPinRate
+		} else {
+			openParams["lastPinDiffRate"] = 0
+		}
+		openParams["lastRsiExtreme"] = (50.0 - lastRsi) / 50.0
+		openParams["prevRsiExtreme"] = rsiSeedRate
+		openParams["penuRsiExtreme"] = (50.0 - penuRsi) / 50.0
+		openParams["prevAmplitudePinRate"] = prevAmplitude * prevLowerPinRate
+		openParams["prevReserveAmplitudePinRate"] = prevAmplitude * prevUpperPinRate
+
 		openParams["prevRsiChange"] = penuRsi - prevRsi
 		openParams["lastRsiChange"] = lastRsiChange
 
 		strategyPosition.Side = string(model.SideTypeBuy)
-		strategyPosition.Score = 100 - lastRsi
 
-		//rsiSeedRate = (50 - prevRsi) / 50
-		//limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, 1.5, 0.4405)
-		//
-		//decayFactorDistance = calc.CalculateFactor(rsiSeedRate, distanceK)
-		//distanceRate = decayFactorDistance * baseDistanceRate
+		decayFactorFloor = calc.CalculateFactor(rsiSeedRate, floorK)
+		decayFactorAmplitude = calc.CalculateFactor(prevAmplitude, amplitudeK)
+		decayFactorDistance = calc.CalculateFactor(rsiSeedRate, distanceK-decayFactorAmplitude)
 
-		if prevRsi >= 20 && prevRsi < 26 && lastRsiChange > 9.4 && lastRsiChange < 11.2 {
-			if prevAmplitude < 1.2 {
-				if lowerShadowChangeRate > 0.8 && prevAmplitude*prevLowerPinRate > 1.5 {
-					distanceRate = 0.165
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 1.2 && prevAmplitude < 2.1 {
-				if lowerShadowChangeRate > 0.75 && prevAmplitude*prevLowerPinRate > 2.0 {
-					distanceRate = 0.155
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 2.1 && prevAmplitude < 4.0 {
-				if lowerShadowChangeRate > 0.7 && prevAmplitude*prevLowerPinRate > 2.0 {
-					distanceRate = 0.145
-					strategyPosition.Useable = 1
-				}
-			} else {
-				if lowerShadowChangeRate > 0.65 && prevAmplitude*prevLowerPinRate > 3 {
-					distanceRate = 0.135
-					strategyPosition.Useable = 1
-					strategyPosition.OpenPrice = lastPrice
-				}
-			}
-		}
-		if prevRsi >= 14 && prevRsi < 20 && lastRsiChange > 7.6 && lastRsiChange < 9.4 {
-			if prevAmplitude < 1.2 {
-				if lowerShadowChangeRate > 0.7 && prevAmplitude*prevLowerPinRate > 0.42 {
-					distanceRate = 0.135
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 1.2 && prevAmplitude < 2.1 {
-				if lowerShadowChangeRate > 0.65 && prevAmplitude*prevLowerPinRate > 0.68 {
-					distanceRate = 0.125
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 2.1 && prevAmplitude < 4.0 {
-				if lowerShadowChangeRate > 0.6 && prevAmplitude*prevLowerPinRate > 1.2 {
-					distanceRate = 0.115
-					strategyPosition.Useable = 1
-				}
-			} else {
-				if lowerShadowChangeRate > 0.55 && prevAmplitude*prevLowerPinRate > 2 {
-					distanceRate = 0.105
-					strategyPosition.Useable = 1
-					strategyPosition.OpenPrice = lastPrice
-				}
-			}
-		}
-		if prevRsi >= 8 && prevRsi < 14 && lastRsiChange > 5.8 && lastRsiChange < 7.6 {
-			if prevAmplitude < 1.2 {
-				if lowerShadowChangeRate > 0.6 && prevAmplitude*prevLowerPinRate > 0.42 {
-					distanceRate = 0.105
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 1.2 && prevAmplitude < 2.1 {
-				if lowerShadowChangeRate > 0.55 && prevAmplitude*prevLowerPinRate > 0.68 {
-					distanceRate = 0.095
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 2.1 && prevAmplitude < 4.0 {
-				if lowerShadowChangeRate > 0.5 && prevAmplitude*prevLowerPinRate > 1.2 {
-					distanceRate = 0.085
-					strategyPosition.Useable = 1
-				}
-			} else {
-				if lowerShadowChangeRate > 0.45 && prevAmplitude*prevLowerPinRate > 2 {
-					distanceRate = 0.075
-					strategyPosition.Useable = 1
-					strategyPosition.OpenPrice = lastPrice
-				}
-			}
-		}
-		if prevRsi < 8 && lastRsiChange > 4 && lastRsiChange < 5.8 {
-			if prevAmplitude < 1.2 {
-				if lowerShadowChangeRate > 0.72 && prevAmplitude*prevLowerPinRate > 0.91 {
-					distanceRate = 0.075
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 1.2 && prevAmplitude < 2.1 {
-				if lowerShadowChangeRate > 0.66 && prevAmplitude*prevLowerPinRate > 1.8 {
-					distanceRate = 0.065
-					strategyPosition.Useable = 1
-				}
-			} else if prevAmplitude > 2.1 && prevAmplitude < 4.0 {
-				if lowerShadowChangeRate > 0.60 && prevAmplitude*prevLowerPinRate > 2.0 {
-					distanceRate = 0.055
-					strategyPosition.Useable = 1
-				}
-			} else {
-				if lowerShadowChangeRate > 0.30 && prevAmplitude*prevLowerPinRate > 2.2 {
-					distanceRate = 0.045
-					strategyPosition.Useable = 1
-					strategyPosition.OpenPrice = lastPrice
-				}
+		floor = decayFactorFloor * baseFloor
+		upper = math.Exp(floorK*deltaRsiRatio) * floor
+		distanceRate = decayFactorDistance * baseDistanceRate
+		limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, datum, shadowK)
+
+		if lastRsiChange > floor &&
+			lastRsiChange < upper {
+			if lowerShadowChangeRate > limitShadowChangeRate {
+				strategyPosition.Useable = 1
+				strategyPosition.Score = 100 * rsiSeedRate
 			}
 		}
 	}
@@ -402,12 +274,15 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 		} else {
 			strategyPosition.OpenPrice = strategyPosition.OpenPrice + stopLossDistance
 		}
+		openParams["floor"] = floor
+		openParams["upper"] = upper
+		openParams["limitShadowChangeRate"] = limitShadowChangeRate
 		openParams["distanceRate"] = distanceRate
 		openParams["openPrice"] = strategyPosition.OpenPrice
 		// 将 map 转换为 JSON 字符串
 		openParamsBytes, err := json.Marshal(openParams)
 		if err != nil {
-			fmt.Println("错误：", err)
+			utils.Log.Error("错误：", err)
 		}
 		strategyPosition.OpenParams = string(openParamsBytes)
 		utils.Log.Tracef("[PARAMS] %s", strategyPosition.OpenParams)
