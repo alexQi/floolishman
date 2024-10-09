@@ -103,7 +103,7 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 	lastUpperPinRate := upperPinRates.Last(0)
 	lastLowerPinRate := lowerPinRates.Last(0)
 
-	var upperShadowChangeRate, lowerShadowChangeRate float64
+	var upperShadowChangeRate, lowerShadowChangeRate, lastShadowRate, prevShadowRate float64
 	lastUpperShadow := upperShadows.Last(0)
 	lastLowerShadow := lowerShadows.Last(0)
 	prevUpperShadow := upperShadows.Last(1)
@@ -118,6 +118,18 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 	} else {
 		lowerShadowChangeRate = lastLowerShadow / prevLowerShadow
 	}
+
+	if lastLowerShadow == 0 {
+		lastShadowRate = 10.0
+	} else {
+		lastShadowRate = lastUpperShadow / lastLowerShadow
+	}
+	if prevLowerShadow == 0 {
+		prevShadowRate = 10.0
+	} else {
+		prevShadowRate = prevUpperShadow / prevLowerShadow
+	}
+
 	prevMacdDiffRate := (prevMacd - prevSignal) / prevSignal
 
 	penuAmplitude := indicator.AMP(df.Open.Last(2), df.High.Last(2), df.Low.Last(2))
@@ -127,6 +139,8 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 		"prevPriceRate":    prevPriceRate / 0.02,
 		"prevMacdDiffRate": prevMacdDiffRate,
 		"prevPinLenRate":   calc.Abs(prevUpperPinRate - prevLowerPinRate),
+		"lastShadowRate":   lastShadowRate,
+		"prevShadowRate":   prevShadowRate,
 
 		"lastRsi":               lastRsi,
 		"prevRsi":               prevRsi,
@@ -202,9 +216,8 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 		distanceRate = decayFactorDistance * baseDistanceRate
 		limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, datum, shadowK)
 
-		if lastRsiChange > floor &&
-			lastRsiChange < upper {
-			if upperShadowChangeRate > limitShadowChangeRate {
+		if lastRsiChange > floor && lastRsiChange < upper {
+			if upperShadowChangeRate > limitShadowChangeRate && lastShadowRate > 1 {
 				strategyPosition.Useable = 1
 				strategyPosition.Score = 100 * rsiSeedRate
 			}
@@ -258,9 +271,8 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 		distanceRate = decayFactorDistance * baseDistanceRate
 		limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, datum, shadowK)
 
-		if lastRsiChange > floor &&
-			lastRsiChange < upper {
-			if lowerShadowChangeRate > limitShadowChangeRate {
+		if lastRsiChange > floor && lastRsiChange < upper {
+			if lowerShadowChangeRate > limitShadowChangeRate && lastShadowRate < 1 {
 				strategyPosition.Useable = 1
 				strategyPosition.Score = 100 * rsiSeedRate
 			}
