@@ -155,7 +155,12 @@ func (c *Scoop) tickCheckForOpen() {
 				}
 				// 当前开单币种暂停防止在同一根蜡烛线内再次开单
 				if _, ok := opendPositionSide[positionSide]; ok {
-					types.PairPauserChan <- openItem.PairOption.Pair
+					types.CallerPauserChan <- types.CallerStatus{
+						Status: true,
+						PairStatuses: []types.PairStatus{
+							{Pair: openItem.PairOption.Pair, Status: false},
+						},
+					}
 					continue
 				}
 				opendPositionSide[positionSide] = openItem.LongShortRatio

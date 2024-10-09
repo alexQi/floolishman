@@ -30,7 +30,7 @@ var (
 )
 
 var (
-	MaxPairPositions     = 5
+	MaxPairPositions     = 4
 	AvgVolumeLimitRatio  = 1.6
 	ChangeRingCount      = 5
 	ChangeDiffInterval   = 2
@@ -247,10 +247,13 @@ func (c *Base) RegisterPairGridBuilder() {
 func (c *Base) RegisterPairPauser() {
 	for {
 		select {
-		case status := <-types.CallerPauserChan:
-			c.PauseCaller(status)
-		case pair := <-types.PairPauserChan:
-			c.PausePair(pair, time.Duration(c.pairOptions[pair].PauseCaller))
+		case callerStatus := <-types.CallerPauserChan:
+			// 处理全局caller暂停
+			c.PauseCaller(callerStatus.Status)
+			// 处理pair暂停
+			for _, pairStatus := range callerStatus.PairStatuses {
+				c.PausePair(pairStatus, time.Duration(c.pairOptions[pairStatus.Pair].PauseCaller))
+			}
 		}
 	}
 }
@@ -300,18 +303,22 @@ func (c *Base) PauseCaller(status bool) {
 	})
 }
 
-func (c *Base) PausePair(pair string, minutes time.Duration) {
-	if c.pairOptions[pair].Status == false {
+func (c *Base) PausePair(pairStatus types.PairStatus, minutes time.Duration) {
+	if pairStatus.Status == true {
+		types.PairStatusChan <- pairStatus
+		return
+	}
+	if c.pairOptions[pairStatus.Pair].Status == false {
 		return
 	}
 	utils.Log.Infof(
 		"[CALLER - PAUSE：%s] Caller paused, will be resume at %v mins",
-		pair,
-		minutes,
+		pairStatus.Pair,
+		minutes*time.Minute,
 	)
-	c.pairOptions[pair].Status = false
+	c.pairOptions[pairStatus.Pair].Status = false
 	time.AfterFunc(minutes*time.Minute, func() {
-		c.pairOptions[pair].Status = true
+		c.pairOptions[pairStatus.Pair].Status = true
 	})
 }
 

@@ -42,10 +42,13 @@ type PairGridBuilderParam struct {
 	IsForce   bool
 }
 
+type CallerStatus struct {
+	Status       bool // global status
+	PairStatuses []PairStatus
+}
+
 var PairStatusChan = make(chan PairStatus, 10)
 
 var PairGridBuilderParamChan = make(chan PairGridBuilderParam, 100)
 
-var PairPauserChan = make(chan string, 200)
-
-var CallerPauserChan = make(chan bool, 200)
+var CallerPauserChan = make(chan CallerStatus, 200)

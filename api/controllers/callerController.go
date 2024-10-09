@@ -22,7 +22,7 @@ func (c *CallerController) SwitchStatus(ctx iris.Context) error {
 	} else {
 		callerStatus = false
 	}
-	types.CallerPauserChan <- callerStatus
+	types.CallerPauserChan <- types.CallerStatus{Status: callerStatus, PairStatuses: make([]types.PairStatus, 0)}
 	// 返回响应
 	return ctx.JSON(data)
 }

@@ -291,6 +291,7 @@ func (c *ServiceOrder) ListenPositions() {
 		return
 	}
 
+	var callerStatus types.CallerStatus
 	for pair, flagPositions := range c.positionMap {
 		if len(flagPositions) == 0 {
 			continue
@@ -327,12 +328,19 @@ func (c *ServiceOrder) ListenPositions() {
 				}
 				// 删除当前持仓map
 				delete(c.positionMap[pair], orderFlag)
+				// 处理callerStatus
 				// 暂停该币种开单
-				types.PairPauserChan <- position.Pair
+				callerStatus = types.CallerStatus{
+					Status: true,
+					PairStatuses: []types.PairStatus{
+						{Pair: pair, Status: false},
+					},
+				}
 				// 判断是否需要全局停止开单
 				if position.Profit < 0 {
-					types.CallerPauserChan <- true
+					callerStatus.Status = false
 				}
+				types.CallerPauserChan <- callerStatus
 				continue
 			}
 			// 当前方向的仓位不存在删除仓位
@@ -365,12 +373,19 @@ func (c *ServiceOrder) ListenPositions() {
 				}
 				// 删除当前持仓map
 				delete(c.positionMap[pair], orderFlag)
+				// 处理callerStatus
 				// 暂停该币种开单
-				types.PairPauserChan <- position.Pair
+				callerStatus = types.CallerStatus{
+					Status: true,
+					PairStatuses: []types.PairStatus{
+						{Pair: pair, Status: false},
+					},
+				}
 				// 判断是否需要全局停止开单
 				if position.Profit < 0 {
-					types.CallerPauserChan <- true
+					callerStatus.Status = false
 				}
+				types.CallerPauserChan <- callerStatus
 				continue
 			}
 			hasChange := false
@@ -742,12 +757,19 @@ func (c *ServiceOrder) updatePosition(o *model.Order) {
 	if position.Status == 10 {
 		// 删除当前持仓map
 		delete(c.positionMap[o.Pair], o.OrderFlag)
+		// 处理callerStatus
 		// 暂停该币种开单
-		types.PairPauserChan <- position.Pair
+		callerStatus := types.CallerStatus{
+			Status: true,
+			PairStatuses: []types.PairStatus{
+				{Pair: o.Pair, Status: false},
+			},
+		}
 		// 判断是否需要全局停止开单
 		if position.Profit < 0 {
-			types.CallerPauserChan <- true
+			callerStatus.Status = false
 		}
+		types.CallerPauserChan <- callerStatus
 	}
 
 	if result != nil {

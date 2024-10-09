@@ -120,12 +120,12 @@ func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe)
 	}
 
 	if lastLowerShadow == 0 {
-		lastShadowRate = 10.0
+		lastShadowRate = 1.0
 	} else {
 		lastShadowRate = lastUpperShadow / lastLowerShadow
 	}
 	if prevLowerShadow == 0 {
-		prevShadowRate = 10.0
+		prevShadowRate = 1.0
 	} else {
 		prevShadowRate = prevUpperShadow / prevLowerShadow
 	}
@@ -217,7 +217,7 @@ func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe)
 		limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, datum, shadowK)
 
 		if lastRsiChange > floor && lastRsiChange < upper {
-			if upperShadowChangeRate > limitShadowChangeRate && lastShadowRate > 1 {
+			if upperShadowChangeRate > limitShadowChangeRate {
 				strategyPosition.Useable = 1
 				strategyPosition.Score = 100 * rsiSeedRate
 			}
@@ -272,7 +272,7 @@ func (s *Radicalization) OnCandle(option *model.PairOption, df *model.Dataframe)
 		limitShadowChangeRate = calc.CalculateRate(prevAmplitude*rsiSeedRate, datum, shadowK)
 
 		if lastRsiChange > floor && lastRsiChange < upper {
-			if lowerShadowChangeRate > limitShadowChangeRate && lastShadowRate < 1 {
+			if lowerShadowChangeRate > limitShadowChangeRate {
 				strategyPosition.Useable = 1
 				strategyPosition.Score = 100 * rsiSeedRate
 			}
