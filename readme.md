@@ -65,7 +65,9 @@
 
 - windows用户，修改完配置文件，将证书放入certs/文件夹下，启动floolishman.exe
 - macos,linux用户，修改完配置文件，将证书放入certs/文件夹下，启动floolishman
-
+- 接入tensorflow 通过数据预测。
 
 ``
 ``
+
+由于其他原因，本项目暂停开发，如有需求，可联系邮箱alex.qiubo@qq.com
