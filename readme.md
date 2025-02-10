@@ -1,73 +1,105 @@
-## 愚公量化交易。 (Floolishman)
 
-为了克服人性弱点，惧怕亏损，害怕盈利回撤，Floolishman 诞生了。提供以下能力
+# 愚公量化交易 - Floolishman  
 
-- 复合策略
-- 评分机制
-- 开仓决策算饭
-- 空间止损
-- 时间止损
-- 移动止盈
+**Floolishman** 专为克服交易中的人性弱点设计，通过算法消除惧怕亏损、害怕盈利回撤等情绪因素。系统提供 **复合策略引擎、动态风险管控** 和 **AI辅助决策** ，助力稳健量化交易。
 
-| 免责声明                                                           |
-|----------------------------------------------------------------|
-| 本软件仅供学习用途。不要拿你害怕失去的钱去冒险。使用本软件的风险由您自己承担。作者和所有附属机构不对您的交易结果承担任何责任 |
+---
 
-## 安装运行
+## 📋 功能概览
 
-#### API申请
+### 核心交易功能
+- ✅ **多币种监控**：支持单币种/全币种模式，灵活切换市场覆盖
+- ✅ **智能止损机制**：
+  - ✈️ 移动止盈：波动率驱动止盈线自动上浮
+  - 🛑 空间止损：价格偏离阈值立即触发
+  - ⏳ 时间止损：持仓超时自动平仓
+- ✅ **仓位模式**：固定仓位 / 动态仓位（根据市场波动自动调整）
+- ✅ **开仓决策引擎**：结合技术指标（RSI, EMA等）自动计算最佳点位
 
-币安网页版申请api，需要打开允许合约交易，加密方式选择ED25519；具体申请方式请点击[币安文档中心](https://www.binance.com/zh-CN/support/faq/%E5%A6%82%E4%BD%95%E5%9C%A8%E5%B8%81%E5%AE%89%E5%88%9B%E5%BB%BAapi%E5%AF%86%E9%92%A5-360002502072)
+### 高级功能
+- 📈 **回溯测试**：支持历史 K 线回测，计算胜率/盈亏比/最大回撤
+- 🤖 **AI 预测服务**：TensorFlow 深度学习模型预测价格趋势（需联系获取）
+- 📊 **评分机制**：多时间周期策略评分加权择优
 
-#### 修改配置文件
+---
 
-```
-{
-    "trading": {
-        // 开仓大小 0.1表示10%的仓位
-        "fullSpaceRatio": 0.1,
-        // 初始止损亏损比例
-        "initLossRatio": 0.5,5
-        // 移动止损利润网格比例 10%
-        "profitableScale": 0.1,
-        // 触发移动止损利润比
-        "initProfitRatioLimit": 0.25
-    },
-    "proxy": {
-        "status": true,
-        "url": "http://127.0.0.1:7890"
-    },
-    "storage": {
-        "driver": "sqlite",
-        "path": "runtime/data/floolishman.db"
-    },
-    "log": {
-        "level": "info",
-        "flag": "floolishman",
-        "path": "runtime/logs",
-        "suffix": "log",
-        "stdout": true
-    },
-    "api": {
-        "encrypt": "ED25519", //加密方式 ED25519 MMAC 推荐ED25519
-        "key": "", // api key
-        "secret": "", // api secret  HMAC方式时需要
-        "pem": ""   // 证书路径  ED25519时需要
-    },
-    "telegram": {
-        "token": "",
-        "user": ""
-    }
-}
+## ⚡ 快速部署
+
+### 1. 交易所配置
+- 申请币安 API：确保勾选 **合约交易权限**  
+  _推荐加密方式：ED25519（更高安全性）_
+- [API申请指南](https://www.binance.com/zh-CN/support/faq/360002502072)
+
+### 2. 配置文件（config/bot.yaml）
+```yaml
+api:
+  encrypt: ED25519
+  key: ""
+  secret: ""
+  pem: ""
 ```
 
-#### 程序运行
+### 3. 启动程序
+```bash
+# Windows
+floolishman.exe
 
-- windows用户，修改完配置文件，将证书放入certs/文件夹下，启动floolishman.exe
-- macos,linux用户，修改完配置文件，将证书放入certs/文件夹下，启动floolishman
-- 接入tensorflow 通过数据预测。
+# Mac/Linux
+chmod +x floolishman
+./floolishman
+```
 
-``
-``
+---
 
-由于其他原因，本项目暂停开发，如有需求，可联系邮箱alex.qiubo@qq.com
+## 📊 回溯测试系统
+
+##### 拉取数据
+```bash
+
+go run cmd/tools/cmd.go download --pair ETHUSDT --timeframe 1m --futures --output ./testdata/eth-1m.csv --days 1
+```
+
+```bash
+# 测试移动止损策略在BTCUSDT的表现
+go run cmd/backtesting/main.go 
+```
+
+**输出指标清单**：
+- 策略胜率（Win Rate）
+- 盈亏比（Profit Factor） 
+- 最大回撤（Max Drawdown）
+- 夏普比率（Sharpe Ratio）
+- 年化收益率（Annual Return）   
+
+---
+
+## 🤖 TensorFlow 预测服务
+**功能特色**：
+- 🧠 基于 LSTM 神经网络的趋势预测模型
+- 📉 输入特征：价格数据 + RSI/MACD/布林带等技术指标
+- 🔮 输出结果：未来5个时间单位的涨跌概率预测
+_（完整功能需邮件申请激活）_
+
+---
+
+## ⚠️ 风险声明
+- 本系统为**量化学习项目**，严禁用于真实交易
+- 金融市场存在极高风险，使用者需自行承担所有后果
+- 作者不保证策略有效性，不承担任何交易亏损责任
+
+---
+
+### 最新更新
+🆕 集成策略回测模块  
+🆕 支持 TensorFlow 模型调用  
+🆕 优化配置向导文档  
+🆕 新增动态仓位控制逻辑
+
+---
+
+## 📬 技术支持
+
+**⚠️ 项目状态公告**  
+由于其他原因，本项目已停止更新维护。如需获取支持或历史版本，请联系：  
+📧 邮箱：alex.qiubo@qq.com  
+📱 Telegram：@golantingquer
