@@ -1,17 +1,17 @@
 # 交易对配置
 pairs:
   # 交易对名称
-  1000PEPEUSDT:
+  BTCUSDT:
     # 状态
     status: true
     # 杠杆倍数 需要带上小数点
-    leverage: 20.0
+    leverage: 100.0
     # 仓位模式
     marginType: CROSSED
     # 保证金模式 ROLL 滚仓｜STATIC 静态 | MARGIN 保证金
     marginMode: ROLL
     # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量 | MARGIN 固定USDT
-    marginSize: 0.2
+    marginSize: 0.05
   # 交易对名称
 #  ETHUSDT:
 #    # 状态

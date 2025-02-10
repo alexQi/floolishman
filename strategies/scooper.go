@@ -223,7 +223,7 @@ func (s *Scooper) OnCandle(option *model.PairOption, df *model.Dataframe) model.
 			}
 		}
 	}
-	if prevRsi < 30 && lastRsi > prevRsi && prevPriceRate*prevUpperPinRate > 0.00125 {
+	if prevRsi < 10 && lastRsi > prevRsi && prevPriceRate*prevUpperPinRate > 0.00125 {
 		lastRsiChange = lastRsi - prevRsi
 		rsiSeedRate = (50 - prevRsi) / 50
 		datum = 2.6

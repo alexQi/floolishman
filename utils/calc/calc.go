@@ -224,6 +224,8 @@ func CalculateAddQuantity(mainSide model.SideType, mainQuantity, mainPrice, subQ
 	return addAmount
 }
 
+// dis := profitRatio * entryPrice / leverage
+// profitratio = dis/(entryPrice / leverage)
 func StopLossDistance(profitRatio float64, entryPrice float64, leverage float64) float64 {
 	return profitRatio * entryPrice / leverage
 }

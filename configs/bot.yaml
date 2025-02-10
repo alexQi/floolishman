@@ -5,194 +5,179 @@ watchdog:
   host: "127.0.0.1:9999"
 # 策略配置
 strategies:
-  #  - Emacross15m
-  #  - Range15m
-  #  - Momentum15m
-  #  - MomentumVolume15m
-  #  - Rsi15m
-  #  - Vibrate15m
-  #  - Kc15m
-  #  - Rsi15m
-  #  - Macd15m
-  #  - "Grid1h"
-  #  - "Resonance15m"
-  #  - "Radicalization"
-  #  - "Scooper"
-  #    - "ScooperWeight"
-    - "Radicalization"
-#  - Scoop
+  #   - Radicalization
+  - Scoop
 # 量化caller配置
 caller:
   # 执行模式 grid | frequency | dual | candle | interval | watchdog | scoop
-  checkMode: candle
+  checkMode: scoop
   # 忽略开单时段
   ignoreHours:
-    - 20
+  # - 20
   # 忽略币种
   ignorePairs:
-    - BCHUSDT
     - YFIUSDT
   allowPairs:
     - BTCUSDT
-    - ETHUSDT
-    - BNBUSDT
-    - XRPUSDT
-    - USDCUSDT
-    - ADAUSDT
-    - DOGEUSDT
-    - SOLUSDT
-    - TRXUSDT
-    - MATICUSDT
-    - DOTUSDT
-    - LTCUSDT
-    - 1000SHIBUSDT
-    - BCHUSDT
-    - AVAXUSDT
-    - XLMUSDT
-    - LINKUSDT
-    - XMRUSDT
-    - UNIUSDT
-    - ATOMUSDT
-    - ETCUSDT
-    - HBARUSDT
-    - ICPUSDT
-    - FILUSDT
-    - LDOUSDT
-    - APTUSDT
-    - QNTUSDT
-    - ARBUSDT
-    - VETUSDT
-    - MKRUSDT
-    - OPUSDT
-    - NEARUSDT
-    - AAVEUSDT
-    - GRTUSDT
-    - ALGOUSDT
-    - STXUSDT
-    - XTZUSDT
-    - EOSUSDT
-    - EGLDUSDT
-    - AXSUSDT
-    - SANDUSDT
-    - THETAUSDT
-    - IMXUSDT
-    - SNXUSDT
-    - INJUSDT
-    - FTMUSDT
-    - MANAUSDT
-    - NEOUSDT
-    - RUNEUSDT
-    - APEUSDT
-    - KAVAUSDT
-    - FLOWUSDT
-    - 1000XECUSDT
-    - CHZUSDT
-    - KLAYUSDT
-    - CFXUSDT
-    - FXSUSDT
-    - ZECUSDT
-    - SUIUSDT
-    - CRVUSDT
-    - GALAUSDT
-    - MINAUSDT
-    - 1000LUNCUSDT
-    - DYDXUSDT
-    - 1000PEPEUSDT
-    - COMPUSDT
-    - SFPUSDT
-    - DASHUSDT
-    - ASTRUSDT
-    - GMXUSDT
-    - WOOUSDT
-    - ARUSDT
-    - ROSEUSDT
-    - ZILUSDT
-    - 1INCHUSDT
-    - BATUSDT
-    - LRCUSDT
-    - ENJUSDT
-    - AGIXUSDT
-    - QTUMUSDT
-    - ENSUSDT
-    - SEIUSDT
-    - CELOUSDT
-    - XEMUSDT
-    - MASKUSDT
-    - LPTUSDT
-    - FETUSDT
-    - OCEANUSDT
-    - RVNUSDT
-    - ANKRUSDT
-    - JASMYUSDT
-    - HOTUSDT
-    - YFIUSDT
-    - BALUSDT
-    - GMTUSDT
-    - BLURUSDT
-    - WAVESUSDT
-    - KSMUSDT
-    - 1000FLOKIUSDT
-    - ICXUSDT
-    - TUSDT
-    - LUNA2USDT
-    - ZRXUSDT
-    - SXPUSDT
-    - ONTUSDT
-    - PENDLEUSDT
-    - BANDUSDT
-    - SSVUSDT
-    - WLDUSDT
-    - SUSHIUSDT
-    - IOTXUSDT
-    - IOSTUSDT
-    - ONEUSDT
-    - MAGICUSDT
-    - CKBUSDT
-    - STGUSDT
-    - ZENUSDT
-    - SKLUSDT
-    - UMAUSDT
-    - LOOMUSDT
-    - BIGTIMEUSDT
-    - LQTYUSDT
-    - STORJUSDT
-    - CYBERUSDT
-    - MEMEUSDT
-    - TIAUSDT
-    - ORDIUSDT
-    - 1000SATSUSDT
-    - MANTAUSDT
-    - ALTUSDT
-    - XAIUSDT
-    - AIUSDT
-    - PYTHUSDT
-    - ACEUSDT
-    - NFPUSDT
-    - JTOUSDT
-    - 1000RATSUSDT
-    - RONINUSDT
-    - JUPUSDT
-    - CAKEUSDT
-    - IDUSDT
-    - ENAUSDT
-    - WIFUSDT
-    - STRKUSDT
-    - ARKMUSDT
-    - WUSDT
-    - 1000BONKUSDT
-    - BOMEUSDT
-    - BBUSDT
-    - ONDOUSDT
-    - TNSRUSDT
-    - TONUSDT
-    - NOTUSDT
-    - DOGSUSDT
+    # - ETHUSDT
+    # - BNBUSDT
+    # - XRPUSDT
+    # - USDCUSDT
+    # - ADAUSDT
+    # - DOGEUSDT
+    # - SOLUSDT
+    # - TRXUSDT
+    # - MATICUSDT
+    # - DOTUSDT
+    # - LTCUSDT
+    # - 1000SHIBUSDT
+    # - BCHUSDT
+    # - AVAXUSDT
+    # - XLMUSDT
+    # - LINKUSDT
+    # - XMRUSDT
+    # - UNIUSDT
+    # - ATOMUSDT
+    # - ETCUSDT
+    # - HBARUSDT
+    # - ICPUSDT
+    # - FILUSDT
+    # - LDOUSDT
+    # - APTUSDT
+    # - QNTUSDT
+    # - ARBUSDT
+    # - VETUSDT
+    # - MKRUSDT
+    # - OPUSDT
+    # - NEARUSDT
+    # - AAVEUSDT
+    # - GRTUSDT
+    # - ALGOUSDT
+    # - STXUSDT
+    # - XTZUSDT
+    # - EOSUSDT
+    # - EGLDUSDT
+    # - AXSUSDT
+    # - SANDUSDT
+    # - THETAUSDT
+    # - IMXUSDT
+    # - SNXUSDT
+    # - INJUSDT
+    # - FTMUSDT
+    # - MANAUSDT
+    # - NEOUSDT
+    # - RUNEUSDT
+    # - APEUSDT
+    # - KAVAUSDT
+    # - FLOWUSDT
+    # - 1000XECUSDT
+    # - CHZUSDT
+    # - KLAYUSDT
+    # # - CFXUSDT
+    # - FXSUSDT
+    # - ZECUSDT
+    # - SUIUSDT
+    # - CRVUSDT
+    # - GALAUSDT
+    # - MINAUSDT
+    # - 1000LUNCUSDT
+    # - DYDXUSDT
+    # - 1000PEPEUSDT
+    # - COMPUSDT
+    # - SFPUSDT
+    # - DASHUSDT
+    # - ASTRUSDT
+    # - GMXUSDT
+    # - WOOUSDT
+    # - ARUSDT
+    # - ROSEUSDT
+    # - ZILUSDT
+    # - 1INCHUSDT
+    # - BATUSDT
+    # - LRCUSDT
+    # - ENJUSDT
+    # - AGIXUSDT
+    # - QTUMUSDT
+    # - ENSUSDT
+    # - SEIUSDT
+    # # - CELOUSDT
+    # - XEMUSDT
+    # - MASKUSDT
+    # - LPTUSDT
+    # - FETUSDT
+    # - OCEANUSDT
+    # - RVNUSDT
+    # - ANKRUSDT
+    # - JASMYUSDT
+    # - HOTUSDT
+    # - YFIUSDT
+    # - BALUSDT
+    # - GMTUSDT
+    # - BLURUSDT
+    # - WAVESUSDT
+    # - KSMUSDT
+    # - 1000FLOKIUSDT
+    # - ICXUSDT
+    # - TUSDT
+    # - LUNA2USDT
+    # - ZRXUSDT
+    # - SXPUSDT
+    # - ONTUSDT
+    # - PENDLEUSDT
+    # - BANDUSDT
+    # # - SSVUSDT
+    # - WLDUSDT
+    # - SUSHIUSDT
+    # - IOTXUSDT
+    # - IOSTUSDT
+    # - ONEUSDT
+    # - MAGICUSDT
+    # - CKBUSDT
+    # - STGUSDT
+    # - ZENUSDT
+    # - SKLUSDT
+    # - UMAUSDT
+    # # - LOOMUSDT
+    # - BIGTIMEUSDT
+    # - LQTYUSDT
+    # - STORJUSDT
+    # - CYBERUSDT
+    # - MEMEUSDT
+    # - TIAUSDT
+    # - ORDIUSDT
+    # - 1000SATSUSDT
+    # - MANTAUSDT
+    # - ALTUSDT
+    # - XAIUSDT
+    # - AIUSDT
+    # - PYTHUSDT
+    # - ACEUSDT
+    # - NFPUSDT
+    # - JTOUSDT
+    # - 1000RATSUSDT
+    # - RONINUSDT
+    # - JUPUSDT
+    # - CAKEUSDT
+    # - IDUSDT
+    # - ENAUSDT
+    # - WIFUSDT
+    # - STRKUSDT
+    # - ARKMUSDT
+    # # - WUSDT
+    # - 1000BONKUSDT
+    # - BOMEUSDT
+    # - BBUSDT
+    # - ONDOUSDT
+    # - TNSRUSDT
+    # - TONUSDT
+    # - NOTUSDT
+    # - DOGSUSDT
   # watchdog模式下是否是跟随模式，其他模式下都为false
   followSymbol: false
   # 时间止损市场 单位分钟
-  positionTimeout: 45
+  positionTimeOut: 90
   # 止损配置 - 亏损次数触发
-  lossTrigger: 1
+  lossTrigger: 2
   # 止损配置 - 指数退避最小暂停时间 (分钟)
   lossPauseMin: 45.0
   # 止损配置 - 指数退避最大暂停时间 (分钟)
@@ -205,7 +190,7 @@ caller:
   # 保证金模式 ROLL 滚仓｜STATIC 静态 | | MARGIN 保证金
   marginMode: ROLL
   # 保证金开仓金额 ROLL模式下为比例 ｜ STATIC 为数量 | MARGIN 为USDT
-  marginSize: 0.2
+  marginSize: 0.20
   # 移动止盈后撤比例
   profitableScale: 0.0032
   # 移动止盈后撤比例-step 0.0000025
@@ -229,9 +214,9 @@ storage:
 # binance api key 密钥
 api:
   encrypt: ED25519
-  key: ""
+  key: "u71mRHnIYu233MjglDbKVjNioSMGGhXmPz9R7eD33P62XXnYChRVqKUTuc2oEfuq"
   secret: ""
-  pem: ""
+  pem: "certs/xiang_Private_key.pem"
 # telegram配置
 telegram:
   token: ""

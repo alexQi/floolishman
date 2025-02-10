@@ -195,34 +195,180 @@ func (bs *BaseStrategy) checkBollingNearCross(df *model.Dataframe, period int, e
 	return isNearBand, isCrossAndBack
 }
 
-func (bs *BaseStrategy) checkBollingCross(df *model.Dataframe, period int, endIndex int, position string) (bool, bool) {
-	hasCross := false
-	hasBack := false
-	var high, low, limits []float64
-	if position == "up" {
-		limits = df.Metadata["bbUpper"].GetLastValues(period, endIndex)
-		high = df.High.GetLastValues(period, endIndex)
-		for i, price := range high {
-			if hasCross == false && price >= limits[i] {
-				hasCross = true
-				continue
-			}
-			if hasCross == true {
-				hasBack = price < limits[i]
-			}
-		}
+func (bs *BaseStrategy) extraFeatures(df *model.Dataframe) *model.StrategyFeature {
+	// 获取必要的市场数据
+	lastPrice := df.Close.Last(0)
+	prevPrice := df.Close.Last(1)
+	penuPrie := df.Close.Last(2)
+
+	bbUpper := df.Metadata["bbUpper"]
+	bbLower := df.Metadata["bbUpper"]
+	bbMiddle := df.Metadata["bbMiddle"]
+
+	befoRsi := df.Metadata["rsi"].Last(3)
+	penuRsi := df.Metadata["rsi"].Last(2)
+	prevRsi := df.Metadata["rsi"].Last(1)
+	lastRsi := df.Metadata["rsi"].Last(0)
+
+	prevAvgVolume := df.Metadata["avgVolume"].Last(1)
+	penuAvgVolume := df.Metadata["avgVolume"].Last(2)
+
+	// 实际成交量
+	prevVolume := df.Volume.Last(1)
+	penuVolume := df.Volume.Last(2)
+
+	penuPriceRate := df.Metadata["priceRate"].Last(2)
+	prevPriceRate := df.Metadata["priceRate"].Last(1)
+
+	macd := df.Metadata["macd"]
+	signal := df.Metadata["signal"]
+	upperPinRates := df.Metadata["upperPinRates"]
+	lowerPinRates := df.Metadata["lowerPinRates"]
+	upperShadows := df.Metadata["upperShadows"]
+	lowerShadows := df.Metadata["lowerShadows"]
+
+	penuUpperPinRate := upperPinRates.Last(2)
+	penuLowerPinRate := lowerPinRates.Last(2)
+	prevUpperPinRate := upperPinRates.Last(1)
+	prevLowerPinRate := lowerPinRates.Last(1)
+	lastUpperPinRate := upperPinRates.Last(0)
+	lastLowerPinRate := lowerPinRates.Last(0)
+
+	// 初始化一些参数
+	var lastUpperShadowChangeRate, prevUpperShadowChangeRate, penuUpperShadowChangeRate, lastLowerShadowChangeRate, prevLowerShadowChangeRate, penuLowerShadowChangeRate, lastShadowRate, prevShadowRate, penuShadowRate float64
+	lastUpperShadow := upperShadows.Last(0)
+	lastLowerShadow := lowerShadows.Last(0)
+	prevUpperShadow := upperShadows.Last(1)
+	prevLowerShadow := lowerShadows.Last(1)
+	penuUpperShadow := upperShadows.Last(2)
+	penuLowerShadow := lowerShadows.Last(2)
+	befoUpperShadow := upperShadows.Last(3)
+	befoLowerShadow := lowerShadows.Last(3)
+	// 计算影线变化率 -- upper
+	if prevUpperShadow == 0 {
+		lastUpperShadowChangeRate = 0
 	} else {
-		limits = df.Metadata["bbLower"].GetLastValues(period, endIndex)
-		low = df.Low.GetLastValues(period, endIndex)
-		for i, price := range low {
-			if hasCross == false && price <= limits[i] {
-				hasCross = true
-				continue
-			}
-			if hasCross == true {
-				hasBack = price > limits[i]
-			}
-		}
+		lastUpperShadowChangeRate = lastUpperShadow / prevUpperShadow
 	}
-	return hasCross, hasBack
+	if penuUpperShadow == 0 {
+		prevUpperShadowChangeRate = 0
+	} else {
+		prevUpperShadowChangeRate = prevUpperShadow / penuUpperShadow
+	}
+	if befoUpperShadow == 0 {
+		penuUpperShadowChangeRate = 0
+	} else {
+		penuUpperShadowChangeRate = penuUpperShadow / befoUpperShadow
+	}
+
+	// 计算影线变化率 -- lower
+	if prevLowerShadow == 0 {
+		lastLowerShadowChangeRate = 0
+	} else {
+		lastLowerShadowChangeRate = lastLowerShadow / prevLowerShadow
+	}
+	if penuLowerShadow == 0 {
+		prevLowerShadowChangeRate = 0
+	} else {
+		prevLowerShadowChangeRate = prevLowerShadow / penuLowerShadow
+	}
+	if befoLowerShadow == 0 {
+		penuLowerShadowChangeRate = 0
+	} else {
+		penuLowerShadowChangeRate = penuLowerShadow / befoLowerShadow
+	}
+
+	// 计算影线比例
+	if lastLowerShadow == 0 {
+		lastShadowRate = 1.0
+	} else {
+		lastShadowRate = lastUpperShadow / lastLowerShadow
+	}
+	if prevLowerShadow == 0 {
+		prevShadowRate = 1.0
+	} else {
+		prevShadowRate = prevUpperShadow / prevLowerShadow
+	}
+	if penuLowerShadow == 0 {
+		penuShadowRate = 1.0
+	} else {
+		penuShadowRate = penuUpperShadow / penuLowerShadow
+	}
+	// RSI 极限值计算
+	lastRsiExtreme := (lastRsi - 50.0) / 50.0
+	prevRsiExtreme := (prevRsi - 50.0) / 50.0
+	penuRsiExtreme := (penuRsi - 50.0) / 50.0
+
+	// 布林带突破情况
+	var lastBollingCrossRate, prevBollingCrossRate, penuBollingCrossRate, lastCloseCrossRate, prevCloseCrossRate, penuCloseCrossRate float64
+	if lastPrice > bbMiddle.Last(0) {
+		lastBollingCrossRate = df.High.Last(0) / bbUpper.Last(0)
+		lastCloseCrossRate = lastPrice / bbUpper.Last(0)
+	} else {
+		lastBollingCrossRate = bbLower.Last(0) / df.Low.Last(0)
+		lastCloseCrossRate = bbLower.Last(0) / lastPrice
+	}
+
+	if prevPrice > bbMiddle.Last(1) {
+		prevBollingCrossRate = df.High.Last(1) / bbUpper.Last(1)
+		prevCloseCrossRate = prevPrice / bbUpper.Last(1)
+	} else {
+		prevBollingCrossRate = bbLower.Last(0) / df.Low.Last(0)
+		prevCloseCrossRate = bbLower.Last(0) / prevPrice
+	}
+	if lastPrice > bbMiddle.Last(2) {
+		penuBollingCrossRate = df.High.Last(2) / bbUpper.Last(2)
+		penuCloseCrossRate = penuPrie / bbUpper.Last(0)
+	} else {
+		penuBollingCrossRate = bbLower.Last(2) / df.Low.Last(2)
+		penuCloseCrossRate = bbLower.Last(2) / penuPrie
+	}
+
+	// 创建 StrategyFeature 实例并填充数据
+	feature := &model.StrategyFeature{
+		LastPrice:                 lastPrice,
+		LastRsi:                   lastRsi,
+		PrevRsi:                   prevRsi,
+		PenuRsi:                   penuRsi,
+		LastRsiExtreme:            lastRsiExtreme,
+		PrevRsiExtreme:            prevRsiExtreme,
+		PenuRsiExtreme:            penuRsiExtreme,
+		LastRsiDiff:               lastRsi - prevRsi,
+		PrevRsiDiff:               prevRsi - penuRsi,
+		PenuRsiDiff:               penuRsi - befoRsi,
+		PrevAvgVolumeRate:         prevVolume / prevAvgVolume,
+		PenuAvgVolumeRate:         penuVolume / penuAvgVolume,
+		PrevPriceRate:             prevPriceRate,
+		PenuPriceRate:             penuPriceRate,
+		LastShadowRate:            lastShadowRate,
+		PrevShadowRate:            prevShadowRate,
+		PenuShadowRate:            penuShadowRate,
+		LastUpperShadowChangeRate: lastUpperShadowChangeRate,
+		PrevUpperShadowChangeRate: prevUpperShadowChangeRate,
+		PenuUpperShadowChangeRate: penuUpperShadowChangeRate,
+		LastLowerShadowChangeRate: lastLowerShadowChangeRate,
+		PrevLowerShadowChangeRate: prevLowerShadowChangeRate,
+		PenuLowerShadowChangeRate: penuLowerShadowChangeRate,
+		LastUpperPinRate:          lastUpperPinRate,
+		PrevUpperPinRate:          prevUpperPinRate,
+		PenuUpperPinRate:          penuUpperPinRate,
+		LastLowerPinRate:          lastLowerPinRate,
+		PrevLowerPinRate:          prevLowerPinRate,
+		PenuLowerPinRate:          penuLowerPinRate,
+		LastMacdDiffRate:          (macd.Last(0) - signal.Last(0)) / signal.Last(0),
+		PrevMacdDiffRate:          (macd.Last(1) - signal.Last(1)) / signal.Last(1),
+		PenuMacdDiffRate:          (macd.Last(2) - signal.Last(2)) / signal.Last(2),
+		LastAmplitude:             indicator.AMP(df.Open.Last(0), df.High.Last(0), df.Low.Last(0)),
+		PrevAmplitude:             indicator.AMP(df.Open.Last(1), df.High.Last(1), df.Low.Last(1)),
+		PenuAmplitude:             indicator.AMP(df.Open.Last(2), df.High.Last(2), df.Low.Last(2)),
+		LastBollingCrossRate:      lastBollingCrossRate,
+		PrevBollingCrossRate:      prevBollingCrossRate,
+		PenuBollingCrossRate:      penuBollingCrossRate,
+		LastCloseCrossRate:        lastCloseCrossRate,
+		PrevCloseCrossRate:        prevCloseCrossRate,
+		PenuCloseCrossRate:        penuCloseCrossRate,
+		OpenAt:                    df.LastUpdate.In(Loc).Format("2006-01-02 15:04:05"),
+	}
+
+	return feature
 }
